@@ -1,0 +1,32 @@
+name: Maven Build & Release .jar
+on:
+  push:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Extract version from pom.xml
+        run: echo "PROJECT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_ENV
+
+      - name: Build with Maven
+        run: mvn --batch-mode --update-snapshots package
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: "v${{ env.PROJECT_VERSION }}"
+          name: "Release v${{ env.PROJECT_VERSION }}"
+          body: "Release version ${{ env.PROJECT_VERSION }}"
+          files: target/*-All.jar

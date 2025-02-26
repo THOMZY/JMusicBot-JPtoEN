@@ -3,7 +3,7 @@
 #### Youtube links working again ( 2025/02/26 )  
 ##### Dependencies update :  
 - Lavalink : 1.11.4 > 1.11.5  
-- net.dv8tion-JDA : 5.2.2 > 5.2.3  
+- net.dv8tion-JDA : 5.2.2 > 5.3.0  
 
 
 
@@ -42,6 +42,7 @@ This bot requires Java version 11 or higher.
 If Java is not installed, download it from [here](https://www.oracle.com/jp/java/technologies/downloads/).  
 To start this bot yourself, refer to the [Cosgy Dev Official Page](https://www.cosgy.dev/2019/09/06/jmusicbot-setup/).  
 You can check the official website by Jagrosh too. [Jagrosh original website](https://jmusicbot.com/)  
+You can find the raw 'config.txt' file [here](https://raw.githubusercontent.com/THOMZY/JMusicBot-JPtoEN/refs/heads/develop/src/main/resources/reference.conf)  
 
 # Setup Using Docker
 
@@ -60,7 +61,7 @@ mvn --batch-mode --update-snapshots verify
 ```
 You will find ```JMusicBot-XXXX.XX.XX-All.jar``` in the "target" folder. 
    
-Or just download the latest working provided .jar [here](https://github.com/THOMZY/JMusicBot-JPtoEN_/releases/latest).  
+Or just download the latest working provided .jar [here](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest).  
   
 # Note
 

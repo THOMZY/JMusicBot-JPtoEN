@@ -1,14 +1,14 @@
 <img align="right" src="https://i.imgur.com/zrE80HY.png" height="200" width="200" alt="ロゴ">
+  
+#### Youtube links working again ( 2025/02/26 )  
+##### Dependencies update :  
+- Lavalink : 1.11.4 > 1.11.5  
+- net.dv8tion-JDA : 5.2.2 > 5.2.3  
 
-[![Downloads](https://img.shields.io/github/downloads/Cosgy-Dev/MusicBot-JP-java/total.svg)](https://github.com/Cosgy-Dev/MusicBot-JP-java/releases/latest)
-[![Stars](https://img.shields.io/github/stars/Cosgy-Dev/MusicBot-JP-java.svg)](https://github.com/Cosgy-Dev/MusicBot-JP-java/stargazers)
-[![Release](https://img.shields.io/github/release/Cosgy-Dev/MusicBot-JP-java.svg)](https://github.com/Cosgy-Dev/MusicBot-JP-java/releases/latest)
-[![License](https://img.shields.io/github/license/Cosgy-Dev/MusicBot-JP-java.svg)](https://github.com/Cosgy-Dev/MusicBot-JP-java/blob/master/LICENSE)
-[![Discord](https://discordapp.com/api/guilds/497317844191805450/widget.png)](https://discord.gg/RBpkHxf)
-![CircleCI](https://img.shields.io/circleci/build/github/Cosgy-Dev/JMusicBot-JP/develop?token=c2ceb77e45cfce45bc8e15161f91d355c54f48b1)
-[![CodeFactor](https://www.codefactor.io/repository/github/cosgy-dev/jmusicbot-jp/badge)](https://www.codefactor.io/repository/github/cosgy-dev/jmusicbot-jp)
 
-# JMusicBotJP
+
+  
+# JMusicBotJPtoEN_
 
 MusicBot uses a simple and user-friendly UI. Both setup and launch are easy.
 <br><br>This is an English translation of JMusicBotJP.
@@ -20,10 +20,7 @@ MusicBot uses a simple and user-friendly UI. Both setup and launch are easy.
 * Fix spotify command not working when "valence" value is empty.
 ### What I can't fix
 * The help command is broken due to Discord's 1000-character limit. This is yet to be fixed upstream.
-* Commands that uses the .isVoice() method from JDA will refuse to work. Also isn't fixed upstream. The Queue command is affected by this.
-
-[![Setup](http://i.imgur.com/VvXYp5j.png)](https://www.cosgy.dev/2019/09/06/jmusicbot-setup/)
-
+  
 # Bot Features
 
 * Easy setup
@@ -42,14 +39,29 @@ MusicBot uses a simple and user-friendly UI. Both setup and launch are easy.
 # Setting up
 
 This bot requires Java version 11 or higher.
-If Java is not installed, download it from [here](https://www.oracle.com/jp/java/technologies/downloads/).
-To start this bot yourself, refer to the [Cosgy Dev Official Page](https://www.cosgy.dev/2019/09/06/jmusicbot-setup/).
+If Java is not installed, download it from [here](https://www.oracle.com/jp/java/technologies/downloads/).  
+To start this bot yourself, refer to the [Cosgy Dev Official Page](https://www.cosgy.dev/2019/09/06/jmusicbot-setup/).  
+You can check the official website by Jagrosh too. [Jagrosh original website](https://jmusicbot.com/)  
 
 # Setup Using Docker
 
 You can start this bot yourself using Docker without having to install Java and other dependencies.
 If using Docker, refer to [here](https://hub.docker.com/r/cyberrex/jmusicbot-jp).
 
+# Build the .jar on windows :
+
+* You need Java ( check [Setting up](https://github.com/THOMZY/JMusicBot-JPtoEN_?tab=readme-ov-file#setting-up) ) and [Maven](https://maven.apache.org/download.cgi). - [How to install Maven](https://phoenixnap.com/kb/install-maven-windows)  
+* You also need Java JDK : [Adoptium](https://adoptium.net/) OR [Oracle](https://www.oracle.com/java/technologies/downloads/?er=221886).
+  
+Download this repo using Git or [download the sources](https://github.com/THOMZY/JMusicBot-JPtoEN_/archive/refs/heads/develop.zip).
+Open a command line window in the downloaded and unziped folder and type :  
+```
+mvn --batch-mode --update-snapshots verify
+```
+You will find ```JMusicBot-XXXX.XX.XX-All.jar``` in the "target" folder. 
+   
+Or just download the latest working provided .jar [here](https://github.com/THOMZY/JMusicBot-JPtoEN_/releases/latest).  
+  
 # Note
 
 This bot cannot be used as a public bot.

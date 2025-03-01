@@ -112,6 +112,10 @@ public class PlaylistsCmd extends MusicCommand {
             this.help = "指定された再生リストを再生します";
             this.beListening = true;
             this.bePlaying = false;
+
+            List<OptionData> options = new ArrayList<>();
+            options.add(new OptionData(OptionType.STRING, "name", "マイリスト名", true));
+            this.options = options;
         }
 
         @Override

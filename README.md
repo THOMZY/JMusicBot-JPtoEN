@@ -1,11 +1,20 @@
-<img align="right" src="https://i.imgur.com/zrE80HY.png" height="200" width="200" alt="ロゴ">  
+[![Downloads](https://img.shields.io/github/downloads/THOMZY/JMusicBot-JPtoEN/total.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest)
+[![Stars](https://img.shields.io/github/stars/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/stargazers)
+[![Release](https://img.shields.io/github/release/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest)
+[![License](https://img.shields.io/github/license/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/develop/LICENSE)
+[![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/THOMZY/JMusicBot-JPtoEN/tree/develop.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/THOMZY/JMusicBot-JPtoEN/tree/develop)
+[![Build and Test](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)  
+<img align="right" src="https://i.imgur.com/9ZXIsiB.png" height="290" width="290">  
   
-### Useless fork to try and update dependencies as soon as the bot stop working...  
+#### Useless fork to try and update dependencies as soon as the bot stop working...  
   
-#### Youtube links working again ( 2025/02/26 )  
+#### Youtube links working again ( 26 March 2025 )  
 ##### Dependencies update :  
-- Lavalink : 1.11.4 > 1.11.5  
-- net.dv8tion-JDA : 5.2.2 > 5.3.0  
+- Lavalink : 1.11.5 > 1.12.0  
+- Almost all dependencies ( maybe useless, check Release changelog )
+
+
   
 # JMusicBotJPtoEN
 

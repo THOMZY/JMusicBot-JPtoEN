@@ -51,7 +51,10 @@ import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -163,10 +166,31 @@ public class PlayCmd extends MusicCommand {
             event.reply(builder.toString());
             return;
         }
-        String args = event.getArgs().startsWith("<") && event.getArgs().endsWith(">")
-                ? event.getArgs().substring(1, event.getArgs().length() - 1)
-                : event.getArgs().isEmpty() ? event.getMessage().getAttachments().get(0).getUrl() : event.getArgs();
-        event.reply(loadingEmoji + "`[" + args + "]` is loading...", m -> bot.getPlayerManager().loadItemOrdered(event.getGuild(), args, new ResultHandler(m, event, false)));
+//THOMZY edit, queue multiple local files in a single message//
+			List<String> urls = new ArrayList<>();
+			if (!event.getMessage().getAttachments().isEmpty()) {
+				Set<String> supportedExtensions = new HashSet<>(Arrays.asList("mp3", "flac", "wav", "webm", "mp4", "m4a"));
+				event.getMessage().getAttachments().forEach(attachment -> {
+					if (attachment.getFileExtension() != null && 
+							supportedExtensions.contains(attachment.getFileExtension())) {
+						urls.add(attachment.getUrl());
+					}
+				});
+			}
+
+			if (!urls.isEmpty()) {
+				for (String url : urls) {
+					event.reply(loadingEmoji + "`Loading file...`", m -> {
+						bot.getPlayerManager().loadItemOrdered(event.getGuild(), url, new ResultHandler(m, event, false));
+					});
+				}
+			} else {
+				String args = event.getArgs().startsWith("<") && event.getArgs().endsWith(">")
+					? event.getArgs().substring(1, event.getArgs().length() - 1)
+					: event.getArgs();
+				event.reply(loadingEmoji + "`[" + args + "]` is loading...", m -> 
+						bot.getPlayerManager().loadItemOrdered(event.getGuild(), args, new ResultHandler(m, event, false)));
+			} //end of edit//
     }
 
     @Override
@@ -194,7 +218,6 @@ public class PlayCmd extends MusicCommand {
                 CacheLoader.CacheResult cache = bot.getCacheLoader().ConvertCache(data);
                 event.reply(":calling: Loading cache file... (" + cache.getItems().size() + " songs)").queue(m -> {
                     cache.loadTracks(bot.getPlayerManager(), (at) -> {
-                        // TODO: Use the user ID stored in the cache.
                         handler.addTrack(new QueuedTrack(at, event.getUser()));
                         count.getAndIncrement();
                     }, () -> {
@@ -495,7 +518,8 @@ public class PlayCmd extends MusicCommand {
             this.bePlaying = false;
 
             List<OptionData> options = new ArrayList<>();
-            options.add(new OptionData(OptionType.STRING, "input", "URL or song title", false));            this.options = options;
+            options.add(new OptionData(OptionType.STRING, "input", "URL or song title", false));
+			this.options = options;
 
         }
 

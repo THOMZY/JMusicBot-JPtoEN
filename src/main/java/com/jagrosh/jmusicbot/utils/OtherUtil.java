@@ -45,7 +45,7 @@ public class OtherUtil {
     public final static String NEW_VERSION_AVAILABLE = "A new version of JMusicBot JPtoEN is available!\n"
             + "Current version: %s\n"
             + "Latest version: %s\n\n"
-            + "Please download the latest version from https://github.com/kichirouhoshino/JMusicBot-JPtoEN/releases/latest.";
+            + "Please download the latest version from https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest.";
     private final static String WINDOWS_INVALID_PATH = "c:\\windows\\system32\\";
 
     /**
@@ -177,7 +177,7 @@ public class OtherUtil {
     public static String getLatestVersion() {
         try {
             Response response = new OkHttpClient.Builder().build()
-                    .newCall(new Request.Builder().get().url("https://api.github.com/repos/kichirouhoshino/JMusicBot-JPtoEN/releases/latest").build())
+                    .newCall(new Request.Builder().get().url("https://api.github.com/repos/THOMZY/JMusicBot-JPtoEN/releases/latest").build())
                     .execute();
             ResponseBody body = response.body();
             if (body != null) {

@@ -1,4 +1,28 @@
-# Changelog
+# Global Changelog
+---
+
+# Lavalink_1.12.1 ( XX April 2025 )
+
+### 🚀 New Features
+- Added `/radio` command that searches and plays radio stations from onlineradiobox.com.
+- Added `/stats` command to view total play time and songs played. Stats are saved in 'serversettings.json'.
+
+### 🔧 Changes
+
+- Cleaner `/nowplaying` visuals.  
+- `/play` now work with Spotify links instead of returning "Unknown file format." error.  
+- Fixed Youtube livestreams bug at 30sec. Stream now auto reload if fail.  
+- Reactive buttons instead of emoji reactions for selecting a song.
+
+### 📦 Dependency Updates
+- **Lavalink**: `1.12.0` → `1.12.1`
+- **net.dv8tion-JDA**: `5.3.0` → `5.3.1`
+- **logback-classic**: `1.5.17` → `1.5.18`
+- **junit-jupiter-api**: `5.12.1` → `5.13.0-M2`
+
+---
+
+# Lavalink_1.12.0 ( 26 March 2025 )
 
 ### 🚀 New Features
 - Added the ability to queue multiple local files in a single message.

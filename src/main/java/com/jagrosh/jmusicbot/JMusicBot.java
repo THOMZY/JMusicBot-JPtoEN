@@ -145,7 +145,7 @@ public class JMusicBot {
         Bot.INSTANCE = bot;
 
         AboutCommand aboutCommand = new AboutCommand(Color.BLUE.brighter(),
-                "[JMusicBot JP(v" + version + ")](https://github.com/Cosgy-Dev/MusicBot-JP-java)",
+                "[JMusicBot](https://github.com/THOMZY/JMusicBot-JPtoEN)",
                 new String[]{"High-quality music playback", "FairQueue™ Technology", "Easily host it yourself"},
                 RECOMMENDED_PERMS);
         aboutCommand.setIsAuthor(false);
@@ -180,6 +180,7 @@ public class JMusicBot {
             add(new ServerInfo(bot));
             //add(new UserInfo());
             add(new CashCmd(bot));
+            add(new StatsCommand(bot));
             // Music
             add(new LyricsCmd(bot));
             add(new NowplayingCmd(bot));
@@ -197,6 +198,7 @@ public class JMusicBot {
             add(new ShuffleCmd(bot));
             add(new SkipCmd(bot));
             add(new VolumeCmd(bot));
+            add(new RadioCmd(bot));
             // DJ
             add(new ForceRemoveCmd(bot));
             add(new ForceskipCmd(bot));

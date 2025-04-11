@@ -57,6 +57,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 
 /**
@@ -67,6 +69,7 @@ public class PlayCmd extends MusicCommand {
     private final static String CANCEL = "\uD83D\uDEAB"; // 🚫
 
     private final String loadingEmoji;
+    private SpotifyCmd spotifyCmd;
 
     public PlayCmd(Bot bot) {
         super(bot);
@@ -82,7 +85,21 @@ public class PlayCmd extends MusicCommand {
         options.add(new OptionData(OptionType.STRING, "input", "URL or song name", false));
         this.options = options;
 
+        // Initialize SpotifyCmd for later use
+        this.spotifyCmd = new SpotifyCmd(bot);
+
         //this.children = new SlashCommand[]{new PlaylistCmd(bot), new MylistCmd(bot), new PublistCmd(bot), new RequestCmd(bot)};
+    }
+
+    // Check if URL is a Spotify track
+    private boolean isSpotifyUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return false;
+        }
+        
+        Pattern pattern = Pattern.compile("https://open\\.spotify\\.com/(intl-[a-z]+/)?track/\\w+");
+        Matcher matcher = pattern.matcher(url.split("\\?")[0]);
+        return matcher.matches();
     }
 
     @Override
@@ -188,8 +205,36 @@ public class PlayCmd extends MusicCommand {
 				String args = event.getArgs().startsWith("<") && event.getArgs().endsWith(">")
 					? event.getArgs().substring(1, event.getArgs().length() - 1)
 					: event.getArgs();
-				event.reply(loadingEmoji + "`[" + args + "]` is loading...", m -> 
-						bot.getPlayerManager().loadItemOrdered(event.getGuild(), args, new ResultHandler(m, event, false)));
+                
+                // Check if the URL is a Spotify link
+                if (isSpotifyUrl(args)) {
+                    // For Spotify URLs, use SpotifyCmd's functionality
+                    if (spotifyCmd.isConfigured()) {
+                        // Process the Spotify URL
+                        String trackId = SpotifyCmd.extractTrackIdFromUrl(args);
+                        if (trackId != null) {
+                            // Handle loading message and processing
+                            event.getChannel().sendMessage(loadingEmoji + " Loading Spotify track...").queue(message -> {
+                                try {
+                                    // Call SpotifyCmd to handle the track
+                                    spotifyCmd.handleSpotifyTrack(trackId, event, message);
+                                } catch (Exception e) {
+                                    message.editMessage("Error processing Spotify track: " + e.getMessage()).queue();
+                                }
+                            });
+                        } else {
+                            event.reply("Error: Invalid Spotify track URL format");
+                        }
+                    } else {
+                        // Spotify functionality is not configured
+                        event.reply("Spotify support is not configured on this bot. Please contact the bot owner.");
+                    }
+                    return;
+                }
+                
+                // Normal track loading
+                event.reply(loadingEmoji + " Loading `[" + args + "]`...", m -> 
+                        bot.getPlayerManager().loadItemOrdered(event.getGuild(), args, new ResultHandler(m, event, false)));
 			} //end of edit//
     }
 
@@ -276,7 +321,38 @@ public class PlayCmd extends MusicCommand {
             event.reply(builder.toString()).queue();
             return;
         }
-        event.reply(loadingEmoji + "Loading `[" + event.getOption("input").getAsString() + "]`...").queue(m -> bot.getPlayerManager().loadItemOrdered(event.getGuild(), event.getOption("input").getAsString(), new SlashResultHandler(m, event, false)));
+        
+        String input = event.getOption("input").getAsString();
+        
+        // Check if the URL is a Spotify link
+        if (isSpotifyUrl(input)) {
+            // For Spotify URLs, handle separately using SpotifyCmd
+            if (spotifyCmd.isConfigured()) {
+                // Get the track ID from the URL
+                String trackId = SpotifyCmd.extractTrackIdFromUrl(input);
+                if (trackId != null) {
+                    // Send initial loading message and process with SpotifyCmd
+                    event.deferReply().queue(hook -> {
+                        try {
+                            // Use SpotifyCmd to handle the track
+                            spotifyCmd.handleSpotifyTrack(trackId, event, hook);
+                        } catch (Exception e) {
+                            hook.editOriginal("Error processing Spotify track: " + e.getMessage()).queue();
+                        }
+                    });
+                } else {
+                    event.reply("Error: Invalid Spotify track URL format").queue();
+                }
+            } else {
+                // Spotify functionality is not configured
+                event.reply("Spotify support is not configured on this bot. Please contact the bot owner.").queue();
+            }
+            return;
+        }
+        
+        // Normal track loading
+        event.reply(loadingEmoji + " Loading `[" + input + "]`...").queue(m -> 
+            bot.getPlayerManager().loadItemOrdered(event.getGuild(), input, new SlashResultHandler(m, event, false)));
     }
 
     public class SlashResultHandler implements AudioLoadResultHandler {
@@ -684,7 +760,8 @@ public class PlayCmd extends MusicCommand {
                             : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks.");
                     if (!playlist.getErrors().isEmpty())
                         builder.append("\nThe following tracks could not be loaded:");
-                    playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1).append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
+                    playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
+                            .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
                     String str = builder.toString();
                     if (str.length() > 2000)
                         str = str.substring(0, 1994) + " (truncated)";

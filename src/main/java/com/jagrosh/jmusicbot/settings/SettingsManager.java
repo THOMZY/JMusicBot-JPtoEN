@@ -68,7 +68,9 @@ public class SettingsManager implements GuildSettingsManager {
                         o.has("announce") ? o.getInt("announce") : 0,
                         o.has("skip_ratio") ? o.getDouble("skip_ratio") : SKIP_RATIO,
                         o.has("vc_status") && o.getBoolean("vc_status"),
-                        o.has("force_to_end_que") && o.getBoolean("force_to_end_que")));
+                        o.has("force_to_end_que") && o.getBoolean("force_to_end_que"),
+                        o.has("songs_played") ? o.getInt("songs_played") : 0,
+                        o.has("playtime_millis") ? o.getLong("playtime_millis") : 0));
             });
         } catch (NoSuchFileException e) {
             // ignore, it just means no settings have been saved yet
@@ -101,7 +103,7 @@ public class SettingsManager implements GuildSettingsManager {
     }
 
     private Settings createDefaultSettings() {
-        return new Settings(this, 0, 0, 0, 10, null, RepeatMode.OFF, null, false, 0, SKIP_RATIO, true, false);
+        return new Settings(this, 0, 0, 0, 10, null, RepeatMode.OFF, null, false, 0, SKIP_RATIO, true, false, 0, 0);
     }
 
     protected void writeSettings() {
@@ -131,6 +133,11 @@ public class SettingsManager implements GuildSettingsManager {
                 o.put("vc_status", s.getVCStatus());
             if(s.isForceToEndQue())
                 o.put("force_to_end_que", s.isForceToEndQue());
+            // Save stats
+            if(s.getSongsPlayed() > 0)
+                o.put("songs_played", s.getSongsPlayed());
+            if(s.getPlayTimeMillis() > 0)
+                o.put("playtime_millis", s.getPlayTimeMillis());
 
             obj.put(Long.toString(key), o);
         }

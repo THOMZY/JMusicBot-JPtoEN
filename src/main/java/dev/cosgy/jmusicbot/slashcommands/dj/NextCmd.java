@@ -44,6 +44,7 @@ public class NextCmd extends DJCommand {
         event.reply(event.getClient().getSuccess() + " **" +
                 (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : handler.getPlayer().getPlayingTrack().getInfo().title) +
                 "** has been skipped. (" + (u == null ? "Someone" : "**" + u.getName() + "**") + " requested it.)");
+        handler.updateStatsOnSkip();
         handler.getPlayer().stopTrack();
     }
 
@@ -62,6 +63,7 @@ public class NextCmd extends DJCommand {
         event.reply(event.getClient().getSuccess() + " **" +
                 (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : handler.getPlayer().getPlayingTrack().getInfo().title) +
                 "** has been skipped. (" + (u == null ? "Someone" : "**" + u.getName() + "**") + " requested it.)").queue();
+        handler.updateStatsOnSkip();
         handler.getPlayer().stopTrack();
     }
 }

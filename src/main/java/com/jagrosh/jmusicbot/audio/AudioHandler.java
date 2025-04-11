@@ -23,6 +23,7 @@ import com.jagrosh.jmusicbot.queue.FairQueue;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
+import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter;
 import com.sedmelluq.discord.lavaplayer.source.youtube.YoutubeAudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
@@ -55,6 +56,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     private final long guildId;
     private final String stringGuildId;
     private AudioFrame lastFrame;
+    private long streamStartTime;
 
     protected AudioHandler(PlayerManager manager, Guild guild, AudioPlayer player) {
         this.manager = manager;
@@ -125,6 +127,25 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         return rm == null ? RequestMetadata.EMPTY : rm;
     }
 
+    /**
+     * Update stats when a track is skipped
+     */
+    public void updateStatsOnSkip() {
+        AudioTrack track = audioPlayer.getPlayingTrack();
+        if (track != null) {
+            Settings settings = manager.getBot().getSettingsManager().getSettings(guildId);
+            settings.incrementSongsPlayed();
+            // If it's a stream, calculate the actual listening time until skip
+            if (track.getInfo().isStream) {
+                long streamDuration = System.currentTimeMillis() - streamStartTime;
+                settings.addPlayTime(streamDuration);
+            } else {
+                // For a normal track, count the time played
+                settings.addPlayTime(track.getPosition());
+            }
+        }
+    }
+
     public boolean playFromDefault() {
         if (!defaultQueue.isEmpty()) {
             audioPlayer.playTrack(defaultQueue.remove(0));
@@ -154,15 +175,46 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     public void onTrackEnd(AudioPlayer player, AudioTrack track, AudioTrackEndReason endReason) {
         RepeatMode repeatMode = manager.getBot().getSettingsManager().getSettings(guildId).getRepeatMode();
 
-        // If the song finishes playing normally and repeat mode is enabled (!OFF), it will be re-added to the queue.
-        if (endReason == AudioTrackEndReason.FINISHED && repeatMode != RepeatMode.OFF) {
-            // in RepeatMode.ALL
-            if (repeatMode == RepeatMode.ALL) {
-                queue.add(new QueuedTrack(track.makeClone(), track.getUserData(RequestMetadata.class)));
+        // If it's a YouTube livestream that ended prematurely, replay it
+        if (track != null && track.getInfo().isStream && track.getInfo().uri.contains("youtube.com") 
+            && (endReason == AudioTrackEndReason.FINISHED || endReason == AudioTrackEndReason.LOAD_FAILED)) {
+            // For YouTube livestreams, automatically replay the same stream
+            
+            // Update stats before replaying
+            if (track.getInfo().isStream) {
+                Settings settings = manager.getBot().getSettingsManager().getSettings(guildId);
+                long streamDuration = System.currentTimeMillis() - streamStartTime;
+                settings.addPlayTime(streamDuration);
+            }
+            
+            player.playTrack(track.makeClone());
+            return;
+        }
 
-                // in RepeatMode.SINGLE
-            } else if (repeatMode == RepeatMode.SINGLE) {
-                queue.addAt(0, new QueuedTrack(track.makeClone(), track.getUserData(RequestMetadata.class)));
+        // If the song finishes playing normally and repeat mode is enabled (!OFF), it will be re-added to the queue.
+        if (endReason == AudioTrackEndReason.FINISHED) {
+            // Update stats when a track finishes playing
+            if (track != null) {
+                Settings settings = manager.getBot().getSettingsManager().getSettings(guildId);
+                settings.incrementSongsPlayed();
+                // If it's a stream, calculate the actual listening time
+                if (track.getInfo().isStream) {
+                    long streamDuration = System.currentTimeMillis() - streamStartTime;
+                    settings.addPlayTime(streamDuration);
+                } else {
+                    settings.addPlayTime(track.getDuration());
+                }
+            }
+            
+            if (repeatMode != RepeatMode.OFF) {
+                // in RepeatMode.ALL
+                if (repeatMode == RepeatMode.ALL) {
+                    queue.add(new QueuedTrack(track.makeClone(), track.getUserData(RequestMetadata.class)));
+
+                    // in RepeatMode.SINGLE
+                } else if (repeatMode == RepeatMode.SINGLE) {
+                    queue.addAt(0, new QueuedTrack(track.makeClone(), track.getUserData(RequestMetadata.class)));
+                }
             }
         }
 
@@ -187,10 +239,63 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         votes.clear();
         manager.getBot().getNowplayingHandler().onTrackUpdate(guildId, track, this);
 
+        // If it's a stream, record when it starts
+        if (track.getInfo().isStream) {
+            streamStartTime = System.currentTimeMillis();
+        }
+
+        // Check if this is not a radio track, clear radio data if needed
+        if (!isRadioTrack(track)) {
+            // Clear radio data from RadioCmd maps when a non-radio track starts playing
+            if (dev.cosgy.jmusicbot.slashcommands.music.RadioCmd.lastStationPaths.containsKey(stringGuildId)) {
+                dev.cosgy.jmusicbot.slashcommands.music.RadioCmd.lastStationPaths.remove(stringGuildId);
+                dev.cosgy.jmusicbot.slashcommands.music.RadioCmd.lastStationLogos.remove(stringGuildId);
+            }
+        }
+        
+        // Always clear Spotify data when a new track starts, unless it's explicitly a Spotify track
+        if (!track.getSourceManager().getSourceName().equalsIgnoreCase("spotify")) {
+            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.lastTrackIds.remove(stringGuildId);
+        }
+
         Guild guild = guild(manager.getBot().getJDA());
         Bot.updatePlayStatus(guild, guild.getSelfMember(), PlayStatus.PLAYING);
     }
 
+    /**
+     * Determines if a track is a radio station track
+     */
+    private boolean isRadioTrack(AudioTrack track) {
+        if (track == null) return false;
+        
+        // For tracks coming from a stream source that could be a radio station
+        if (track.getInfo().isStream) {
+            // Check if the URL matches the radio station pattern
+            String trackUrl = track.getInfo().uri;
+            if (trackUrl != null && 
+                (trackUrl.contains("onlineradiobox.com") || 
+                 trackUrl.contains("listen.") || 
+                 trackUrl.contains(".stream") ||
+                 trackUrl.contains("ice") ||  
+                 trackUrl.contains(".mp3") || 
+                 trackUrl.contains(".aac"))) {
+                return true;
+            }
+        }
+        
+        // If we're not sure, assume it's not a radio track
+        return false;
+    }
+
+    /**
+     * Determines if a track was loaded through the Spotify command
+     */
+    private boolean isSpotifyTrack(AudioTrack track) {
+        if (track == null) return false;
+        
+        // Check if this track is from Spotify based on stored data
+        return dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.lastTrackIds.containsKey(stringGuildId);
+    }
 
     // Formatting
     public MessageCreateData getNowPlaying(JDA jda) throws Exception {
@@ -216,18 +321,83 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                     eb.setTitle(track.getInfo().title);
                 }
 
-                if (track instanceof YoutubeAudioTrack && manager.getBot().getConfig().useNPImages()) {
-                    eb.setThumbnail("https://img.youtube.com/vi/" + track.getIdentifier() + "/maxresdefault.jpg");
+                // Improved thumbnail handling for all track types
+                if (manager.getBot().getConfig().useNPImages()) {
+                    // First try to use artworkUrl if it exists (works for most platforms including SoundCloud)
+                    if (track.getInfo().artworkUrl != null && !track.getInfo().artworkUrl.isEmpty()) {
+                        eb.setThumbnail(track.getInfo().artworkUrl);
+                    }
+                    // Special handling for YouTube tracks
+                    else if (track instanceof YoutubeAudioTrack || 
+                            (track.getSourceManager() != null && track.getSourceManager().getSourceName().equalsIgnoreCase("youtube"))) {
+                        // Extract the video ID
+                        String videoId = track.getIdentifier();
+                        
+                        // If the identifier is a full URL, extract the video ID from it
+                        if (videoId.contains("?v=")) {
+                            videoId = videoId.substring(videoId.indexOf("?v=") + 3);
+                            if (videoId.contains("&")) {
+                                videoId = videoId.substring(0, videoId.indexOf("&"));
+                            }
+                        }
+                        
+                        // Use the highest quality thumbnail available
+                        eb.setThumbnail("https://img.youtube.com/vi/" + videoId + "/maxresdefault.jpg");
+                    }
+                    // Special handling for Spotify tracks - use track URI as identifier
+                    else if (track.getSourceManager() != null && track.getSourceManager().getSourceName().equalsIgnoreCase("spotify")) {
+                        // For Spotify, we rely on Lavaplayer to provide artworkUrl, but log debugging info
+                        System.out.println("Spotify track detected but no artwork URL found: " + track.getInfo().title);
+                    }
                 }
 
-                if (track.getInfo().author != null && !track.getInfo().author.isEmpty())
-                    eb.setFooter("Source: " + track.getInfo().author, null);
+                // Determine source platform from track information
+                String sourcePlatform = "Unknown Source";
+                if (track instanceof YoutubeAudioTrack) {
+                    sourcePlatform = "YouTube";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("soundcloud")) {
+                    sourcePlatform = "SoundCloud";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("bandcamp")) {
+                    sourcePlatform = "Bandcamp";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("twitch")) {
+                    sourcePlatform = "Twitch";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("vimeo")) {
+                    sourcePlatform = "Vimeo";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("http")) {
+                    sourcePlatform = "HTTP Stream";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("local")) {
+                    sourcePlatform = "Local File";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("beam")) {
+                    sourcePlatform = "Beam";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("niconico")) {
+                    sourcePlatform = "Niconico";
+                } else {
+                    sourcePlatform = track.getSourceManager().getSourceName();
+                }
+
+                // Set footer to show source platform
+                eb.setFooter("Source: " + sourcePlatform, null);
 
                 double progress = (double) audioPlayer.getPlayingTrack().getPosition() / track.getDuration();
-                eb.setDescription((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI)
-                        + " " + FormatUtil.progressBar(progress)
-                        + " `[" + FormatUtil.formatTime(track.getPosition()) + "/" + FormatUtil.formatTime(track.getDuration()) + "]` "
-                        + FormatUtil.volumeIcon(audioPlayer.getVolume()));
+                StringBuilder descBuilder = new StringBuilder();
+                
+                // Add artist information if available
+                if (track.getInfo().author != null && !track.getInfo().author.isEmpty()) {
+                    descBuilder.append("**Artist:** ").append(track.getInfo().author).append("\n\n");
+                }
+                
+                // Add progress bar and other information
+                descBuilder.append((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI))
+                        .append(" ")
+                        .append(FormatUtil.progressBar(progress))
+                        .append(" `[")
+                        .append(FormatUtil.formatTime(track.getPosition()))
+                        .append("/")
+                        .append(FormatUtil.formatTime(track.getDuration()))
+                        .append("]` ")
+                        .append(FormatUtil.volumeIcon(audioPlayer.getVolume()));
+                
+                eb.setDescription(descBuilder.toString());
 
             } else {
                 if (rm.getOwner() != 0L) {
@@ -243,53 +413,78 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                     eb.setTitle(track.getInfo().title);
                 }
 
-                if (track instanceof YoutubeAudioTrack && manager.getBot().getConfig().useNPImages()) {
-                    eb.setThumbnail("https://img.youtube.com/vi/" + track.getIdentifier() + "/maxresdefault.jpg");
+                // Improved thumbnail handling for all track types
+                if (manager.getBot().getConfig().useNPImages()) {
+                    // First try to use artworkUrl if it exists (works for most platforms including SoundCloud)
+                    if (track.getInfo().artworkUrl != null && !track.getInfo().artworkUrl.isEmpty()) {
+                        eb.setThumbnail(track.getInfo().artworkUrl);
+                    }
+                    // Special handling for YouTube tracks
+                    else if (track instanceof YoutubeAudioTrack || 
+                            (track.getSourceManager() != null && track.getSourceManager().getSourceName().equalsIgnoreCase("youtube"))) {
+                        // Extract the video ID
+                        String videoId = track.getIdentifier();
+                        
+                        // If the identifier is a full URL, extract the video ID from it
+                        if (videoId.contains("?v=")) {
+                            videoId = videoId.substring(videoId.indexOf("?v=") + 3);
+                            if (videoId.contains("&")) {
+                                videoId = videoId.substring(0, videoId.indexOf("&"));
+                            }
+                        }
+                        
+                        // Use the highest quality thumbnail available
+                        eb.setThumbnail("https://img.youtube.com/vi/" + videoId + "/maxresdefault.jpg");
+                    }
+                    // Special handling for Spotify tracks - use track URI as identifier
+                    else if (track.getSourceManager() != null && track.getSourceManager().getSourceName().equalsIgnoreCase("spotify")) {
+                        // For Spotify, we rely on Lavaplayer to provide artworkUrl, but log debugging info
+                        System.out.println("Spotify track detected but no artwork URL found: " + track.getInfo().title);
+                    }
                 }
 
-                if (track.getInfo().author != null && !track.getInfo().author.isEmpty())
-                    eb.setFooter("Source: " + track.getInfo().author, null);
+                // Determine source platform from track information
+                String sourcePlatform = "Unknown Source";
+                if (track instanceof YoutubeAudioTrack) {
+                    sourcePlatform = "YouTube";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("soundcloud")) {
+                    sourcePlatform = "SoundCloud";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("bandcamp")) {
+                    sourcePlatform = "Bandcamp";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("twitch")) {
+                    sourcePlatform = "Twitch";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("vimeo")) {
+                    sourcePlatform = "Vimeo";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("http")) {
+                    sourcePlatform = "HTTP Stream";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("local")) {
+                    sourcePlatform = "Local File";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("beam")) {
+                    sourcePlatform = "Beam";
+                } else if (track.getSourceManager().getSourceName().equalsIgnoreCase("niconico")) {
+                    sourcePlatform = "Niconico";
+                } else {
+                    sourcePlatform = track.getSourceManager().getSourceName();
+                }
+
+                // Set footer to show source platform
+                eb.setFooter("Source: " + sourcePlatform, null);
 
                 double progress = (double) audioPlayer.getPlayingTrack().getPosition() / track.getDuration();
-                eb.setDescription((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI)
-                        + " " + FormatUtil.progressBar(progress)
-                        + " `[" + FormatUtil.formatTime(track.getPosition()) + "/" + FormatUtil.formatTime(track.getDuration()) + "]` "
-                        + FormatUtil.volumeIcon(audioPlayer.getVolume()));
-                /*String titleUrl = GensokyoInfoAgent.getInfo().getMisc().getCirclelink().equals("") ?
-                        "https://gensokyoradio.net/" :
-                        GensokyoInfoAgent.getInfo().getMisc().getCirclelink();
-
-                String albumArt = "";
-                if(manager.getBot().getConfig().useNPImages()){
-                    albumArt = GensokyoInfoAgent.getInfo().getMisc().getAlbumart().equals("") ?
-                        "https://cdn.discordapp.com/attachments/240116420946427905/373019550725177344/gr-logo-placeholder.png" :
-                        "https://gensokyoradio.net/images/albums/original/" + GensokyoInfoAgent.getInfo().getMisc().getAlbumart();
-                }
-                eb.setTitle(GensokyoInfoAgent.getInfo().getSonginfo().getTitle(), titleUrl)
-                    .addField("Album", GensokyoInfoAgent.getInfo().getSonginfo().getAlbum(), true)
-                    .addField("Artist", GensokyoInfoAgent.getInfo().getSonginfo().getArtist(), true)
-                    .addField("Circle", GensokyoInfoAgent.getInfo().getSonginfo().getCircle(), true);
-
-
-                if (Integer.parseInt(GensokyoInfoAgent.getInfo().getSonginfo().getYear()) != 0) {
-                    eb.addField("Release", GensokyoInfoAgent.getInfo().getSonginfo().getYear(), true);
-                }
-
-                double progress = (double) GensokyoInfoAgent.getInfo().getSongtimes().getPlayed() / GensokyoInfoAgent.getInfo().getSongtimes().getDuration();
-                eb.setDescription((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI)
-                        + " " + FormatUtil.progressBar(progress)
-                        + " `[" + FormatUtil.formatTime(GensokyoInfoAgent.getInfo().getSongtimes().getPlayed()) + "/" + FormatUtil.formatTime(GensokyoInfoAgent.getInfo().getSongtimes().getDuration()) + "]` "
-                        + FormatUtil.volumeIcon(audioPlayer.getVolume()));
-
-                eb.addField("Listener", Integer.toString(GensokyoInfoAgent.getInfo().getServerinfo().getListeners()), true)
-                        .setColor(new Color(66, 16, 80))
-                        .setFooter("Content is provided by gensokyoradio.net.\n" +
-                            "The GR logo is a trademark of Gensokyo Radio." +
-                              "\nGensokyo Radio is © LunarSpotlight.", null);
-                        if(manager.getBot().getConfig().useNPImages()){
-                            eb.setImage(albumArt);
-                        }
-                 */
+                StringBuilder descBuilder = new StringBuilder();
+                
+                // Add progress bar and other information
+                descBuilder.append((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI))
+                        .append(" ")
+                        .append(FormatUtil.progressBar(progress))
+                        .append(" `[")
+                        .append(FormatUtil.formatTime(track.getPosition()))
+                        .append("/")
+                        .append(FormatUtil.formatTime(track.getDuration()))
+                        .append("]` ")
+                        .append(FormatUtil.volumeIcon(audioPlayer.getVolume()));
+                
+                eb.setDescription(descBuilder.toString());
             }
 
             return mb.addEmbeds(eb.build()).build();
@@ -322,7 +517,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             }
 
             String title = track.getInfo().title;
-            if (title == null || title.equals("不明なタイトル"))
+            if (title == null || title.equals("Unknown title"))
                 title = track.getInfo().uri;
             return "**" + title + "** [" + (userid == 0 ? "Auto-play" : "<@" + userid + ">") + "]"
                     + "\n" + (audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI) + " "

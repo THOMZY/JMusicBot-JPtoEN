@@ -36,6 +36,8 @@ import net.dv8tion.jda.api.exceptions.PermissionException;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
+import net.dv8tion.jda.api.interactions.components.buttons.Button;
+import net.dv8tion.jda.api.interactions.components.ActionRow;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +54,9 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class SpotifyCmd extends MusicCommand {
 
@@ -66,7 +71,13 @@ public class SpotifyCmd extends MusicCommand {
     private String accessToken = null;
     private long accessTokenExpirationTime;
 
-    private final OrderedMenu.Builder builder;
+    // Maps to store Spotify track information
+    public static final Map<String, String> lastTrackIds = new ConcurrentHashMap<>(); // guildId -> trackId
+    public static final Map<String, String> trackNames = new ConcurrentHashMap<>(); // trackId -> trackName
+    public static final Map<String, String> albumNames = new ConcurrentHashMap<>(); // trackId -> albumName
+    public static final Map<String, String> artistNames = new ConcurrentHashMap<>(); // trackId -> artistName
+    public static final Map<String, String> albumImageUrls = new ConcurrentHashMap<>(); // trackId -> albumImageUrl
+    public static final Map<String, Color> trackColors = new ConcurrentHashMap<>(); // trackId -> color
 
     public SpotifyCmd(Bot bot) {
         super(bot);
@@ -80,13 +91,6 @@ public class SpotifyCmd extends MusicCommand {
         List<OptionData> options = new ArrayList<>();
         options.add(new OptionData(OptionType.STRING, "tracklink", "URL of the Spotify track", true));
         this.options = options;
-
-        builder = new OrderedMenu.Builder()
-                .allowTextInput(true)
-                .useNumbers()
-                .useCancelButton(true)
-                .setEventWaiter(bot.getWaiter())
-                .setTimeout(1, TimeUnit.MINUTES);
 
         // Retrieve Spotify username and password
         String clientId = bot.getConfig().getSpotifyClientId();
@@ -104,7 +108,7 @@ public class SpotifyCmd extends MusicCommand {
         String trackUrl = event.getOption("tracklink").getAsString();
 
         if (accessToken == null) {
-            event.reply("This command is unavailable. Configuration by the bot owner is required to enable this command.").queue();
+            event.reply("This command is not available. A configuration by the bot owner is required to activate this command.").queue();
             return;
         }
 
@@ -154,18 +158,21 @@ public class SpotifyCmd extends MusicCommand {
             int hue = (int) (trackColor * 360);
             Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
 
+            // Store track information for NowplayingCmd
+            storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color);
+
             EmbedBuilder embed = new EmbedBuilder();
             embed.setTitle("Track Information");
-            embed.addField("Track Name", trackName, true);
-            embed.addField("Album Name", albumName, true);
-            embed.addField("Artist Name", artistName, true);
+            embed.addField("Title", trackName, true);
+            embed.addField("Album", albumName, true);
+            embed.addField("Artist", artistName, true);
             embed.setImage(albumImageUrl);
             embed.setColor(color);
 
             event.getTextChannel().sendMessageEmbeds(embed.build()).queue();
 
             event.reply("Loading `[" + trackName + "]`...").queue(m -> bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new SlashResultHandler(m, event)));
-        } catch (IOException | InterruptedException e) {
+        } catch (Exception e) {
             event.reply("Error: " + e.getMessage()).queue();
         }
     }
@@ -173,13 +180,13 @@ public class SpotifyCmd extends MusicCommand {
     @Override
     public void doCommand(CommandEvent event) {
         if (event.getArgs().isEmpty()) {
-            event.reply(event.getClient().getError() + " Please include the playlist name.");
+            event.reply(event.getClient().getError() + " Please include the Spotify track URL.");
             return;
         }
         String trackUrl = event.getArgs();
 
         if (accessToken == null) {
-            event.reply("This command is unavailable. Configuration by the bot owner is required to enable this command.");
+            event.reply("This command is not available. A configuration by the bot owner is required to activate this command.");
             return;
         }
 
@@ -228,19 +235,22 @@ public class SpotifyCmd extends MusicCommand {
 
             int hue = (int) (trackColor * 360);
             Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
+            
+            // Store track information for NowplayingCmd
+            storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color);
 
             EmbedBuilder embed = new EmbedBuilder();
             embed.setTitle("Track Information");
-            embed.addField("Track Name", trackName, true);
-            embed.addField("Album Name", albumName, true);
-            embed.addField("Artist Name", artistName, true);
+            embed.addField("Title", trackName, true);
+            embed.addField("Album", albumName, true);
+            embed.addField("Artist", artistName, true);
             embed.setImage(albumImageUrl);
             embed.setColor(color);
 
             event.getTextChannel().sendMessageEmbeds(embed.build()).queue();
 
             event.reply("Loading `[" + trackName + "]`...", m -> bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new ResultHandler(m, event)));
-        } catch (IOException | InterruptedException e) {
+        } catch (Exception e) {
             event.reply("Error: " + e.getMessage());
         }
     }
@@ -285,14 +295,66 @@ public class SpotifyCmd extends MusicCommand {
         }
     }
 
+    // Check if a track is from Spotify (based on the guild ID)
+    public static boolean isSpotifyTrack(String guildId) {
+        return lastTrackIds.containsKey(guildId);
+    }
+    
+    // Get Spotify track information for a guild
+    public static class SpotifyTrackInfo {
+        public final String trackId;
+        public final String trackName;
+        public final String albumName;
+        public final String artistName;
+        public final String albumImageUrl;
+        public final Color color;
+        
+        public SpotifyTrackInfo(String trackId, String trackName, String albumName, String artistName, String albumImageUrl, Color color) {
+            this.trackId = trackId;
+            this.trackName = trackName;
+            this.albumName = albumName;
+            this.artistName = artistName;
+            this.albumImageUrl = albumImageUrl;
+            this.color = color;
+        }
+    }
+    
+    // Get Spotify track info for a specific guild
+    public static SpotifyTrackInfo getTrackInfo(String guildId) {
+        String trackId = lastTrackIds.get(guildId);
+        if (trackId == null) {
+            return null;
+        }
+        
+        return new SpotifyTrackInfo(
+            trackId,
+            trackNames.getOrDefault(trackId, "Unknown Track"),
+            albumNames.getOrDefault(trackId, "Unknown Album"),
+            artistNames.getOrDefault(trackId, "Unknown Artist"),
+            albumImageUrls.getOrDefault(trackId, ""),
+            trackColors.getOrDefault(trackId, Color.GREEN)
+        );
+    }
+    
+    // Store track info in the maps
+    private void storeTrackInfo(String guildId, String trackId, String trackName, String albumName, String artistName, String albumImageUrl, Color color) {
+        lastTrackIds.put(guildId, trackId);
+        trackNames.put(trackId, trackName);
+        albumNames.put(trackId, albumName);
+        artistNames.put(trackId, artistName);
+        albumImageUrls.put(trackId, albumImageUrl);
+        trackColors.put(trackId, color);
+    }
 
     private class SlashResultHandler implements AudioLoadResultHandler {
         private final InteractionHook m;
         private final SlashCommandEvent event;
+        private final String trackId;
 
         private SlashResultHandler(InteractionHook m, SlashCommandEvent event) {
             this.m = m;
             this.event = event;
+            this.trackId = lastTrackIds.get(event.getGuild().getId());
         }
 
         @Override
@@ -302,8 +364,24 @@ public class SpotifyCmd extends MusicCommand {
                         + FormatUtil.formatTime(track.getDuration()) + "` > `" + bot.getConfig().getMaxTime() + "`")).queue();
                 return;
             }
+            
             AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
             int pos = handler.addTrack(new QueuedTrack(track, event.getUser())) + 1;
+            
+            // Make sure this track is associated with the Spotify track ID
+            // If it's playing immediately (pos==0), we update the track info right away
+            // Otherwise, we'll rely on onTrackStart to update when it eventually plays
+            if (trackId != null) {
+                if (pos == 0) {
+                    // If playing immediately, make sure we have this track ID set
+                    lastTrackIds.put(event.getGuild().getId(), trackId);
+                } else if (pos > 0) {
+                    // If queued, we still keep the track ID for when it eventually plays
+                    // But this may get overwritten if other tracks are added later
+                    lastTrackIds.put(event.getGuild().getId(), trackId);
+                }
+            }
+            
             event.getHook().sendMessage(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
                     + "**(`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added."
                     : " has been added to the queue at position " + pos + "."))).queue();
@@ -311,42 +389,41 @@ public class SpotifyCmd extends MusicCommand {
 
         @Override
         public void playlistLoaded(AudioPlaylist playlist) {
-            builder.setColor(event.getGuild().getSelfMember().getColor())
-                    .setText(FormatUtil.filter(event.getClient().getSuccess() + "Search results:"))
-                    .setChoices()
-                    .setSelection((msg, i) ->
-                    {
-                        AudioTrack track = playlist.getTracks().get(i - 1);
-                        if (bot.getConfig().isTooLong(track)) {
-                            event.getHook().sendMessage(event.getClient().getWarning() + "**" + track.getInfo().title + "**` exceeds the allowed maximum length. "
-                                    + FormatUtil.formatTime(track.getDuration()) + "` > `" + bot.getConfig().getMaxTime() + "`").queue();
-                            return;
-                        }
-                        AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-                        int pos = handler.addTrack(new QueuedTrack(track, event.getUser())) + 1;
-                        event.getHook().sendMessage(event.getClient().getSuccess() + "**" + track.getInfo().title
-                                + "**(`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added."
-                                : " has been added to the queue at position " + pos + ".")).queue();
-                    })
-                    .setCancel((msg) -> {
-                    })
-                    .setUsers(event.getUser())
-            ;
-            for (int i = 0; i < 4 && i < playlist.getTracks().size(); i++) {
-                AudioTrack track = playlist.getTracks().get(i);
-                builder.addChoices("`[" + FormatUtil.formatTime(track.getDuration()) + "]` [**" + track.getInfo().title + "**](" + track.getInfo().uri + ")");
+            // Play the first result directly instead of showing a list
+            AudioTrack track = playlist.getTracks().get(0);
+            
+            if (bot.getConfig().isTooLong(track)) {
+                event.getHook().sendMessage(FormatUtil.filter(event.getClient().getWarning() + "**" + track.getInfo().title + "**` exceeds the allowed maximum length. "
+                        + FormatUtil.formatTime(track.getDuration()) + "` > `" + bot.getConfig().getMaxTime() + "`")).queue();
+                return;
             }
-            builder.build().display(event.getChannel());
+            
+            AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+            int pos = handler.addTrack(new QueuedTrack(track, event.getUser())) + 1;
+            
+            // Associate the track with the Spotify track ID
+            if (trackId != null) {
+                if (pos == 0) {
+                    // If playing immediately, set the track ID
+                    lastTrackIds.put(event.getGuild().getId(), trackId);
+                } else if (pos > 0) {
+                    // If queued, keep the ID for when the track plays
+                    lastTrackIds.put(event.getGuild().getId(), trackId);
+                }
+            }
+            
+            event.getHook().sendMessage(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
+                    + "**(`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added."
+                    : " has been added to the queue at position " + pos + "."))).queue();
         }
 
         @Override
         public void noMatches() {
-            event.getHook().sendMessage(FormatUtil.filter(event.getClient().getWarning() + " 曲を検索しましたが見つかりませんでした。 `")).queue();
+            m.sendMessage(FormatUtil.filter(event.getClient().getWarning() + " Cannot find the searched track.")).queue();
         }
 
         @Override
         public void loadFailed(FriendlyException throwable) {
-
             if (throwable.severity == FriendlyException.Severity.COMMON)
                 event.getHook().sendMessage(event.getClient().getError() + " An error occurred while loading: " + throwable.getMessage()).queue();
             else
@@ -357,10 +434,12 @@ public class SpotifyCmd extends MusicCommand {
     private class ResultHandler implements AudioLoadResultHandler {
         private final Message m;
         private final CommandEvent event;
+        private final String trackId;
 
         private ResultHandler(Message m, CommandEvent event) {
             this.m = m;
             this.event = event;
+            this.trackId = lastTrackIds.get(event.getGuild().getId());
         }
 
         @Override
@@ -370,8 +449,24 @@ public class SpotifyCmd extends MusicCommand {
                         + FormatUtil.formatTime(track.getDuration()) + "` > `" + bot.getConfig().getMaxTime() + "`")).queue();
                 return;
             }
+            
             AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
             int pos = handler.addTrack(new QueuedTrack(track, event.getAuthor())) + 1;
+            
+            // Make sure this track is associated with the Spotify track ID
+            // If it's playing immediately (pos==0), we update the track info right away
+            // Otherwise, we'll rely on onTrackStart to update when it eventually plays
+            if (trackId != null) {
+                if (pos == 0) {
+                    // If playing immediately, make sure we have this track ID set
+                    lastTrackIds.put(event.getGuild().getId(), trackId);
+                } else if (pos > 0) {
+                    // If queued, we still keep the track ID for when it eventually plays
+                    // But this may get overwritten if other tracks are added later
+                    lastTrackIds.put(event.getGuild().getId(), trackId);
+                }
+            }
+            
             m.editMessage(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
                     + "**(`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added."
                     : " has been added to the queue at position " + pos + "."))).queue();
@@ -379,30 +474,32 @@ public class SpotifyCmd extends MusicCommand {
 
         @Override
         public void playlistLoaded(AudioPlaylist playlist) {
-            builder.setColor(event.getSelfMember().getColor())
-                    .setText(FormatUtil.filter(event.getClient().getSuccess() + "Search results:"))
-                    .setChoices()
-                    .setSelection((msg, i) -> {
-                        AudioTrack track = playlist.getTracks().get(i - 1);
-                        if (bot.getConfig().isTooLong(track)) {
-                            event.replyWarning("This track (**" + track.getInfo().title + "**) exceeds the allowed maximum length: `"
-                                    + FormatUtil.formatTime(track.getDuration()) + "` > `" + bot.getConfig().getMaxTime() + "`");
-                            return;
-                        }
-                        AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-                        int pos = handler.addTrack(new QueuedTrack(track, event.getAuthor())) + 1;
-                        event.replySuccess("**" + FormatUtil.filter(track.getInfo().title)
-                                + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "playback will start."
-                                : " has been added to the queue at position " + pos + "."));
-                    })
-                    .setCancel((msg) -> {
-                    })
-                    .setUsers(event.getAuthor());
-            for (int i = 0; i < 4 && i < playlist.getTracks().size(); i++) {
-                AudioTrack track = playlist.getTracks().get(i);
-                builder.addChoices("`[" + FormatUtil.formatTime(track.getDuration()) + "]` [**" + track.getInfo().title + "**](" + track.getInfo().uri + ")");
+            // Play the first result directly instead of showing a list
+            AudioTrack track = playlist.getTracks().get(0);
+            
+            if (bot.getConfig().isTooLong(track)) {
+                m.editMessage(FormatUtil.filter(event.getClient().getWarning() + "**" + track.getInfo().title + "**` exceeds the allowed maximum length. "
+                        + FormatUtil.formatTime(track.getDuration()) + "` > `" + bot.getConfig().getMaxTime() + "`")).queue();
+                return;
             }
-            builder.build().display(m);
+            
+            AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+            int pos = handler.addTrack(new QueuedTrack(track, event.getAuthor())) + 1;
+            
+            // Associate the track with the Spotify track ID
+            if (trackId != null) {
+                if (pos == 0) {
+                    // If playing immediately, set the track ID
+                    lastTrackIds.put(event.getGuild().getId(), trackId);
+                } else if (pos > 0) {
+                    // If queued, keep the ID for when the track plays
+                    lastTrackIds.put(event.getGuild().getId(), trackId);
+                }
+            }
+            
+            m.editMessage(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
+                    + "**(`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added."
+                    : " has been added to the queue at position " + pos + "."))).queue();
         }
 
         @Override
@@ -412,12 +509,158 @@ public class SpotifyCmd extends MusicCommand {
 
         @Override
         public void loadFailed(FriendlyException throwable) {
-
             if (throwable.severity == FriendlyException.Severity.COMMON)
                 m.editMessage(event.getClient().getError() + " An error occurred while loading: " + throwable.getMessage()).queue();
             else
                 m.editMessage(event.getClient().getError() + " An error occurred while loading").queue();
         }
+    }
+
+    // Check if Spotify API credentials are properly configured
+    public boolean isConfigured() {
+        return accessToken != null;
+    }
+
+    // Handle Spotify track processing for SlashCommands (called from PlayCmd)
+    public void handleSpotifyTrack(String trackId, SlashCommandEvent event, InteractionHook hook) throws Exception {
+        if (accessToken == null) {
+            hook.editOriginal("This command is unavailable. Configuration by the bot owner is required to enable this command.").queue();
+            return;
+        }
+
+        // Renew the access token if it has expired
+        if (System.currentTimeMillis() >= accessTokenExpirationTime) {
+            String clientId = bot.getConfig().getSpotifyClientId();
+            String clientSecret = bot.getConfig().getSpotifyClientSecret();
+            accessToken = getAccessToken(clientId, clientSecret);
+            
+            if (accessToken == null) {
+                hook.editOriginal("Failed to authenticate with Spotify. Please try again later.").queue();
+                return;
+            }
+        }
+
+        String endpoint = "https://api.spotify.com/v1/tracks/" + trackId;
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .header("Authorization", "Bearer " + accessToken)
+                .header("Accept-Language", "en")
+                .GET()
+                .uri(URI.create(endpoint))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        JSONObject json = new JSONObject(response.body());
+        String trackName = json.getString("name");
+        String albumName = json.getJSONObject("album").getString("name");
+        String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
+        String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
+
+        // Use the Audio Features endpoint to retrieve track information
+        endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
+        request = HttpRequest.newBuilder()
+                .header("Authorization", "Bearer " + accessToken)
+                .GET()
+                .uri(URI.create(endpoint))
+                .build();
+
+        response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        json = new JSONObject(response.body());
+        // Use a default value when valence key does not exist
+        double trackColor = json.has("valence") ? json.getDouble("valence") : 0.5;
+
+        int hue = (int) (trackColor * 360);
+        Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
+
+        // Store track information for NowplayingCmd
+        storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color);
+
+        EmbedBuilder embed = new EmbedBuilder();
+        embed.setTitle("Track Information");
+        embed.addField("Title", trackName, true);
+        embed.addField("Album", albumName, true);
+        embed.addField("Artist", artistName, true);
+        embed.setImage(albumImageUrl);
+        embed.setColor(color);
+
+        event.getTextChannel().sendMessageEmbeds(embed.build()).queue();
+        
+        // Update the hook with the track name being loaded
+        hook.editOriginal("Loading `[" + trackName + "]`...").queue();
+        
+        // Search YouTube Music for this track
+        bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new SlashResultHandler(hook, event));
+    }
+    
+    // Handle Spotify track processing for regular Commands (called from PlayCmd)
+    public void handleSpotifyTrack(String trackId, CommandEvent event, Message message) throws Exception {
+        if (accessToken == null) {
+            message.editMessage("This command is unavailable. Configuration by the bot owner is required to enable this command.").queue();
+            return;
+        }
+
+        // Renew the access token if it has expired
+        if (System.currentTimeMillis() >= accessTokenExpirationTime) {
+            String clientId = bot.getConfig().getSpotifyClientId();
+            String clientSecret = bot.getConfig().getSpotifyClientSecret();
+            accessToken = getAccessToken(clientId, clientSecret);
+            
+            if (accessToken == null) {
+                message.editMessage("Failed to authenticate with Spotify. Please try again later.").queue();
+                return;
+            }
+        }
+
+        String endpoint = "https://api.spotify.com/v1/tracks/" + trackId;
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .header("Authorization", "Bearer " + accessToken)
+                .header("Accept-Language", "en")
+                .GET()
+                .uri(URI.create(endpoint))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        JSONObject json = new JSONObject(response.body());
+        String trackName = json.getString("name");
+        String albumName = json.getJSONObject("album").getString("name");
+        String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
+        String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
+
+        // Use the Audio Features endpoint to retrieve track information
+        endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
+        request = HttpRequest.newBuilder()
+                .header("Authorization", "Bearer " + accessToken)
+                .GET()
+                .uri(URI.create(endpoint))
+                .build();
+
+        response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        json = new JSONObject(response.body());
+        // Use a default value when valence key does not exist
+        double trackColor = json.has("valence") ? json.getDouble("valence") : 0.5;
+
+        int hue = (int) (trackColor * 360);
+        Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
+        
+        // Store track information for NowplayingCmd
+        storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color);
+
+        EmbedBuilder embed = new EmbedBuilder();
+        embed.setTitle("Track Information");
+        embed.addField("Title", trackName, true);
+        embed.addField("Album", albumName, true);
+        embed.addField("Artist", artistName, true);
+        embed.setImage(albumImageUrl);
+        embed.setColor(color);
+
+        event.getTextChannel().sendMessageEmbeds(embed.build()).queue();
+        
+        // Update the message with the track name being loaded
+        message.editMessage("Loading `[" + trackName + "]`...").queue();
+        
+        // Search YouTube Music for this track
+        bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new ResultHandler(message, event));
     }
 }
 

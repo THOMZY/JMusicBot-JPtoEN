@@ -42,6 +42,7 @@ import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -57,6 +58,123 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     private final String stringGuildId;
     private AudioFrame lastFrame;
     private long streamStartTime;
+
+    /**
+     * Determines if a track is a radio station track
+     * @param track The track to check
+     * @return True if the track is a radio station
+     */
+    private boolean isRadioTrack(AudioTrack track) {
+        if (track == null) return false;
+        
+        // For tracks coming from a stream source that could be a radio station
+        if (track.getInfo().isStream) {
+            // Check if the URL matches the radio station pattern
+            String trackUrl = track.getInfo().uri;
+            if (trackUrl != null && 
+                (trackUrl.contains("onlineradiobox.com") || 
+                 trackUrl.contains("listen.") || 
+                 trackUrl.contains(".stream") ||
+                 trackUrl.contains("ice") ||  
+                 trackUrl.contains(".mp3") || 
+                 trackUrl.contains(".aac"))) {
+                return true;
+            }
+        }
+        
+        // If we're not sure, assume it's not a radio track
+        return false;
+    }
+
+    /**
+     * Gets the station path from the currently playing radio track
+     * @param track The current track
+     * @return The station path or null if not found
+     */
+    private String getCurrentRadioStationPath(AudioTrack track) {
+        if (!isRadioTrack(track)) return null;
+        
+        // Check if this is from OnlineRadioBox
+        String trackUrl = track.getInfo().uri;
+        if (trackUrl.contains("onlineradiobox.com")) {
+            // Extract the path from orb URLs like: https://onlineradiobox.com/uk/capital/
+            try {
+                java.net.URL url = new java.net.URL(trackUrl);
+                String path = url.getPath();
+                if (path.startsWith("/")) {
+                    path = path.substring(1);
+                }
+                if (path.endsWith("/")) {
+                    path = path.substring(0, path.length() - 1);
+                }
+                return path;
+            } catch (Exception e) {
+                System.out.println("Error parsing radio URL: " + e.getMessage());
+            }
+        } else {
+            // For direct stream URLs, try to find a matching station from our stored data
+            // by comparing the stream URLs
+            for (Map.Entry<String, String> entry : dev.cosgy.jmusicbot.slashcommands.music.RadioCmd.getStreamUrlMappings().entrySet()) {
+                if (trackUrl.equals(entry.getValue())) {
+                    return entry.getKey();
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Determines if a track was loaded through the Spotify command
+     * @param track The track to check
+     * @return True if the track is from Spotify
+     */
+    private boolean isSpotifyTrack(AudioTrack track) {
+        if (track == null) return false;
+        
+        // First check if the source manager directly indicates this is a Spotify track
+        if (track.getSourceManager() != null && 
+            track.getSourceManager().getSourceName().equalsIgnoreCase("spotify")) {
+            return true;
+        }
+        
+        // Fix for the /nowplaying display issue:
+        // Previously, we only checked if there was ANY Spotify track in the guild's history,
+        // which caused the /nowplaying command to display Spotify formatting for non-Spotify tracks.
+        // Now we verify that THIS EXACT track matches the stored Spotify track info.
+        
+        // Get the Spotify track ID for this guild
+        String trackId = dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.lastTrackIds.get(stringGuildId);
+        if (trackId == null) return false;
+        
+        // Check if THIS track is the one stored in lastTrackIds
+        // Get the track info for comparison
+        dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo trackInfo = 
+            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.getTrackInfo(stringGuildId);
+        
+        if (trackInfo != null) {
+            // Compare title - this is the most reliable way to check if this is the same track
+            // First remove any potential " (Official Video)" or similar suffixes
+            String cleanTitle = track.getInfo().title;
+            if (cleanTitle.contains(" (")) {
+                cleanTitle = cleanTitle.substring(0, cleanTitle.indexOf(" ("));
+            }
+            
+            // Compare with the Spotify track name
+            boolean titleMatch = cleanTitle.equalsIgnoreCase(trackInfo.trackName);
+            
+            // Additional check with artist if available
+            boolean artistMatch = false;
+            if (track.getInfo().author != null && !track.getInfo().author.isEmpty()) {
+                artistMatch = track.getInfo().author.equalsIgnoreCase(trackInfo.artistName);
+            }
+            
+            // Return true only if this track matches the Spotify information
+            return titleMatch || artistMatch;
+        }
+        
+        return false;
+    }
 
     protected AudioHandler(PlayerManager manager, Guild guild, AudioPlayer player) {
         this.manager = manager;
@@ -253,48 +371,17 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             }
         }
         
-        // Always clear Spotify data when a new track starts, unless it's explicitly a Spotify track
-        if (!track.getSourceManager().getSourceName().equalsIgnoreCase("spotify")) {
+        // Fix for the Spotify display issue:
+        // Previously, we only cleared Spotify data if the source wasn't "spotify",
+        // but now we use our improved isSpotifyTrack method to check if this exact track
+        // matches our stored Spotify track information.
+        // This ensures we only keep Spotify formatting data for tracks that are actually from Spotify.
+        if (!isSpotifyTrack(track)) {
             dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.lastTrackIds.remove(stringGuildId);
         }
 
         Guild guild = guild(manager.getBot().getJDA());
         Bot.updatePlayStatus(guild, guild.getSelfMember(), PlayStatus.PLAYING);
-    }
-
-    /**
-     * Determines if a track is a radio station track
-     */
-    private boolean isRadioTrack(AudioTrack track) {
-        if (track == null) return false;
-        
-        // For tracks coming from a stream source that could be a radio station
-        if (track.getInfo().isStream) {
-            // Check if the URL matches the radio station pattern
-            String trackUrl = track.getInfo().uri;
-            if (trackUrl != null && 
-                (trackUrl.contains("onlineradiobox.com") || 
-                 trackUrl.contains("listen.") || 
-                 trackUrl.contains(".stream") ||
-                 trackUrl.contains("ice") ||  
-                 trackUrl.contains(".mp3") || 
-                 trackUrl.contains(".aac"))) {
-                return true;
-            }
-        }
-        
-        // If we're not sure, assume it's not a radio track
-        return false;
-    }
-
-    /**
-     * Determines if a track was loaded through the Spotify command
-     */
-    private boolean isSpotifyTrack(AudioTrack track) {
-        if (track == null) return false;
-        
-        // Check if this track is from Spotify based on stored data
-        return dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.lastTrackIds.containsKey(stringGuildId);
     }
 
     // Formatting
@@ -307,7 +394,167 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             EmbedBuilder eb = new EmbedBuilder();
             eb.setColor(guild.getSelfMember().getColor());
             RequestMetadata rm = getRequestMetadata();
-            if (!track.getInfo().uri.matches(".*stream.gensokyoradio.net/.*")) {
+            
+            // Different display based on track type (Spotify, Radio, Regular)
+            // First, verify this is actually a Spotify track using our improved isSpotifyTrack method
+            if (isSpotifyTrack(track)) {
+                // Handle Spotify tracks
+                String trackId = dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.lastTrackIds.get(stringGuildId);
+                if (trackId != null) {
+                    // Get track details from SpotifyCmd's stored information
+                    dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo trackInfo = 
+                        dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.getTrackInfo(stringGuildId);
+                    
+                    if (trackInfo != null) {
+                        eb.setTitle("~ Now Playing Spotify Track ~");
+                        
+                        // Set user who requested the track
+                        if (rm.getOwner() != 0L) {
+                            User u = guild.getJDA().getUserById(rm.user.id);
+                            if (u == null)
+                                eb.setAuthor(rm.user.username, null, rm.user.avatar);
+                            else
+                                eb.setAuthor(u.getName(), null, u.getEffectiveAvatarUrl());
+                        }
+                        
+                        // Rich description with track details
+                        StringBuilder description = new StringBuilder();
+                        description.append("**Track:** ").append(trackInfo.trackName);
+                        description.append("\n**Album:** ").append(trackInfo.albumName);
+                        description.append("\n**Artist:** ").append(trackInfo.artistName);
+                        
+                        // Add progress bar
+                        double progress = (double) audioPlayer.getPlayingTrack().getPosition() / track.getDuration();
+                        description.append("\n\n");
+                        description.append((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI))
+                                .append(" ")
+                                .append(FormatUtil.progressBar(progress))
+                                .append(" `[")
+                                .append(FormatUtil.formatTime(track.getPosition()))
+                                .append("/")
+                                .append(FormatUtil.formatTime(track.getDuration()))
+                                .append("]` ")
+                                .append(FormatUtil.volumeIcon(audioPlayer.getVolume()));
+                        
+                        eb.setDescription(description.toString());
+                        
+                        // Add album art as image if npimages is enabled
+                        if (manager.getBot().getConfig().useNPImages() && 
+                            trackInfo.albumImageUrl != null && 
+                            !trackInfo.albumImageUrl.isEmpty()) {
+                            eb.setImage(trackInfo.albumImageUrl);
+                        }
+                        
+                        // Set color and footer
+                        eb.setColor(trackInfo.color);
+                        eb.setFooter("Source: Spotify", "https://images.seeklogo.com/logo-png/26/3/spotify-2015-logo-png_seeklogo-266802.png");
+                    }
+                }
+            }
+            else if (isRadioTrack(track)) {
+                // Handle Radio tracks - always get current information based on playing track
+                String stationPath = getCurrentRadioStationPath(track);
+                
+                if (stationPath != null) {
+                    // Get station logo from path (if available)
+                    String logoUrl = dev.cosgy.jmusicbot.slashcommands.music.RadioCmd.lastStationLogos.getOrDefault(stationPath, null);
+                    
+                    // Radio-style embed
+                    eb.setTitle("~ Now Playing Radio ~");
+                    
+                    // Set user who requested the track
+                    if (rm.getOwner() != 0L) {
+                        User u = guild.getJDA().getUserById(rm.user.id);
+                        if (u == null)
+                            eb.setAuthor(rm.user.username, null, rm.user.avatar);
+                        else
+                            eb.setAuthor(u.getName(), null, u.getEffectiveAvatarUrl());
+                    }
+                    
+                    // Get station title from track info
+                    String stationTitle = track.getInfo().title;
+                    if (stationTitle.contains(" | ")) {
+                        stationTitle = stationTitle.substring(stationTitle.lastIndexOf(" | ") + 3);
+                    }
+                    if (stationTitle.endsWith(" Radio")) {
+                        stationTitle = stationTitle.substring(0, stationTitle.length() - 6);
+                    }
+                    
+                    // Description with station and track info
+                    StringBuilder description = new StringBuilder();
+                    String stationUrl = "https://onlineradiobox.com/" + stationPath;
+                    description.append("**Station:** [").append(stationTitle).append("](").append(stationUrl).append(")");
+                    
+                    // Try to get current track info from RadioCmd
+                    try {
+                        // This requires creating an instance to access non-static methods
+                        dev.cosgy.jmusicbot.slashcommands.music.RadioCmd radioCmd = 
+                            new dev.cosgy.jmusicbot.slashcommands.music.RadioCmd(manager.getBot());
+                        
+                        // Always fetch fresh track info from the station
+                        dev.cosgy.jmusicbot.slashcommands.music.RadioCmd.TrackInfo trackInfo = 
+                            radioCmd.getDetailedTrackInfo(stationPath);
+                        
+                        if (trackInfo != null && !trackInfo.getFormattedTitle().isEmpty() && 
+                            !trackInfo.getFormattedTitle().equals("Unknown")) {
+                            description.append("\n\n**Now playing:**\n").append(trackInfo.getFormattedTitle());
+                            
+                            // Add album art if available and npimages is enabled
+                            if (manager.getBot().getConfig().useNPImages() && 
+                                trackInfo.imageUrl != null && 
+                                !trackInfo.imageUrl.isEmpty()) {
+                                eb.setImage(trackInfo.imageUrl);
+                            }
+                        }
+                    } catch (Exception e) {
+                        // If we can't get track info, continue without it
+                        System.out.println("Error getting radio track info: " + e.getMessage());
+                    }
+                    
+                    // Add play status for streams
+                    description.append("\n\n");
+                    
+                    eb.setDescription(description.toString());
+                    
+                    // Add station logo as thumbnail if npimages is enabled
+                    if (manager.getBot().getConfig().useNPImages() && 
+                        logoUrl != null && 
+                        !logoUrl.isEmpty()) {
+                        eb.setThumbnail(logoUrl);
+                    }
+                    
+                    // Set footer to show source
+                    eb.setFooter("Source: Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
+                } else {
+                    // Generic radio/stream display if we can't identify the station
+                    eb.setTitle("~ Now Playing Stream ~");
+                    
+                    if (rm.getOwner() != 0L) {
+                        User u = guild.getJDA().getUserById(rm.user.id);
+                        if (u == null)
+                            eb.setAuthor(rm.user.username, null, rm.user.avatar);
+                        else
+                            eb.setAuthor(u.getName(), null, u.getEffectiveAvatarUrl());
+                    }
+                    
+                    // Add basic stream information
+                    StringBuilder description = new StringBuilder();
+                    description.append("**Stream:** ").append(track.getInfo().title);
+                    
+                    // Add play status for streams
+                    description.append("\n\n");
+                    description.append((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI))
+                            .append(" ")
+                            .append(FormatUtil.progressBar(-1)) // -1 for infinite streams
+                            .append(" `[LIVE]` ")
+                            .append(FormatUtil.volumeIcon(audioPlayer.getVolume()));
+                    
+                    eb.setDescription(description.toString());
+                    eb.setFooter("Source: Stream", "https://cdn-icons-png.flaticon.com/512/2305/2305955.png");
+                }
+            }
+            else if (!track.getInfo().uri.matches(".*stream.gensokyoradio.net/.*")) {
+                // Regular tracks
                 if (rm.getOwner() != 0L) {
                     User u = guild.getJDA().getUserById(rm.user.id);
                     if (u == null)
@@ -376,7 +623,29 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                 }
 
                 // Set footer to show source platform
-                eb.setFooter("Source: " + sourcePlatform, null);
+                String faviconUrl = "";
+                if (track instanceof YoutubeAudioTrack || sourcePlatform.equals("YouTube")) {
+                    faviconUrl = "https://www.fsi.us.com/wp-content/uploads/2019/04/YouTube-Logo.png";
+                } else if (sourcePlatform.equals("SoundCloud")) {
+                    faviconUrl = "https://www.shareicon.net/data/128x128/2015/09/17/102358_soundcloud_512x512.png";
+                } else if (sourcePlatform.equals("Bandcamp")) {
+                    faviconUrl = "https://images.seeklogo.com/logo-png/52/3/bandcamp-logo-png_seeklogo-528569.png?v=1957857986033129792";
+                } else if (sourcePlatform.equals("Twitch")) {
+                    faviconUrl = "https://seeklogo.com/images/T/twitch-new-logo-BAB7E776B9-seeklogo.com.png";
+                } else if (sourcePlatform.equals("Vimeo")) {
+                    faviconUrl = "https://pluspng.com/img-png/vimeo-logo-png-vimeo-color-icon-vimeo-video-social-png-and-vector-vimeo-logo-840x859.png";
+                } else if (sourcePlatform.equals("HTTP Stream")) {
+                    faviconUrl = "https://cdn-icons-png.flaticon.com/512/1384/1384061.png";
+                } else if (sourcePlatform.equals("Local File")) {
+                    faviconUrl = "https://cdn-icons-png.flaticon.com/512/1384/1384061.png";
+                } else if (sourcePlatform.equals("Niconico")) {
+                    faviconUrl = "http://images.shoutwiki.com/sanrio/d/d2/Niconico_logo.png";
+                } else {
+                    faviconUrl = "https://cdn-icons-png.flaticon.com/512/1384/1384061.png"; // Default music icon
+                }
+
+                // Set footer to show source platform with favicon
+                eb.setFooter("Source: " + sourcePlatform, faviconUrl);
 
                 double progress = (double) audioPlayer.getPlayingTrack().getPosition() / track.getDuration();
                 StringBuilder descBuilder = new StringBuilder();
@@ -400,6 +669,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                 eb.setDescription(descBuilder.toString());
 
             } else {
+                // Gensokyo Radio tracks
                 if (rm.getOwner() != 0L) {
                     User u = guild.getJDA().getUserById(rm.user.id);
                     if (u == null)
@@ -468,7 +738,29 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                 }
 
                 // Set footer to show source platform
-                eb.setFooter("Source: " + sourcePlatform, null);
+                String faviconUrl = "";
+                if (track instanceof YoutubeAudioTrack || sourcePlatform.equals("YouTube")) {
+                    faviconUrl = "https://www.youtube.com/s/desktop/6ee70b2c/img/favicon.ico";
+                } else if (sourcePlatform.equals("SoundCloud")) {
+                    faviconUrl = "https://a-v2.sndcdn.com/assets/images/sc-icons/favicon-2cadd14b.ico";
+                } else if (sourcePlatform.equals("Bandcamp")) {
+                    faviconUrl = "https://s4.bcbits.com/img/favicon/favicon-32x32.png";
+                } else if (sourcePlatform.equals("Twitch")) {
+                    faviconUrl = "https://static.twitchcdn.net/assets/favicon-32-e29e246c157142c94346.png";
+                } else if (sourcePlatform.equals("Vimeo")) {
+                    faviconUrl = "https://vimeo.com/favicon.ico";
+                } else if (sourcePlatform.equals("HTTP Stream")) {
+                    faviconUrl = "https://cdn-icons-png.flaticon.com/512/2305/2305955.png";
+                } else if (sourcePlatform.equals("Local File")) {
+                    faviconUrl = "https://cdn-icons-png.flaticon.com/512/2305/2305990.png";
+                } else if (sourcePlatform.equals("Niconico")) {
+                    faviconUrl = "https://www.nicovideo.jp/favicon.ico";
+                } else {
+                    faviconUrl = "https://cdn-icons-png.flaticon.com/512/1384/1384061.png"; // Default music icon
+                }
+
+                // Set footer to show source platform with favicon
+                eb.setFooter("Source: " + sourcePlatform, faviconUrl);
 
                 double progress = (double) audioPlayer.getPlayingTrack().getPosition() / track.getDuration();
                 StringBuilder descBuilder = new StringBuilder();

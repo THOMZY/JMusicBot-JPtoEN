@@ -64,6 +64,18 @@ public class RadioCmd extends MusicCommand {
     private static final Map<String, Long> lastRadioMessageIds = new ConcurrentHashMap<>();
     public static final Map<String, String> lastStationPaths = new ConcurrentHashMap<>();
     public static final Map<String, String> lastStationLogos = new ConcurrentHashMap<>();
+    
+    // Store mapping of station paths to their stream URLs for reverse lookup
+    private static final Map<String, String> stationStreamUrls = new ConcurrentHashMap<>();
+
+    /**
+     * Gets the mapping of station paths to their direct stream URLs
+     * Used for identifying which station is playing based on stream URL
+     * @return Map of station paths to their stream URLs
+     */
+    public static Map<String, String> getStreamUrlMappings() {
+        return stationStreamUrls;
+    }
 
     public RadioCmd(Bot bot) {
         super(bot);
@@ -485,31 +497,6 @@ public class RadioCmd extends MusicCommand {
     }
 
     /**
-     * Create the description text for search results
-     */
-    private StringBuilder createSearchResultsDescription(List<RadioStation> pageStations, int startIndex, int totalPages) {
-        StringBuilder description = new StringBuilder();
-        description.append("📻 Click a button to select a station to play.\n\n");
-        
-        // Add page information
-        description.append("**Page ").append(startIndex / 5 + 1).append(" of ").append(totalPages).append("**\n\n");
-        
-        // Prepare the list of stations to display
-        List<String> stationDisplays = new ArrayList<>();
-        for (int i = 0; i < pageStations.size(); i++) {
-            RadioStation station = pageStations.get(i);
-            stationDisplays.add(formatStationDisplay(station, startIndex + i));
-        }
-        
-        // Add stations to the description
-        for (String stationDisplay : stationDisplays) {
-            description.append(stationDisplay).append("\n\n");
-        }
-        
-        return description;
-    }
-
-    /**
      * Format a single radio station for display
      */
     private String formatStationDisplay(RadioStation station, int index) {
@@ -520,6 +507,9 @@ public class RadioCmd extends MusicCommand {
         if (!stationUrl.endsWith("/")) {
             stationUrl += "/";
         }
+        
+        // Start the blockquote for each station result with enhanced citation style
+        stationDisplay.append("> > ");
         stationDisplay.append("**").append(index + 1).append(".** ");
         
         // Add the link to the radio page with the station name
@@ -543,17 +533,47 @@ public class RadioCmd extends MusicCommand {
             }
         }
 
-        // Add description if available
+        // Add description if available - continue the blockquote on a new line
         if (station.description != null && !station.description.isEmpty()) {
             // Truncate description if it's too long (more than 150 characters)
             String desc = station.description;
             if (desc.length() > 150) {
                 desc = desc.substring(0, 147) + "...";
             }
-            stationDisplay.append("\n").append("*").append(desc).append("*");
+            stationDisplay.append("\n> - ").append("*").append(desc).append("*");
         }
         
         return stationDisplay.toString();
+    }
+
+    /**
+     * Create the description text for search results
+     */
+    private StringBuilder createSearchResultsDescription(List<RadioStation> pageStations, int startIndex, int totalPages) {
+        StringBuilder description = new StringBuilder();
+        description.append("📻 Click a button to select a station to play.\n\n");
+        
+        // Add page information
+        description.append("**Page ").append(startIndex / 5 + 1).append(" of ").append(totalPages).append("**\n\n");
+        
+        // Prepare the list of stations to display
+        List<String> stationDisplays = new ArrayList<>();
+        for (int i = 0; i < pageStations.size(); i++) {
+            RadioStation station = pageStations.get(i);
+            stationDisplays.add(formatStationDisplay(station, startIndex + i));
+        }
+        
+        // Add stations to the description with compact separator lines
+        for (int i = 0; i < stationDisplays.size(); i++) {
+            description.append(stationDisplays.get(i));
+            
+            // Add a compact separator line between stations (but not after the last one)
+            if (i < stationDisplays.size() - 1) {
+                description.append("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n");
+            }
+        }
+        
+        return description;
     }
 
     /**
@@ -569,6 +589,8 @@ public class RadioCmd extends MusicCommand {
             embed.setTitle(FormatUtil.filter(slashEvent.getClient().getSuccess() + " Radio station search results:"));
         }
         embed.setDescription(description);
+        // Add footer with "Powered by Online Radio Box"
+        embed.setFooter("Powered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
         return embed;
     }
 
@@ -1042,6 +1064,9 @@ public class RadioCmd extends MusicCommand {
      * Setup and load the audio track for the radio station
      */
     private void setupAndLoadAudioTrack(RadioStation station, CommandEvent cmdEvent, net.dv8tion.jda.api.entities.User slashUser, String streamUrl, String guildId) {
+        // Store the mapping of station path to stream URL for reverse lookup
+        stationStreamUrls.put(station.path, streamUrl);
+        
         // Create handlers with the station logo
         if (cmdEvent != null) {
             RadioLoadHandler handler = new RadioLoadHandler(cmdEvent, station.title, station.path);
@@ -1071,6 +1096,8 @@ public class RadioCmd extends MusicCommand {
                 embed.setTitle("Radio added to queue");
                 embed.setDescription("**" + station.title + "** has been added to the queue!");
                 embed.setThumbnail(station.logoUrl);
+                // Add footer with "Powered by Online Radio Box"
+                embed.setFooter("Powered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
                 channel.sendMessageEmbeds(embed.build()).queue();
             }
         }
@@ -1081,9 +1108,13 @@ public class RadioCmd extends MusicCommand {
      */
     private void saveStationInfoForUpdates(String guildId, RadioStation station) {
         if (guildId != null) {
+            // Save station path for this guild
             lastStationPaths.put(guildId, station.path);
+            
+            // Save station logo URL if available - store both by guild ID and by station path
             if (station.logoUrl != null && !station.logoUrl.isEmpty()) {
-                lastStationLogos.put(guildId, station.logoUrl);
+                lastStationLogos.put(guildId, station.logoUrl);  // For backwards compatibility
+                lastStationLogos.put(station.path, station.logoUrl);  // For looking up by station path
             }
         }
     }
@@ -1166,7 +1197,13 @@ public class RadioCmd extends MusicCommand {
         
         // Returns a formatted title without the station name (for "Radio added to queue" message)
         public String getFormattedTitleWithoutStation() {
-            return getFormattedTitle();
+            String formattedTitle = getFormattedTitle();
+            // Check if the title already contains a station separator and remove it
+            int pipeIndex = formattedTitle.lastIndexOf(" | ");
+            if (pipeIndex > 0) {
+                return formattedTitle.substring(0, pipeIndex);
+            }
+            return formattedTitle;
         }
     }
     
@@ -1437,6 +1474,9 @@ public class RadioCmd extends MusicCommand {
                 embed.setImage(trackInfo.imageUrl);
             }
             
+            // Add footer with "Powered by Online Radio Box"
+            embed.setFooter("Powered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
+            
             // Send the message and save the ID for later updates
             event.reply(embed.build(), message -> {
                 // Store message ID for later updates
@@ -1502,6 +1542,9 @@ public class RadioCmd extends MusicCommand {
                 if (trackInfo != null && !trackInfo.imageUrl.isEmpty()) {
                     embed.setImage(trackInfo.imageUrl);
                 }
+                
+                // Add footer with "Powered by Online Radio Box"
+                embed.setFooter("Powered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
                 
                 final String guildId = guild.getId();
                 channel.sendMessageEmbeds(embed.build()).queue(message -> {
@@ -1633,7 +1676,7 @@ public class RadioCmd extends MusicCommand {
             // Update bot activity status if enabled
             updateBotActivity(guild, newTitle);
             
-            // Update the last radio message if it exists
+            // Update the radio status message
             updateRadioMessage(guild, newTitle, latestInfo);
         }
         
@@ -1665,11 +1708,28 @@ public class RadioCmd extends MusicCommand {
                         // Create a new embed with updated info
                         EmbedBuilder embed = new EmbedBuilder();
                         embed.setColor(guild.getSelfMember().getColor());
-                        embed.setTitle("Now playing on " + stationTitle);
+                        
+                        // Create a clickable link for the station
+                        String stationUrl = "https://onlineradiobox.com/" + stationPath;
+                        if (!stationUrl.endsWith("/")) {
+                            stationUrl += "/";
+                        }
+                        embed.setTitle("Now playing on [" + stationTitle + "](" + stationUrl + ")");
                         
                         // Description with updated information
                         StringBuilder description = new StringBuilder();
-                        description.append("**Now playing:**\n").append(newTitle);
+                        if (latestInfo != null && !latestInfo.getFormattedTitle().isEmpty() && !latestInfo.getFormattedTitle().equals("Unknown")) {
+                            // Display only the artist and title, without the station name
+                            description.append("**Now playing:**\n").append(latestInfo.getFormattedTitleWithoutStation());
+                        } else {
+                            // If no detailed info is available, use the title without the station
+                            String titleWithoutStation = newTitle;
+                            int pipeIndex = newTitle.lastIndexOf(" | ");
+                            if (pipeIndex > 0) {
+                                titleWithoutStation = newTitle.substring(0, pipeIndex);
+                            }
+                            description.append("**Now playing:**\n").append(titleWithoutStation);
+                        }
                         
                         embed.setDescription(description.toString());
                         
@@ -1682,6 +1742,9 @@ public class RadioCmd extends MusicCommand {
                         if (latestInfo != null && !latestInfo.imageUrl.isEmpty()) {
                             embed.setImage(latestInfo.imageUrl);
                         }
+                        
+                        // Add footer with "Powered by Online Radio Box"
+                        embed.setFooter("Powered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
                         
                         // Update the message
                         message.editMessageEmbeds(embed.build()).queue(

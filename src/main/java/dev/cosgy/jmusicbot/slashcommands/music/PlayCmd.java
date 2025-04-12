@@ -628,7 +628,7 @@ public class PlayCmd extends MusicCommand {
                     CacheLoader.CacheResult cache = bot.getCacheLoader().ConvertCache(data);
                     event.reply(":calling: Loading cache file... (" + cache.getItems().size() + " tracks)").queue(m -> {
                         cache.loadTracks(bot.getPlayerManager(), (at) -> {
-                            // TODO: Use user ID stored in cache.
+							
                             handler.addTrack(new QueuedTrack(at, event.getUser()));
                             count.getAndIncrement();
                         }, () -> {

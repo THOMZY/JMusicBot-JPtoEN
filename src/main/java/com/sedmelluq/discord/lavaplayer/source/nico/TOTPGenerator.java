@@ -29,14 +29,38 @@ public class TOTPGenerator {
     private static final Map<Character, Integer> base32table = new HashMap<>();
 
     static {
-        base32table.put('A', 0); base32table.put('B', 1); base32table.put('C', 2); base32table.put('D', 3);
-        base32table.put('E', 4); base32table.put('F', 5); base32table.put('G', 6); base32table.put('H', 7);
-        base32table.put('I', 8); base32table.put('J', 9); base32table.put('K', 10); base32table.put('L', 11);
-        base32table.put('M', 12); base32table.put('N', 13); base32table.put('O', 14); base32table.put('P', 15);
-        base32table.put('Q', 16); base32table.put('R', 17); base32table.put('S', 18); base32table.put('T', 19);
-        base32table.put('U', 20); base32table.put('V', 21); base32table.put('W', 22); base32table.put('X', 23);
-        base32table.put('Y', 24); base32table.put('Z', 25); base32table.put('2', 26); base32table.put('3', 27);
-        base32table.put('4', 28); base32table.put('5', 29); base32table.put('6', 30); base32table.put('7', 31);
+        base32table.put('A', 0);
+        base32table.put('B', 1);
+        base32table.put('C', 2);
+        base32table.put('D', 3);
+        base32table.put('E', 4);
+        base32table.put('F', 5);
+        base32table.put('G', 6);
+        base32table.put('H', 7);
+        base32table.put('I', 8);
+        base32table.put('J', 9);
+        base32table.put('K', 10);
+        base32table.put('L', 11);
+        base32table.put('M', 12);
+        base32table.put('N', 13);
+        base32table.put('O', 14);
+        base32table.put('P', 15);
+        base32table.put('Q', 16);
+        base32table.put('R', 17);
+        base32table.put('S', 18);
+        base32table.put('T', 19);
+        base32table.put('U', 20);
+        base32table.put('V', 21);
+        base32table.put('W', 22);
+        base32table.put('X', 23);
+        base32table.put('Y', 24);
+        base32table.put('Z', 25);
+        base32table.put('2', 26);
+        base32table.put('3', 27);
+        base32table.put('4', 28);
+        base32table.put('5', 29);
+        base32table.put('6', 30);
+        base32table.put('7', 31);
     }
 
     // Main method to get the TOTP code

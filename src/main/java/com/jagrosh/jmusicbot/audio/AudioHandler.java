@@ -510,7 +510,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
 
             // Check if Gensokyo Radio is playing.
             if (track.getInfo().uri.matches(".*stream.gensokyoradio.net/.*")) {
-                return "**Gensokyo Radio** [" + (userid == 0 ? "Auto-play" : "<@" + userid + ">") + "]"
+                return "**Gensokyo Radio** [" + (userid == 0 ? "📻" : "<@" + userid + ">") + "]"
                         + "\n" + (audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI) + " "
                         + "[LIVE] "
                         + FormatUtil.volumeIcon(audioPlayer.getVolume());
@@ -519,7 +519,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             String title = track.getInfo().title;
             if (title == null || title.equals("Unknown title"))
                 title = track.getInfo().uri;
-            return "**" + title + "** [" + (userid == 0 ? "Auto-play" : "<@" + userid + ">") + "]"
+            return "**" + title + "** [" + (userid == 0 ? "📻" : "<@" + userid + ">") + "]"
                     + "\n" + (audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI) + " "
                     + "[" + FormatUtil.formatTime(track.getDuration()) + "] "
                     + FormatUtil.volumeIcon(audioPlayer.getVolume());

@@ -607,6 +607,11 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         // Track statistics update
         updateTrackStatistics(track);
         
+        // If this was a stream, stop ICY metadata monitoring
+        if (track != null && track.getInfo().isStream) {
+            manager.getBot().getIcyMetadataHandler().stopMonitoring(stringGuildId);
+        }
+        
         // Handle YouTube livestreams that ended prematurely
         if (track != null && track.getInfo().isStream && track.getInfo().uri.contains("youtube.com") 
             && (endReason == AudioTrackEndReason.FINISHED || endReason == AudioTrackEndReason.LOAD_FAILED)) {
@@ -701,11 +706,14 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         
         // Debugging output to help identify track type issues
         TrackType trackType = getTrackType(track);
-        System.out.println("Track started: " + track.getInfo().title + " - Type: " + trackType);
         
         // Record stream start time for statistics
         if (track.getInfo().isStream) {
             streamStartTime = System.currentTimeMillis();
+            
+            // Start monitoring ICY metadata for streams that weren't added via /radio command
+            // This will automatically check if it's a stream and if it doesn't already have radio data
+            manager.getBot().getIcyMetadataHandler().startMonitoring(stringGuildId, track);
         }
 
         // Make sure all track data is properly initialized and cleaned up from previous tracks
@@ -827,7 +835,6 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             // Double-check the track type to ensure we're displaying the correct format
             // This verification is important for when track types change in the queue
             TrackType trackType = getTrackType(track);
-            System.out.println("Track type detected: " + trackType + " for track: " + track.getInfo().title);
             
             // Set author (requester) for all track types
             setRequesterAuthor(eb, rm, guild);
@@ -943,8 +950,18 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                 // Create radio station display
                 buildRadioEmbedContent(eb, track, stationPath, stationName, logoUrl);
             } else {
-                // If we still can't find radio data, fall back to generic stream display
-                buildGenericStreamEmbed(eb, track);
+                // If we still can't find radio data, check if we have ICY metadata
+                // This handles streams added via /play instead of /radio
+                IcyMetadataHandler.StreamMetadata icyMetadata = 
+                    manager.getBot().getIcyMetadataHandler().getMetadata(stringGuildId);
+                
+                if (icyMetadata != null) {
+                    // Build the embed using ICY metadata
+                    buildIcyMetadataEmbed(eb, track, icyMetadata);
+                } else {
+                    // If all else fails, fall back to generic stream display
+                    buildGenericStreamEmbed(eb, track);
+                }
             }
         }
     }
@@ -996,6 +1013,67 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         
         // Set footer to show source
         eb.setFooter("Source: Online Radio Box", getSourceIconUrl("radio"));
+    }
+    
+    /**
+     * Builds an embed using ICY metadata information
+     * @param eb The EmbedBuilder to populate
+     * @param track The track being played
+     * @param metadata The ICY metadata
+     */
+    private void buildIcyMetadataEmbed(EmbedBuilder eb, AudioTrack track, IcyMetadataHandler.StreamMetadata metadata) {
+        // Description with station and track info
+        StringBuilder description = new StringBuilder();
+        
+        // Add station name
+        description.append("**Station:** ").append(metadata.getStationName());
+        
+        // Add genre if available
+        if (metadata.getStationGenre() != null && !metadata.getStationGenre().isEmpty()) {
+            description.append("\n**Genre:** ").append(metadata.getStationGenre());
+        }
+        
+        // Add current track info if available
+        if (metadata.getCurrentTrack() != null && !metadata.getCurrentTrack().isEmpty()) {
+            description.append("\n\n**Now playing:**\n");
+            
+            // If we have both artist and title
+            if (!metadata.getArtist().isEmpty() && !metadata.getTitle().isEmpty()) {
+                description.append("**")
+                          .append(metadata.getTitle())
+                          .append("**\n")
+                          .append(metadata.getArtist());
+            } else {
+                // Just use the raw current track info
+                description.append(metadata.getCurrentTrack());
+            }
+        }
+        
+        // Add play status for streams
+        description.append("\n\n");
+        description.append((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI))
+                  .append(" ")
+                  .append(FormatUtil.progressBar(-1)) // -1 for infinite streams
+                  .append(" `[LIVE]` ");
+        
+        eb.setDescription(description.toString());
+        
+        // Add station logo as thumbnail if available and npimages is enabled
+        if (manager.getBot().getConfig().useNPImages() && 
+            metadata.getStationLogo() != null && 
+            !metadata.getStationLogo().isEmpty()) {
+            eb.setThumbnail(metadata.getStationLogo());
+        }
+        
+        // Add album art if available and npimages is enabled
+        if (manager.getBot().getConfig().useNPImages() && 
+            metadata.getAlbumArt() != null && 
+            !metadata.getAlbumArt().isEmpty()) {
+            eb.setImage(metadata.getAlbumArt());
+        }
+        
+        // Set footer to show source
+        eb.setFooter("Source: Stream with ICY Metadata", getSourceIconUrl("stream"));
     }
     
     /**
@@ -1238,6 +1316,28 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                                "\n" + (audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI) + " " +
                                "[LIVE] " +
                                FormatUtil.volumeIcon(audioPlayer.getVolume());
+                    }
+                    
+                    // Check if we have ICY metadata for this stream
+                    IcyMetadataHandler.StreamMetadata icyMetadata = 
+                        manager.getBot().getIcyMetadataHandler().getMetadata(stringGuildId);
+                    
+                    if (icyMetadata != null) {
+                        String stationName = icyMetadata.getStationName();
+                        String currentTrack = icyMetadata.getCurrentTrack();
+                        
+                        if (!currentTrack.isEmpty()) {
+                            return "**" + stationName + "** - *" + currentTrack + "* [" + 
+                                   (userid == 0 ? "📻" : "<@" + userid + ">") + "]" +
+                                   "\n" + (audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI) + " " +
+                                   "[LIVE] " +
+                                   FormatUtil.volumeIcon(audioPlayer.getVolume());
+                        } else {
+                            return "**" + stationName + "** [" + (userid == 0 ? "📻" : "<@" + userid + ">") + "]" +
+                                   "\n" + (audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI) + " " +
+                                   "[LIVE] " +
+                                   FormatUtil.volumeIcon(audioPlayer.getVolume());
+                        }
                     }
                     break;
             }

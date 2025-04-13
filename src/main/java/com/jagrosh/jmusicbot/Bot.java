@@ -18,6 +18,7 @@ package com.jagrosh.jmusicbot;
 import com.jagrosh.jdautilities.commons.waiter.EventWaiter;
 import com.jagrosh.jmusicbot.audio.AloneInVoiceHandler;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
+import com.jagrosh.jmusicbot.audio.IcyMetadataHandler;
 import com.jagrosh.jmusicbot.audio.NowplayingHandler;
 import com.jagrosh.jmusicbot.audio.PlayerManager;
 import com.jagrosh.jmusicbot.gui.GUI;
@@ -53,6 +54,7 @@ public class Bot {
     private final CacheLoader cache;
     private final NowplayingHandler nowplaying;
     private final AloneInVoiceHandler aloneInVoiceHandler;
+    private final IcyMetadataHandler icyMetadataHandler;
 
     private boolean shuttingDown = false;
     private JDA jda;
@@ -73,6 +75,7 @@ public class Bot {
         this.nowplaying.init();
         this.aloneInVoiceHandler = new AloneInVoiceHandler(this);
         this.aloneInVoiceHandler.init();
+        this.icyMetadataHandler = new IcyMetadataHandler(this);
     }
 
     public static void updatePlayStatus(Guild guild, Member selfMember, PlayStatus status) {
@@ -143,6 +146,10 @@ public class Bot {
         return aloneInVoiceHandler;
     }
 
+    public IcyMetadataHandler getIcyMetadataHandler() {
+        return icyMetadataHandler;
+    }
+
     public JDA getJDA() {
         return jda;
     }
@@ -168,6 +175,10 @@ public class Bot {
             return;
         shuttingDown = true;
         threadpool.shutdownNow();
+        
+        // Shut down the ICY metadata handler
+        icyMetadataHandler.shutdown();
+        
         if (jda.getStatus() != JDA.Status.SHUTTING_DOWN) {
             jda.getGuilds().forEach(g ->
             {

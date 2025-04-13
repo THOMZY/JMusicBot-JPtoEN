@@ -107,6 +107,25 @@ public class RequestMetadata {
     }
     
     /**
+     * Gets the radio station UUID
+     * @return the station UUID or null if not set
+     */
+    public String getRadioStationUuid() {
+        return radioInfo != null ? radioInfo.stationUuid : null;
+    }
+    
+    /**
+     * Sets radio information for this track including the station UUID
+     * @param stationPath the station path/identifier
+     * @param stationName the station name
+     * @param logoUrl the station logo URL
+     * @param stationUuid the station UUID
+     */
+    public void setRadioInfo(String stationPath, String stationName, String logoUrl, String stationUuid) {
+        this.radioInfo = new RadioInfo(stationPath, stationName, logoUrl, stationUuid);
+    }
+    
+    /**
      * Sets radio information for this track
      * @param stationPath the station path/identifier
      * @param stationName the station name
@@ -158,11 +177,20 @@ public class RequestMetadata {
         public final String stationPath;
         public final String stationName;
         public final String logoUrl;
+        public final String stationUuid;
         
         private RadioInfo(String stationPath, String stationName, String logoUrl) {
             this.stationPath = stationPath;
             this.stationName = stationName;
             this.logoUrl = logoUrl;
+            this.stationUuid = null;
+        }
+        
+        private RadioInfo(String stationPath, String stationName, String logoUrl, String stationUuid) {
+            this.stationPath = stationPath;
+            this.stationName = stationName;
+            this.logoUrl = logoUrl;
+            this.stationUuid = stationUuid;
         }
     }
 }

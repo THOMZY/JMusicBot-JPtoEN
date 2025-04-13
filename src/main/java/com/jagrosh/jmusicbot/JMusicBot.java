@@ -145,7 +145,7 @@ public class JMusicBot {
         Bot.INSTANCE = bot;
 
         AboutCommand aboutCommand = new AboutCommand(Color.BLUE.brighter(),
-                "[JMusicBot](https://github.com/THOMZY/JMusicBot-JPtoEN)",
+                "[JMusicBot (v" + version + ")](https://github.com/THOMZY/JMusicBot-JPtoEN)",
                 new String[]{"High-quality music playback", "FairQueue™ Technology", "Easily host it yourself"},
                 RECOMMENDED_PERMS);
         aboutCommand.setIsAuthor(false);

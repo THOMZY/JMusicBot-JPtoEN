@@ -365,21 +365,24 @@ public class SpotifyCmd extends MusicCommand {
                 return;
             }
             
-            AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-            int pos = handler.addTrack(new QueuedTrack(track, event.getUser())) + 1;
-            
-            // Make sure this track is associated with the Spotify track ID
-            // If it's playing immediately (pos==0), we update the track info right away
-            // Otherwise, we'll rely on onTrackStart to update when it eventually plays
+            // Create RequestMetadata and attach the Spotify trackId to it
+            com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getUser());
             if (trackId != null) {
-                if (pos == 0) {
-                    // If playing immediately, make sure we have this track ID set
-                    lastTrackIds.put(event.getGuild().getId(), trackId);
-                } else if (pos > 0) {
-                    // If queued, we still keep the track ID for when it eventually plays
-                    // But this may get overwritten if other tracks are added later
-                    lastTrackIds.put(event.getGuild().getId(), trackId);
-                }
+                rm.setSpotifyTrackId(trackId);
+            }
+            
+            // Create QueuedTrack with the RequestMetadata containing Spotify information
+            com.jagrosh.jmusicbot.audio.QueuedTrack qtrack = new com.jagrosh.jmusicbot.audio.QueuedTrack(track, rm);
+            
+            // Add the track to the queue
+            AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+            int pos = handler.addTrack(qtrack) + 1;
+            
+            // Update the lastTrackIds map immediately, even if the track is queued
+            // This ensures we remember this is a Spotify track when it eventually plays
+            if (trackId != null) {
+                // Always update the lastTrackIds map to remember this track was loaded from Spotify
+                lastTrackIds.put(event.getGuild().getId(), trackId);
             }
             
             event.getHook().sendMessage(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
@@ -398,18 +401,22 @@ public class SpotifyCmd extends MusicCommand {
                 return;
             }
             
-            AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-            int pos = handler.addTrack(new QueuedTrack(track, event.getUser())) + 1;
-            
-            // Associate the track with the Spotify track ID
+            // Create RequestMetadata and attach the Spotify trackId to it
+            com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getUser());
             if (trackId != null) {
-                if (pos == 0) {
-                    // If playing immediately, set the track ID
-                    lastTrackIds.put(event.getGuild().getId(), trackId);
-                } else if (pos > 0) {
-                    // If queued, keep the ID for when the track plays
-                    lastTrackIds.put(event.getGuild().getId(), trackId);
-                }
+                rm.setSpotifyTrackId(trackId);
+            }
+            
+            // Create QueuedTrack with the RequestMetadata containing Spotify information
+            com.jagrosh.jmusicbot.audio.QueuedTrack qtrack = new com.jagrosh.jmusicbot.audio.QueuedTrack(track, rm);
+            
+            AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+            int pos = handler.addTrack(qtrack) + 1;
+            
+            // Update the lastTrackIds map immediately, even if the track is queued
+            if (trackId != null) {
+                // Always update the lastTrackIds map to remember this track was loaded from Spotify
+                lastTrackIds.put(event.getGuild().getId(), trackId);
             }
             
             event.getHook().sendMessage(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
@@ -450,21 +457,22 @@ public class SpotifyCmd extends MusicCommand {
                 return;
             }
             
-            AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-            int pos = handler.addTrack(new QueuedTrack(track, event.getAuthor())) + 1;
-            
-            // Make sure this track is associated with the Spotify track ID
-            // If it's playing immediately (pos==0), we update the track info right away
-            // Otherwise, we'll rely on onTrackStart to update when it eventually plays
+            // Create RequestMetadata and attach the Spotify trackId to it
+            com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getAuthor());
             if (trackId != null) {
-                if (pos == 0) {
-                    // If playing immediately, make sure we have this track ID set
-                    lastTrackIds.put(event.getGuild().getId(), trackId);
-                } else if (pos > 0) {
-                    // If queued, we still keep the track ID for when it eventually plays
-                    // But this may get overwritten if other tracks are added later
-                    lastTrackIds.put(event.getGuild().getId(), trackId);
-                }
+                rm.setSpotifyTrackId(trackId);
+            }
+            
+            // Create QueuedTrack with the RequestMetadata containing Spotify information
+            com.jagrosh.jmusicbot.audio.QueuedTrack qtrack = new com.jagrosh.jmusicbot.audio.QueuedTrack(track, rm);
+            
+            AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+            int pos = handler.addTrack(qtrack) + 1;
+            
+            // Update the lastTrackIds map immediately, even if the track is queued
+            if (trackId != null) {
+                // Always update the lastTrackIds map to remember this track was loaded from Spotify
+                lastTrackIds.put(event.getGuild().getId(), trackId);
             }
             
             m.editMessage(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
@@ -483,18 +491,22 @@ public class SpotifyCmd extends MusicCommand {
                 return;
             }
             
-            AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-            int pos = handler.addTrack(new QueuedTrack(track, event.getAuthor())) + 1;
-            
-            // Associate the track with the Spotify track ID
+            // Create RequestMetadata and attach the Spotify trackId to it
+            com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getAuthor());
             if (trackId != null) {
-                if (pos == 0) {
-                    // If playing immediately, set the track ID
-                    lastTrackIds.put(event.getGuild().getId(), trackId);
-                } else if (pos > 0) {
-                    // If queued, keep the ID for when the track plays
-                    lastTrackIds.put(event.getGuild().getId(), trackId);
-                }
+                rm.setSpotifyTrackId(trackId);
+            }
+            
+            // Create QueuedTrack with the RequestMetadata containing Spotify information
+            com.jagrosh.jmusicbot.audio.QueuedTrack qtrack = new com.jagrosh.jmusicbot.audio.QueuedTrack(track, rm);
+            
+            AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+            int pos = handler.addTrack(qtrack) + 1;
+            
+            // Update the lastTrackIds map immediately, even if the track is queued
+            if (trackId != null) {
+                // Always update the lastTrackIds map to remember this track was loaded from Spotify
+                lastTrackIds.put(event.getGuild().getId(), trackId);
             }
             
             m.editMessage(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
@@ -588,8 +600,56 @@ public class SpotifyCmd extends MusicCommand {
         // Update the hook with the track name being loaded
         hook.editOriginal("Loading `[" + trackName + "]`...").queue();
         
-        // Search YouTube Music for this track
-        bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new SlashResultHandler(hook, event));
+        // Create a custom AudioLoadResultHandler that will store the Spotify track ID
+        bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new AudioLoadResultHandler() {
+            @Override
+            public void trackLoaded(AudioTrack track) {
+                // Create RequestMetadata with the Spotify track ID
+                com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getUser());
+                rm.setSpotifyTrackId(trackId);
+                
+                // Create QueuedTrack with the RequestMetadata
+                com.jagrosh.jmusicbot.audio.QueuedTrack qtrack = new com.jagrosh.jmusicbot.audio.QueuedTrack(track, rm);
+                
+                // Process the track as usual
+                AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+                int pos = handler.addTrack(qtrack) + 1;
+                
+                hook.editOriginal(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
+                        + "**(`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added."
+                        : " has been added to the queue at position " + pos + "."))).queue();
+            }
+
+            @Override
+            public void playlistLoaded(AudioPlaylist playlist) {
+                AudioTrack track = playlist.getTracks().get(0);
+                
+                // Create RequestMetadata with the Spotify track ID
+                com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getUser());
+                rm.setSpotifyTrackId(trackId);
+                
+                // Create QueuedTrack with the RequestMetadata
+                com.jagrosh.jmusicbot.audio.QueuedTrack qtrack = new com.jagrosh.jmusicbot.audio.QueuedTrack(track, rm);
+                
+                // Process the track as usual
+                AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+                int pos = handler.addTrack(qtrack) + 1;
+                
+                hook.editOriginal(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
+                        + "**(`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added."
+                        : " has been added to the queue at position " + pos + "."))).queue();
+            }
+
+            @Override
+            public void noMatches() {
+                hook.editOriginal(event.getClient().getWarning() + " No matches found for: " + trackName).queue();
+            }
+
+            @Override
+            public void loadFailed(FriendlyException exception) {
+                hook.editOriginal(event.getClient().getError() + " Error loading track: " + exception.getMessage()).queue();
+            }
+        });
     }
     
     // Handle Spotify track processing for regular Commands (called from PlayCmd)
@@ -659,8 +719,56 @@ public class SpotifyCmd extends MusicCommand {
         // Update the message with the track name being loaded
         message.editMessage("Loading `[" + trackName + "]`...").queue();
         
-        // Search YouTube Music for this track
-        bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new ResultHandler(message, event));
+        // Create a custom AudioLoadResultHandler that will store the Spotify track ID
+        bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new AudioLoadResultHandler() {
+            @Override
+            public void trackLoaded(AudioTrack track) {
+                // Create RequestMetadata with the Spotify track ID
+                com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getAuthor());
+                rm.setSpotifyTrackId(trackId);
+                
+                // Create QueuedTrack with the RequestMetadata
+                com.jagrosh.jmusicbot.audio.QueuedTrack qtrack = new com.jagrosh.jmusicbot.audio.QueuedTrack(track, rm);
+                
+                // Process the track as usual
+                AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+                int pos = handler.addTrack(qtrack) + 1;
+                
+                message.editMessage(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
+                        + "**(`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added."
+                        : " has been added to the queue at position " + pos + "."))).queue();
+            }
+
+            @Override
+            public void playlistLoaded(AudioPlaylist playlist) {
+                AudioTrack track = playlist.getTracks().get(0);
+                
+                // Create RequestMetadata with the Spotify track ID
+                com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getAuthor());
+                rm.setSpotifyTrackId(trackId);
+                
+                // Create QueuedTrack with the RequestMetadata
+                com.jagrosh.jmusicbot.audio.QueuedTrack qtrack = new com.jagrosh.jmusicbot.audio.QueuedTrack(track, rm);
+                
+                // Process the track as usual
+                AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+                int pos = handler.addTrack(qtrack) + 1;
+                
+                message.editMessage(FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
+                        + "**(`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added."
+                        : " has been added to the queue at position " + pos + "."))).queue();
+            }
+
+            @Override
+            public void noMatches() {
+                message.editMessage(event.getClient().getWarning() + " No matches found for: " + trackName).queue();
+            }
+
+            @Override
+            public void loadFailed(FriendlyException exception) {
+                message.editMessage(event.getClient().getError() + " Error loading track: " + exception.getMessage()).queue();
+            }
+        });
     }
 }
 

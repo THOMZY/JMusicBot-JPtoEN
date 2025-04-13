@@ -17,9 +17,9 @@ package com.jagrosh.jmusicbot;
 
 import com.jagrosh.jmusicbot.queue.FairQueue;
 import com.jagrosh.jmusicbot.queue.Queueable;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * @author John Grosh (john.a.grosh@gmail.com)
@@ -31,7 +31,7 @@ public class FairQueueTest {
         int size = 100;
         for (int i = 0; i < size; i++)
             queue.add(new Q(i));
-        assertEquals(queue.size(), size);
+        assertEquals(size, queue.size());
     }
 
     @Test
@@ -40,7 +40,7 @@ public class FairQueueTest {
         int size = 100;
         for (int i = 0; i < size; i++)
             queue.add(new Q(0));
-        assertEquals(queue.size(), size);
+        assertEquals(size, queue.size());
     }
 
     private class Q implements Queueable {

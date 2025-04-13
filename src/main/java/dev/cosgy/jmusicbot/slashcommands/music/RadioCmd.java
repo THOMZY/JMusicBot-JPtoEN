@@ -205,6 +205,9 @@ public class RadioCmd extends MusicCommand {
                 if (dataUrlEnd != -1) {
                     moreResultsUrl = html.substring(dataUrlStart, dataUrlEnd);
                     
+                    // Decode any HTML entities in the URL
+                    moreResultsUrl = decodeHtmlEntitiesInUrl(moreResultsUrl);
+                    
                     // The URL might already contain the offset parameter
                     if (moreResultsUrl.contains("offset=")) {
                         int offsetParamStart = moreResultsUrl.indexOf("offset=") + 7;
@@ -244,7 +247,19 @@ public class RadioCmd extends MusicCommand {
         }
         
         // Create the final URL and offset
-        final String finalMoreResultsUrl = moreResultsUrl != null ? moreResultsUrl : "https://onlineradiobox.com/search?part=1&q=" + encodedQuery;
+        final String finalMoreResultsUrl;
+        if (moreResultsUrl != null) {
+            finalMoreResultsUrl = moreResultsUrl;
+        } else {
+            // Check if the query looks like a station ID (all digits)
+            if (encodedQuery.matches("\\d+")) {
+                // This is likely a radioid for substations
+                finalMoreResultsUrl = "https://onlineradiobox.com/search?part=1&radioid=" + encodedQuery;
+            } else {
+                // Regular search query
+                finalMoreResultsUrl = "https://onlineradiobox.com/search?part=1&q=" + encodedQuery;
+            }
+        }
         
         return new PaginationInfo(finalMoreResultsUrl, moreResultsOffset);
     }
@@ -253,10 +268,13 @@ public class RadioCmd extends MusicCommand {
      * Send message indicating no results were found
      */
     private void sendNoResultsMessage(Message message, InteractionHook hook, CommandEvent cmdEvent, SlashCommandEvent slashEvent, String query) {
+        String noResultsMsg = FormatUtil.filter(" No radio stations found for `" + query + "`. Please try another search term.");
+        String additionalInfo = "\nYou can find more radio stations at https://streamurl.link/ - these can be played using the `/play` command with the direct stream URL.";
+        
         if (message != null && cmdEvent != null) {
-            message.editMessage(FormatUtil.filter(cmdEvent.getClient().getWarning() + " No radio stations found for `" + query + "`. Please try another search term.")).queue();
+            message.editMessage(cmdEvent.getClient().getWarning() + noResultsMsg + additionalInfo).queue();
         } else if (hook != null && slashEvent != null) {
-            hook.editOriginal(FormatUtil.filter(slashEvent.getClient().getWarning() + " No radio stations found for `" + query + "`. Please try another search term.")).queue();
+            hook.editOriginal(slashEvent.getClient().getWarning() + noResultsMsg + additionalInfo).queue();
         }
     }
 
@@ -396,6 +414,123 @@ public class RadioCmd extends MusicCommand {
                 }
             }
             
+            // Extract the radio ID from the button element - better method
+            // Format: radioId="fr.nostalgie" or similar
+            String radioId = "";
+            int radioIdStart = html.indexOf("radioId=\"", stationBlockStart);
+            if (radioIdStart != -1) {
+                radioIdStart += 9; // Length of "radioId=\""
+                int radioIdEnd = html.indexOf("\"", radioIdStart);
+                if (radioIdEnd != -1) {
+                    radioId = html.substring(radioIdStart, radioIdEnd);
+                }
+            }
+            
+            // If radioId is still empty, look for it in different formats
+            if (radioId.isEmpty()) {
+                // Sometimes it's in the URL for substations: radioid=4777
+                int radioidParamStart = html.indexOf("radioid=", stationBlockStart);
+                if (radioidParamStart != -1) {
+                    radioidParamStart += 8; // Length of "radioid="
+                    int radioidParamEnd = html.indexOf("&", radioidParamStart);
+                    if (radioidParamEnd == -1) {
+                        radioidParamEnd = html.indexOf("\"", radioidParamStart);
+                    }
+                    if (radioidParamEnd == -1) {
+                        radioidParamEnd = html.indexOf("'", radioidParamStart);
+                    }
+                    if (radioidParamEnd != -1) {
+                        radioId = html.substring(radioidParamStart, radioidParamEnd);
+                    }
+                }
+            }
+            
+            // If radioId is still empty, extract it from the path if it contains numbers
+            if (radioId.isEmpty() && path.matches(".*\\d+$")) {
+                radioId = path.replaceAll(".*?(\\d+)$", "$1");
+            }
+            
+            // Extract number of substations
+            int substationCount = 0;
+            int substationDiv = html.indexOf("<li class=\"i-broadcasts\"", stationBlockStart);
+            if (substationDiv != -1) {
+                // Find the text content which contains the count
+                int substationTextStart = html.indexOf(">", substationDiv);
+                if (substationTextStart != -1) {
+                    substationTextStart += 1; // Length of ">"
+                    int substationTextEnd = html.indexOf("</li>", substationTextStart);
+                    if (substationTextEnd != -1) {
+                        String substationText = html.substring(substationTextStart, substationTextEnd).trim();
+                        try {
+                            substationCount = Integer.parseInt(substationText);
+                            
+                            // Check if there's a "Stations found:" link for this station
+                            boolean hasStationsFoundLink = false;
+                            int stationsFoundStart = html.indexOf("<li class=\"search__station--more\">", stationBlockStart);
+                            int nextStationStart = html.indexOf("<li class=\"stations__station\">", stationBlockStart + 1);
+                            
+                            // Only consider the "Stations found:" link if it appears before the next station
+                            if (stationsFoundStart != -1 && (nextStationStart == -1 || stationsFoundStart < nextStationStart)) {
+                                hasStationsFoundLink = html.substring(stationsFoundStart, stationsFoundStart + 100).contains("Stations found:");
+                            }
+                            
+                            // Verify if the station has a valid radioId for substations
+                            // We now also require the presence of a "Stations found:" link for additional validation
+                            if (!hasStationsFoundLink || (substationCount > 0 && radioId.isEmpty() && !path.matches(".*\\d+$"))) {
+                                // No reliable way to fetch substations, don't show substations count
+                                substationCount = 0;
+                            }
+                        } catch (NumberFormatException e) {
+                            // If we can't parse it, keep it as 0
+                            System.err.println("Could not parse substation count: " + substationText);
+                        }
+                    }
+                }
+            }
+            
+            // Check for "Stations found: X" link which indicates substations
+            int stationsFoundStart = html.indexOf("<li class=\"search__station--more\">", stationBlockStart);
+            int nextStationStart = html.indexOf("<li class=\"stations__station\">", stationBlockStart + 1);
+            
+            // Only process the "Stations found:" link if it appears before the next station
+            if (stationsFoundStart != -1 && (nextStationStart == -1 || stationsFoundStart < nextStationStart)) {
+                int stationsFoundLinkStart = html.indexOf("Stations found: ", stationsFoundStart);
+                if (stationsFoundLinkStart != -1) {
+                    stationsFoundLinkStart += 16; // Length of "Stations found: "
+                    int stationsFoundLinkEnd = html.indexOf("</a>", stationsFoundLinkStart);
+                    if (stationsFoundLinkEnd != -1) {
+                        try {
+                            substationCount = Integer.parseInt(html.substring(stationsFoundLinkStart, stationsFoundLinkEnd).trim());
+                            
+                            // Extract radioId from the "Stations found" link
+                            if (radioId.isEmpty()) {
+                                int foundRadioIdStart = html.indexOf("radioid=", stationsFoundStart);
+                                if (foundRadioIdStart != -1) {
+                                    foundRadioIdStart += 8; // Length of "radioid="
+                                    int foundRadioIdEnd = html.indexOf("\"", foundRadioIdStart);
+                                    if (foundRadioIdEnd == -1) {
+                                        foundRadioIdEnd = html.indexOf("&", foundRadioIdStart);
+                                    }
+                                    if (foundRadioIdEnd != -1) {
+                                        radioId = html.substring(foundRadioIdStart, foundRadioIdEnd);
+                                    }
+                                }
+                            }
+                            
+                            // Verify if we have a way to access the substations
+                            if (substationCount > 0 && radioId.isEmpty() && !path.matches(".*\\d+$")) {
+                                // No reliable way to fetch substations, don't show substations count
+                                substationCount = 0;
+                            }
+                        } catch (NumberFormatException e) {
+                            // Keep the previously found count if any
+                            System.err.println("Could not parse stations found count: " + 
+                                html.substring(stationsFoundLinkStart, stationsFoundLinkEnd).trim());
+                        }
+                    }
+                }
+            }
+            
             // Add the radio station to the list
             RadioStation station;
             if (!streamUrl.isEmpty()) {
@@ -404,6 +539,10 @@ public class RadioCmd extends MusicCommand {
             } else {
                 station = new RadioStation(title, path, logoUrl, country, genres);
             }
+            
+            // Set the radio ID and substation count
+            station.radioId = radioId;
+            station.substationCount = substationCount;
             
             // We'll fetch descriptions later in bulk for better performance
             stations.add(station);
@@ -498,8 +637,12 @@ public class RadioCmd extends MusicCommand {
 
     /**
      * Format a single radio station for display
+     * @param station The station to format
+     * @param index The index of the station in the list
+     * @param isSubstation Whether this station is being displayed as a substation (defaults to false)
+     * @return Formatted station display string
      */
-    private String formatStationDisplay(RadioStation station, int index) {
+    private String formatStationDisplay(RadioStation station, int index, boolean isSubstation) {
         StringBuilder stationDisplay = new StringBuilder();
         
         // Create a link to the radio page
@@ -532,6 +675,11 @@ public class RadioCmd extends MusicCommand {
                 stationDisplay.append(" | ").append(flagEmoji);
             }
         }
+        
+        // Add substation count only if this is not being displayed as a substation and if we have a valid ID
+        if (!isSubstation && station.substationCount > 0 && (!station.radioId.isEmpty() || station.path.matches(".*\\d+$"))) {
+            stationDisplay.append(" | ").append(station.substationCount).append(" substations 📻");
+        }
 
         // Add description if available - continue the blockquote on a new line
         if (station.description != null && !station.description.isEmpty()) {
@@ -544,6 +692,13 @@ public class RadioCmd extends MusicCommand {
         }
         
         return stationDisplay.toString();
+    }
+
+    /**
+     * Format a single radio station for display (defaults to not being a substation)
+     */
+    private String formatStationDisplay(RadioStation station, int index) {
+        return formatStationDisplay(station, index, false);
     }
 
     /**
@@ -560,7 +715,7 @@ public class RadioCmd extends MusicCommand {
         List<String> stationDisplays = new ArrayList<>();
         for (int i = 0; i < pageStations.size(); i++) {
             RadioStation station = pageStations.get(i);
-            stationDisplays.add(formatStationDisplay(station, startIndex + i));
+            stationDisplays.add(formatStationDisplay(station, startIndex + i, false));
         }
         
         // Add stations to the description with compact separator lines
@@ -569,7 +724,7 @@ public class RadioCmd extends MusicCommand {
             
             // Add a compact separator line between stations (but not after the last one)
             if (i < stationDisplays.size() - 1) {
-                description.append("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n");
+                description.append("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n");
             }
         }
         
@@ -590,7 +745,7 @@ public class RadioCmd extends MusicCommand {
         }
         embed.setDescription(description);
         // Add footer with "Powered by Online Radio Box"
-        embed.setFooter("Powered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
+        embed.setFooter("\n\nPowered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
         return embed;
     }
 
@@ -608,46 +763,40 @@ public class RadioCmd extends MusicCommand {
             String moreResultsUrl,
             int moreResultsOffset) {
         
-        List<Button> buttons = new ArrayList<>();
+        List<Button> selectionButtons = new ArrayList<>();
+        List<Button> navigationButtons = new ArrayList<>();
         
-        // Add selection buttons
+        // Add selection buttons - these are for playing the main stations
         for (int i = 0; i < pageStations.size(); i++) {
-            buttons.add(Button.primary("radio:" + (startIndex + i), String.valueOf(startIndex + i + 1)));
+            selectionButtons.add(Button.primary("radio:" + (startIndex + i), String.valueOf(startIndex + i + 1)));
         }
         
         // Add navigation buttons
         if (page > 0) {
-            buttons.add(Button.secondary("radio:prev:" + page + ":" + query, "⬅️ Previous"));
+            navigationButtons.add(Button.secondary("radio:prev:" + page + ":" + query, "⬅️ Previous"));
         }
         
         if (endIndex < totalStations) {
-            buttons.add(Button.secondary("radio:next:" + page + ":" + query, "Next ➡️"));
+            navigationButtons.add(Button.secondary("radio:next:" + page + ":" + query, "Next ➡️"));
         }
         
         // Add "Load More" button if we're on the last page and there are more results available
         boolean isLastPage = (page == totalPages - 1);
         if (moreResultsOffset > 0 && isLastPage) {
-            buttons.add(Button.success("radio:more:" + query + ":" + moreResultsOffset, "Load More Results"));
+            navigationButtons.add(Button.success("radio:more:" + query + ":" + moreResultsOffset, "Load More Results"));
         }
         
-        buttons.add(Button.danger("radio:cancel", "❌ Cancel"));
+        navigationButtons.add(Button.danger("radio:cancel", "❌ Cancel"));
         
-        // Distribute buttons in rows (max 5 buttons per row)
+        // Organize buttons into action rows
         List<ActionRow> actionRows = new ArrayList<>();
         
-        // Selection buttons in first row
-        List<Button> selectionButtons = new ArrayList<>();
-        for (int i = 0; i < Math.min(5, pageStations.size()); i++) {
-            selectionButtons.add(buttons.get(i));
+        // Selection buttons in first row (max 5)
+        if (!selectionButtons.isEmpty()) {
+            actionRows.add(ActionRow.of(selectionButtons.subList(0, Math.min(5, selectionButtons.size()))));
         }
-        actionRows.add(ActionRow.of(selectionButtons));
         
         // Navigation buttons in second row
-        List<Button> navigationButtons = new ArrayList<>();
-        for (int i = pageStations.size(); i < buttons.size(); i++) {
-            navigationButtons.add(buttons.get(i));
-        }
-        
         if (!navigationButtons.isEmpty()) {
             actionRows.add(ActionRow.of(navigationButtons));
         }
@@ -759,7 +908,34 @@ public class RadioCmd extends MusicCommand {
         } else if (buttonId.startsWith("radio:more:")) {
             handleLoadMoreButton(event, stations, cmdEvent, slashEvent, currentPage, query, moreResultsUrl, moreResultsOffset);
         } else if (buttonId.startsWith("radio:")) {
-            handleStationSelectionButton(event, stations, cmdEvent, slashEvent);
+            // Extract the station index
+            int index = Integer.parseInt(buttonId.substring(6));
+            
+            // Get the selected station
+            RadioStation station = stations.get(index);
+            
+            // Check if the station has substations and has a valid radioId or path with a numeric ID
+            // Also verify that substationCount is actually greater than 0
+            boolean hasValidSubstations = station.substationCount > 0 && 
+                                         (!station.radioId.isEmpty() || station.path.matches(".*\\d+$"));
+            
+            if (hasValidSubstations) {
+                // Show loading message
+                event.editMessage(searchingEmoji + "Station has substations. Loading substations of `" + station.title + "`...").queue();
+                
+                // If there's no radio ID but we know there are substations, try to extract ID from path
+                if (station.radioId.isEmpty()) {
+                    if (station.path.matches(".*\\d+$")) {
+                        station.radioId = station.path.replaceAll(".*?(\\d+)$", "$1");
+                    }
+                }
+                
+                // Search for substations directly
+                searchSubstations(station, query, event.getMessage(), cmdEvent, null, slashEvent);
+            } else {
+                // No substations or invalid ID, just play the station directly
+                handleStationSelectionButton(event, stations, cmdEvent, slashEvent);
+            }
         }
     }
 
@@ -1097,7 +1273,7 @@ public class RadioCmd extends MusicCommand {
                 embed.setDescription("**" + station.title + "** has been added to the queue!");
                 embed.setThumbnail(station.logoUrl);
                 // Add footer with "Powered by Online Radio Box"
-                embed.setFooter("Powered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
+                embed.setFooter("\n\nPowered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
                 channel.sendMessageEmbeds(embed.build()).queue();
             }
         }
@@ -1254,6 +1430,8 @@ public class RadioCmd extends MusicCommand {
         final String country;
         final List<String> genres;
         String description; // Added description field
+        int substationCount; // Number of substations
+        String radioId; // Radio ID for substation search
         
         RadioStation(String title, String path) {
             this.title = title;
@@ -1263,6 +1441,8 @@ public class RadioCmd extends MusicCommand {
             this.country = "";
             this.genres = new ArrayList<>();
             this.description = "";
+            this.substationCount = 0;
+            this.radioId = "";
         }
         
         RadioStation(String title, String path, String logoUrl, String country, List<String> genres) {
@@ -1273,6 +1453,8 @@ public class RadioCmd extends MusicCommand {
             this.country = country;
             this.genres = genres;
             this.description = "";
+            this.substationCount = 0;
+            this.radioId = "";
         }
         
         RadioStation(String title, String path, String directStreamUrl, String logoUrl, String country, List<String> genres) {
@@ -1283,6 +1465,8 @@ public class RadioCmd extends MusicCommand {
             this.country = country;
             this.genres = genres;
             this.description = "";
+            this.substationCount = 0;
+            this.radioId = "";
         }
     }
     
@@ -1346,7 +1530,10 @@ public class RadioCmd extends MusicCommand {
             // Set track title with current track info
             setTrackTitle(track);
             
-            // Save the station path for later updates
+            // Store radio information in the track's RequestMetadata
+            storeRadioInfoInMetadata(track);
+            
+            // Also save in static maps for backward compatibility and access from other parts
             if (guildId != null) {
                 lastStationPaths.put(guildId, stationPath);
                 if (logoUrl != null && !logoUrl.isEmpty()) {
@@ -1355,6 +1542,32 @@ public class RadioCmd extends MusicCommand {
             }
             
             return guildId;
+        }
+        
+        /**
+         * Store radio station information in the track's RequestMetadata
+         * @param track The track to update
+         */
+        private void storeRadioInfoInMetadata(AudioTrack track) {
+            // Get or create RequestMetadata for this track
+            com.jagrosh.jmusicbot.audio.RequestMetadata rm;
+            
+            if (track.getUserData() instanceof com.jagrosh.jmusicbot.audio.RequestMetadata) {
+                rm = (com.jagrosh.jmusicbot.audio.RequestMetadata) track.getUserData();
+            } else {
+                // Create new RequestMetadata with the appropriate user
+                if (event != null) {
+                    rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getAuthor());
+                } else if (slashUser != null) {
+                    rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(slashUser);
+                } else {
+                    rm = com.jagrosh.jmusicbot.audio.RequestMetadata.EMPTY;
+                }
+                track.setUserData(rm);
+            }
+            
+            // Store the radio station information
+            rm.setRadioInfo(stationPath, stationTitle, logoUrl);
         }
         
         /**
@@ -1421,7 +1634,7 @@ public class RadioCmd extends MusicCommand {
         }
         
         /**
-         * Add the track to queue and display appropriate message
+         * Add track to queue and display information
          */
         private void addTrackToQueueAndDisplay(AudioTrack track) {
             if (event != null) {
@@ -1432,11 +1645,26 @@ public class RadioCmd extends MusicCommand {
         }
         
         /**
-         * Add track to queue for command events and display response
+         * Add track to queue for regular command and display response
          */
         private void addTrackToCommandQueue(AudioTrack track) {
+            // Ensure RequestMetadata is properly set up
+            com.jagrosh.jmusicbot.audio.RequestMetadata rm;
+            if (track.getUserData() instanceof com.jagrosh.jmusicbot.audio.RequestMetadata) {
+                rm = (com.jagrosh.jmusicbot.audio.RequestMetadata) track.getUserData();
+            } else {
+                rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getAuthor());
+                
+                // Set radio info in the metadata
+                rm.setRadioInfo(stationPath, stationTitle, logoUrl);
+                
+                // Update track user data
+                track.setUserData(rm);
+            }
+            
+            // Add to queue with the proper RequestMetadata
             AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-            handler.addTrack(new QueuedTrack(track, event.getAuthor()));
+            handler.addTrack(new QueuedTrack(track, rm));
             
             // Get detailed information for the embed
             TrackInfo trackInfo = getDetailedTrackInfo(stationPath);
@@ -1446,6 +1674,40 @@ public class RadioCmd extends MusicCommand {
                 displayRichEmbedResponse(trackInfo, event.getGuild().getId());
             } else {
                 displaySimpleTextResponse(trackInfo);
+            }
+        }
+        
+        /**
+         * Add track to queue for slash commands and display response
+         */
+        private void addTrackToSlashQueue(AudioTrack track) {
+            Guild guild = slashUser.getJDA().getGuildById(slashUser.getJDA().getSelfUser().getId());
+            if (guild != null) {
+                // Ensure RequestMetadata is properly set up
+                com.jagrosh.jmusicbot.audio.RequestMetadata rm;
+                if (track.getUserData() instanceof com.jagrosh.jmusicbot.audio.RequestMetadata) {
+                    rm = (com.jagrosh.jmusicbot.audio.RequestMetadata) track.getUserData();
+                } else {
+                    rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(slashUser);
+                    
+                    // Set radio info in the metadata
+                    rm.setRadioInfo(stationPath, stationTitle, logoUrl);
+                    
+                    // Update track user data
+                    track.setUserData(rm);
+                }
+                
+                // Add to queue with the proper RequestMetadata
+                AudioHandler handler = (AudioHandler) guild.getAudioManager().getSendingHandler();
+                handler.addTrack(new QueuedTrack(track, rm));
+                
+                // For slash commands, also get detailed information
+                TrackInfo trackInfo = getDetailedTrackInfo(stationPath);
+                
+                // For slash commands, we can also display an embed with the logo
+                if (logoUrl != null && !logoUrl.isEmpty()) {
+                    displaySlashEmbedResponse(guild, trackInfo);
+                }
             }
         }
         
@@ -1475,7 +1737,7 @@ public class RadioCmd extends MusicCommand {
             }
             
             // Add footer with "Powered by Online Radio Box"
-            embed.setFooter("Powered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
+            embed.setFooter("\n\nPowered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
             
             // Send the message and save the ID for later updates
             event.reply(embed.build(), message -> {
@@ -1496,25 +1758,6 @@ public class RadioCmd extends MusicCommand {
             }
             
             event.replySuccess(replyMessage);
-        }
-        
-        /**
-         * Add track to queue for slash commands and display response
-         */
-        private void addTrackToSlashQueue(AudioTrack track) {
-            Guild guild = slashUser.getJDA().getGuildById(slashUser.getJDA().getSelfUser().getId());
-            if (guild != null) {
-                AudioHandler handler = (AudioHandler) guild.getAudioManager().getSendingHandler();
-                handler.addTrack(new QueuedTrack(track, slashUser));
-                
-                // For slash commands, also get detailed information
-                TrackInfo trackInfo = getDetailedTrackInfo(stationPath);
-                
-                // For slash commands, we can also display an embed with the logo
-                if (logoUrl != null && !logoUrl.isEmpty()) {
-                    displaySlashEmbedResponse(guild, trackInfo);
-                }
-            }
         }
         
         /**
@@ -1544,7 +1787,7 @@ public class RadioCmd extends MusicCommand {
                 }
                 
                 // Add footer with "Powered by Online Radio Box"
-                embed.setFooter("Powered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
+                embed.setFooter("\n\nPowered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
                 
                 final String guildId = guild.getId();
                 channel.sendMessageEmbeds(embed.build()).queue(message -> {
@@ -1714,10 +1957,16 @@ public class RadioCmd extends MusicCommand {
                         if (!stationUrl.endsWith("/")) {
                             stationUrl += "/";
                         }
-                        embed.setTitle("Now playing on [" + stationTitle + "](" + stationUrl + ")");
+                        
+                        // Set the title to "Now Playing on:"
+                        embed.setTitle("Now Playing on:");
                         
                         // Description with updated information
                         StringBuilder description = new StringBuilder();
+                        
+                        // Add the station name as a clickable link at the top of description
+                        description.append("[").append(stationTitle).append("](").append(stationUrl).append(")").append("\n\n");
+                        
                         if (latestInfo != null && !latestInfo.getFormattedTitle().isEmpty() && !latestInfo.getFormattedTitle().equals("Unknown")) {
                             // Display only the artist and title, without the station name
                             description.append("**Now playing:**\n").append(latestInfo.getFormattedTitleWithoutStation());
@@ -1744,7 +1993,7 @@ public class RadioCmd extends MusicCommand {
                         }
                         
                         // Add footer with "Powered by Online Radio Box"
-                        embed.setFooter("Powered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
+                        embed.setFooter("\n\nPowered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
                         
                         // Update the message
                         message.editMessageEmbeds(embed.build()).queue(
@@ -1834,7 +2083,6 @@ public class RadioCmd extends MusicCommand {
             existingTimer.cancel();
             existingTimer.purge();
             activeTimers.remove(guildId);
-            System.out.println("Cancelled existing timer for guild: " + guildId);
         }
     }
 
@@ -1896,5 +2144,750 @@ public class RadioCmd extends MusicCommand {
             e.printStackTrace(); // Print stack trace for more detailed error information
             return new ArrayList<>();
         }
+    }
+
+    /**
+     * Search for substations of a radio station
+     * @param station The main station to search substations for
+     * @param query The original search query
+     * @param message The original message
+     * @param cmdEvent The command event
+     * @param hook The interaction hook
+     * @param slashEvent The slash event
+     */
+    private void searchSubstations(RadioStation station, String query, Message message, CommandEvent cmdEvent, 
+                                   InteractionHook hook, SlashCommandEvent slashEvent) {
+        try {
+            // Show loading message first
+            if (message != null) {
+                message.editMessage(searchingEmoji + "Searching for substations of `" + station.title + "`...").queue();
+            } else if (hook != null) {
+                hook.editOriginal(searchingEmoji + "Searching for substations of `" + station.title + "`...").queue();
+            }
+            
+            // Step 1: Try to get the numeric station ID from the scraper API first
+            String numericStationId = "";
+            
+            // If we have a radioId, try to get the numeric ID from the scraper
+            if (!station.radioId.isEmpty()) {
+                try {
+                    String scraperId = station.radioId;
+                    // Make sure we have a proper format for the scraper URL (e.g., fr.nostalgie)
+                    if (!scraperId.contains(".") && station.path.contains("/")) {
+                        // Convert path like "fr/nostalgie" to "fr.nostalgie"
+                        String[] pathParts = station.path.split("/");
+                        if (pathParts.length >= 2) {
+                            scraperId = pathParts[0] + "." + pathParts[1];
+                        }
+                    }
+                    
+                    URL scraperUrl = new URL("http://scraper.onlineradiobox.com/" + scraperId);
+                    
+                    HttpURLConnection connection = (HttpURLConnection) scraperUrl.openConnection();
+                    connection.setRequestMethod("GET");
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+                    
+                    StringBuilder response = new StringBuilder();
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            response.append(line);
+                        }
+                    }
+                    
+                    // Parse the JSON response to get the stationId
+                    JsonNode scraperData = mapper.readTree(response.toString());
+                    if (scraperData.has("stationId")) {
+                        numericStationId = String.valueOf(scraperData.get("stationId").asInt());
+                    }
+                } catch (Exception e) {
+                    System.out.println("Error getting stationId from scraper: " + e.getMessage());
+                    // Continue with other methods if this fails
+                }
+            }
+            
+            // Step 2: Create the URL for substation search
+            String substationSearchUrl;
+            
+            // If we got a numeric station ID from the scraper, use it
+            if (!numericStationId.isEmpty()) {
+                substationSearchUrl = "https://onlineradiobox.com/search?radioid=" + numericStationId;
+            } 
+            // Otherwise try other methods to find the right URL
+            else {
+                // If the radioId might already be numeric, use it directly
+                if (station.radioId.matches("\\d+")) {
+                    substationSearchUrl = "https://onlineradiobox.com/search?radioid=" + station.radioId;
+                }
+                // Try to extract numeric ID from path 
+                else if (station.path.matches(".*\\d+$")) {
+                    String extractedId = station.path.replaceAll(".*?(\\d+)$", "$1");
+                    substationSearchUrl = "https://onlineradiobox.com/search?radioid=" + extractedId;
+                }
+                // If everything else fails, use the original query with the station title
+                else {
+                    substationSearchUrl = "https://onlineradiobox.com/search?q=" + URLEncoder.encode(station.title, StandardCharsets.UTF_8.toString());
+                }
+            }
+            
+            // Fetch the substations
+            URL url = new URL(substationSearchUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+            connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
+            
+            // Read the response
+            StringBuilder response = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+            }
+            
+            String html = response.toString();
+            
+            // Look for the "Stations found: X" text which indicates substations
+            // This can help us confirm we're on a substation page
+            boolean hasSubstations = html.contains("Stations found:") && html.contains("search__station--more");
+            
+            if (!hasSubstations) {
+                // Try a fallback URL if the scraper-based attempt didn't work
+                String fallbackUrl = "https://onlineradiobox.com/search?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8.toString()) 
+                                  + "&radioid=" + (numericStationId.isEmpty() ? "4777" : numericStationId);
+                
+                url = new URL(fallbackUrl);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+                connection.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
+                
+                response = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                }
+                
+                html = response.toString();
+                hasSubstations = html.contains("Stations found:") && html.contains("search__station--more");
+            }
+            
+            // Parse HTML to find substations
+            List<RadioStation> substations = parseRadioStations(html, 20);
+            
+            // Extract pagination information and ensure URLs are decoded
+            PaginationInfo paginationInfo = extractPaginationInfo(html, station.radioId);
+            String moreResultsUrl = paginationInfo.moreResultsUrl;
+            
+            if (substations.isEmpty()) {
+                // No substations found despite substationCount > 0, load the main station directly
+                if (message != null) {
+                    message.editMessage("No substations found for `" + station.title + "`. Loading main station...").queue();
+                    
+                    // Load the main station after a short delay to allow the message to be seen
+                    new Timer().schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            // Use the main station directly
+                            if (cmdEvent != null) {
+                                loadAndPlayRadio(station, cmdEvent, null);
+                            } else if (slashEvent != null) {
+                                loadAndPlayRadio(station, null, slashEvent.getUser());
+                            }
+                        }
+                    }, 1500);
+                    
+                } else if (hook != null) {
+                    hook.editOriginal("No substations found for `" + station.title + "`. Loading main station...").queue();
+                    
+                    // Load the main station after a short delay
+                    new Timer().schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            // Use the main station directly
+                            if (cmdEvent != null) {
+                                loadAndPlayRadio(station, cmdEvent, null);
+                            } else if (slashEvent != null) {
+                                loadAndPlayRadio(station, null, slashEvent.getUser());
+                            }
+                        }
+                    }, 1500);
+                }
+                return;
+            }
+            
+            // Pre-load descriptions for the first page of substations
+            preloadStationDescriptions(substations, 0, Math.min(5, substations.size()));
+            
+            // Display substation search results - first page (0)
+            displaySubstationSearchResults(station, substations, message, cmdEvent, hook, slashEvent, 0, query, 
+                            moreResultsUrl, paginationInfo.moreResultsOffset);
+            
+            // Continue loading descriptions for the rest of the substations asynchronously
+            if (substations.size() > 5) {
+                new Thread(() -> {
+                    preloadStationDescriptions(substations, 5, substations.size());
+                }).start();
+            }
+            
+        } catch (Exception e) {
+            sendErrorMessage(message, hook, e);
+        }
+    }
+    
+    /**
+     * Display search results for substations
+     */
+    private void displaySubstationSearchResults(
+            RadioStation mainStation,
+            List<RadioStation> substations, 
+            Message message, 
+            CommandEvent cmdEvent, 
+            InteractionHook hook, 
+            SlashCommandEvent slashEvent, 
+            int page, 
+            String query,
+            String moreResultsUrl,
+            int moreResultsOffset) {
+        
+        int stationsPerPage = 5;
+        int startIndex = page * stationsPerPage;
+        int endIndex = Math.min(startIndex + stationsPerPage, substations.size());
+        
+        // Check if we have a valid page
+        if (startIndex >= substations.size() || startIndex < 0) {
+            if (message != null) {
+                message.editMessage("No more substations to display.").queue();
+            } else if (hook != null) {
+                hook.editOriginal("No more substations to display.").queue();
+            }
+            return;
+        }
+        
+        // Get the substations for this page
+        List<RadioStation> pageStations = substations.subList(startIndex, endIndex);
+        
+        // Create description and calculate pagination info
+        int totalPages = (substations.size() + stationsPerPage - 1) / stationsPerPage;
+        StringBuilder description = createSubstationResultsDescription(pageStations, startIndex, totalPages, mainStation);
+        
+        // Create the embed with results
+        EmbedBuilder embed = createSearchResultsEmbed(cmdEvent, slashEvent, description.toString());
+        embed.setTitle(FormatUtil.filter((cmdEvent != null ? cmdEvent.getClient().getSuccess() : slashEvent.getClient().getSuccess()) 
+                    + " Substations of " + mainStation.title + ":"));
+        
+            // Create and organize buttons
+        List<ActionRow> actionRows = createSubstationResultsButtons(pageStations, page, totalPages, 
+                                     startIndex, endIndex, substations.size(), 
+                                     query, moreResultsUrl, moreResultsOffset, mainStation);
+        
+        // Send the embed with buttons
+        sendSubstationResultsEmbed(embed, actionRows, message, hook, cmdEvent, slashEvent, 
+                              substations, page, query, moreResultsUrl, moreResultsOffset, mainStation);
+    }
+    
+    /**
+     * Create the description text for substation search results
+     */
+    private StringBuilder createSubstationResultsDescription(List<RadioStation> pageStations, int startIndex, int totalPages, RadioStation mainStation) {
+        StringBuilder description = new StringBuilder();
+        description.append("📻 **Substations of ").append(mainStation.title).append("**\n");
+        description.append("Click a button to select a station to play.\n\n");
+        
+        // Add page information
+        description.append("**Page ").append(startIndex / 5 + 1).append(" of ").append(totalPages).append("**\n\n");
+        
+        // Prepare the list of stations to display
+        List<String> stationDisplays = new ArrayList<>();
+        for (int i = 0; i < pageStations.size(); i++) {
+            RadioStation station = pageStations.get(i);
+            stationDisplays.add(formatStationDisplay(station, startIndex + i, true));
+        }
+        
+        // Add stations to the description with compact separator lines
+        for (int i = 0; i < stationDisplays.size(); i++) {
+            description.append(stationDisplays.get(i));
+            
+            // Add a compact separator line between stations (but not after the last one)
+            if (i < stationDisplays.size() - 1) {
+                description.append("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n");
+            }
+        }
+        
+        return description;
+    }
+    
+    /**
+     * Create buttons for substation search results
+     */
+    private List<ActionRow> createSubstationResultsButtons(
+            List<RadioStation> pageStations, 
+            int page, 
+            int totalPages,
+            int startIndex, 
+            int endIndex, 
+            int totalStations,
+            String query,
+            String moreResultsUrl,
+            int moreResultsOffset,
+            RadioStation mainStation) {
+        
+        List<Button> buttons = new ArrayList<>();
+        
+        // Add selection buttons
+        for (int i = 0; i < pageStations.size(); i++) {
+            buttons.add(Button.primary("radio:" + (startIndex + i), String.valueOf(startIndex + i + 1)));
+        }
+        
+        // Add navigation buttons
+        if (page > 0) {
+            buttons.add(Button.secondary("radio:prev:" + page + ":" + query, "⬅️ Previous"));
+        }
+        
+        if (endIndex < totalStations) {
+            buttons.add(Button.secondary("radio:next:" + page + ":" + query, "Next ➡️"));
+        }
+        
+        // Add "Load More" button if we're on the last page and there are more results available
+        boolean isLastPage = (page == totalPages - 1);
+        if (moreResultsOffset > 0 && isLastPage) {
+            // Fix: Include mainStation's radioId in the button ID for substation loading
+            String moreButtonId;
+            if (mainStation != null && !mainStation.radioId.isEmpty()) {
+                moreButtonId = "radio:more:" + query + ":" + moreResultsOffset + ":" + mainStation.radioId;
+            } else {
+                moreButtonId = "radio:more:" + query + ":" + moreResultsOffset;
+            }
+            buttons.add(Button.success(moreButtonId, "Load More Results"));
+        }
+        
+        // Add "Back to Search" button
+        buttons.add(Button.primary("radio:back:" + query, "🔍 Back to Search"));
+        
+        buttons.add(Button.danger("radio:cancel", "❌ Cancel"));
+        
+        // Distribute buttons in rows (max 5 buttons per row)
+        List<ActionRow> actionRows = new ArrayList<>();
+        
+        // Selection buttons in first row
+        List<Button> selectionButtons = new ArrayList<>();
+        for (int i = 0; i < Math.min(5, pageStations.size()); i++) {
+            selectionButtons.add(buttons.get(i));
+        }
+        if (!selectionButtons.isEmpty()) {
+            actionRows.add(ActionRow.of(selectionButtons));
+        }
+        
+        // Navigation buttons in second row
+        List<Button> navigationButtons = new ArrayList<>();
+        for (int i = pageStations.size(); i < buttons.size(); i++) {
+            navigationButtons.add(buttons.get(i));
+        }
+        
+        if (!navigationButtons.isEmpty()) {
+            actionRows.add(ActionRow.of(navigationButtons));
+        }
+        
+        return actionRows;
+    }
+    
+    /**
+     * Send the embed with buttons for substation results
+     */
+    private void sendSubstationResultsEmbed(
+            EmbedBuilder embed, 
+            List<ActionRow> actionRows,
+            Message message, 
+            InteractionHook hook, 
+            CommandEvent cmdEvent, 
+            SlashCommandEvent slashEvent,
+            List<RadioStation> stations,
+            int page,
+            String query,
+            String moreResultsUrl,
+            int moreResultsOffset,
+            RadioStation mainStation) {
+        
+        if (cmdEvent != null) {
+            // For classic commands
+            if (message != null) {
+                message.editMessageEmbeds(embed.build())
+                        .setComponents(actionRows)
+                        .queue(m -> setupSubstationButtonListener(m, stations, cmdEvent, null, page, query, 
+                                                               moreResultsUrl, moreResultsOffset, mainStation));
+            } else {
+                cmdEvent.getChannel().sendMessageEmbeds(embed.build())
+                        .setComponents(actionRows)
+                        .queue(m -> setupSubstationButtonListener(m, stations, cmdEvent, null, page, query, 
+                                                               moreResultsUrl, moreResultsOffset, mainStation));
+            }
+        } else if (hook != null && slashEvent != null) {
+            // For slash commands
+            hook.editOriginalEmbeds(embed.build())
+                    .setComponents(actionRows)
+                    .queue(m -> setupSubstationButtonListener(m, stations, null, slashEvent, page, query, 
+                                                           moreResultsUrl, moreResultsOffset, mainStation));
+        }
+    }
+
+    /**
+     * Setup button listener for substation pages
+     */
+    private void setupSubstationButtonListener(
+            Message message, 
+            List<RadioStation> stations, 
+            CommandEvent cmdEvent, 
+            SlashCommandEvent slashEvent, 
+            int currentPage, 
+            String query,
+            String moreResultsUrl,
+            int moreResultsOffset,
+            RadioStation mainStation) {
+            
+        // Configure the button listener for responses
+        bot.getWaiter().waitForEvent(
+            net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent.class,
+            e -> isValidButtonInteraction(e, message, cmdEvent, slashEvent),
+            e -> handleSubstationButtonInteraction(e, stations, cmdEvent, slashEvent, currentPage, query, 
+                                               moreResultsUrl, moreResultsOffset, mainStation),
+            1, TimeUnit.MINUTES,
+            () -> handleButtonTimeoutExpired(message)
+        );
+    }
+
+    /**
+     * Handle button interactions for substation search results
+     */
+    private void handleSubstationButtonInteraction(
+            net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent event,
+            List<RadioStation> stations, 
+            CommandEvent cmdEvent, 
+            SlashCommandEvent slashEvent,
+            int currentPage, 
+            String query,
+            String moreResultsUrl,
+            int moreResultsOffset,
+            RadioStation mainStation) {
+        
+        String buttonId = event.getComponentId();
+        
+        if (buttonId.equals("radio:cancel")) {
+            handleCancelButton(event);
+        } else if (buttonId.startsWith("radio:next:")) {
+            handleSubstationNextPageButton(event, stations, cmdEvent, slashEvent, currentPage, query, 
+                                        moreResultsUrl, moreResultsOffset, mainStation);
+        } else if (buttonId.startsWith("radio:prev:")) {
+            handleSubstationPreviousPageButton(event, stations, cmdEvent, slashEvent, currentPage, query, 
+                                            moreResultsUrl, moreResultsOffset, mainStation);
+        } else if (buttonId.startsWith("radio:more:")) {
+            handleSubstationLoadMoreButton(event, stations, cmdEvent, slashEvent, currentPage, query, 
+                                        moreResultsUrl, moreResultsOffset, mainStation);
+        } else if (buttonId.startsWith("radio:back:")) {
+            handleBackToSearchButton(event, cmdEvent, slashEvent, query);
+        } else if (buttonId.startsWith("radio:")) {
+            handleStationSelectionButton(event, stations, cmdEvent, slashEvent);
+        }
+    }
+
+    /**
+     * Handle the next page button for substations
+     */
+    private void handleSubstationNextPageButton(
+            net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent event,
+            List<RadioStation> stations, 
+            CommandEvent cmdEvent, 
+            SlashCommandEvent slashEvent, 
+            int currentPage, 
+            String query,
+            String moreResultsUrl,
+            int moreResultsOffset,
+            RadioStation mainStation) {
+        
+        // Extract page and query from button ID
+        String[] parts = event.getComponentId().split(":");
+        int page = Integer.parseInt(parts[2]);
+        String searchQuery = parts.length > 3 ? parts[3] : query;
+        
+        // Acknowledge the button click
+        event.deferEdit().queue();
+        
+        // Display the next page
+        displaySubstationSearchResults(mainStation, stations, event.getMessage(), cmdEvent, null, slashEvent, 
+                                    page + 1, searchQuery, moreResultsUrl, moreResultsOffset);
+    }
+
+    /**
+     * Handle the previous page button for substations
+     */
+    private void handleSubstationPreviousPageButton(
+            net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent event,
+            List<RadioStation> stations, 
+            CommandEvent cmdEvent, 
+            SlashCommandEvent slashEvent, 
+            int currentPage, 
+            String query,
+            String moreResultsUrl,
+            int moreResultsOffset,
+            RadioStation mainStation) {
+        
+        // Extract page and query from button ID
+        String[] parts = event.getComponentId().split(":");
+        int page = Integer.parseInt(parts[2]);
+        String searchQuery = parts.length > 3 ? parts[3] : query;
+        
+        // Acknowledge the button click
+        event.deferEdit().queue();
+        
+        // Display the previous page
+        displaySubstationSearchResults(mainStation, stations, event.getMessage(), cmdEvent, null, slashEvent, 
+                                    page - 1, searchQuery, moreResultsUrl, moreResultsOffset);
+    }
+
+    /**
+     * Handle the load more results button for substations
+     */
+    private void handleSubstationLoadMoreButton(
+            net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent event,
+            List<RadioStation> stations, 
+            CommandEvent cmdEvent, 
+            SlashCommandEvent slashEvent, 
+            int currentPage, 
+            String query,
+            String moreResultsUrl,
+            int moreResultsOffset,
+            RadioStation mainStation) {
+        
+        // Extract query, offset, and radioId from button ID
+        String[] parts = event.getComponentId().split(":");
+        String searchQuery = parts.length > 2 ? parts[2] : query;
+        int offset = parts.length > 3 ? Integer.parseInt(parts[3]) : 20;
+        
+        // Fix: Check if radioId is included in the button ID
+        String radioId = null;
+        // Create a mutable copy of the URL and decode HTML entities
+        String updatedMoreResultsUrl = decodeHtmlEntitiesInUrl(moreResultsUrl);
+        
+        if (parts.length > 4) {
+            radioId = parts[4];
+            // Update the mainStation radioId if it wasn't set
+            if (mainStation != null && (mainStation.radioId == null || mainStation.radioId.isEmpty())) {
+                mainStation.radioId = radioId;
+            }
+            
+            // Update the moreResultsUrl to include the correct radioid parameter
+            if (!updatedMoreResultsUrl.contains("radioid=") && radioId != null && !radioId.isEmpty()) {
+                if (updatedMoreResultsUrl.contains("?")) {
+                    updatedMoreResultsUrl += "&radioid=" + radioId;
+                } else {
+                    updatedMoreResultsUrl += "?radioid=" + radioId;
+                }
+            }
+        }
+        
+        // Show loading message
+        event.editMessage("Loading more results...").queue();
+        
+        // Create a final reference for use in the thread
+        final String finalMoreResultsUrl = updatedMoreResultsUrl;
+        
+        // Load more results in a new thread to avoid blocking
+        new Thread(() -> loadMoreSubstationsAndUpdate(event, stations, cmdEvent, slashEvent, currentPage, 
+                                                  searchQuery, finalMoreResultsUrl, offset, mainStation)).start();
+    }
+
+    /**
+     * Load more substations and update the message
+     */
+    private void loadMoreSubstationsAndUpdate(
+            net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent event,
+            List<RadioStation> stations, 
+            CommandEvent cmdEvent, 
+            SlashCommandEvent slashEvent, 
+            int currentPage, 
+            String searchQuery,
+            String moreResultsUrl,
+            int offset,
+            RadioStation mainStation) {
+        
+        try {
+            // Decode HTML entities in the URL
+            moreResultsUrl = decodeHtmlEntitiesInUrl(moreResultsUrl);
+            
+            // Load additional stations
+            // Fix: Check if radioid parameter is already in the URL
+            String substationSearchUrl;
+            if (moreResultsUrl.contains("radioid=")) {
+                // The URL already has the radioid parameter, just add or update the offset
+                if (moreResultsUrl.contains("offset=")) {
+                    // Replace the existing offset value
+                    substationSearchUrl = moreResultsUrl.replaceAll("offset=\\d+", "offset=" + offset);
+                } else {
+                    // Add the offset parameter
+                    substationSearchUrl = moreResultsUrl + "&offset=" + offset;
+                }
+            } else {
+                // Add the radioid parameter if we have a valid mainStation with radioId
+                if (mainStation != null && !mainStation.radioId.isEmpty()) {
+                    if (moreResultsUrl.contains("?")) {
+                        substationSearchUrl = moreResultsUrl + "&radioid=" + mainStation.radioId + "&offset=" + offset;
+                    } else {
+                        substationSearchUrl = moreResultsUrl + "?radioid=" + mainStation.radioId + "&offset=" + offset;
+                    }
+                } else {
+                    // Fallback to original behavior
+                    substationSearchUrl = moreResultsUrl + "&offset=" + offset;
+                }
+            }
+            
+            URL url = new URL(substationSearchUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+            
+            BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+            reader.close();
+            
+            String html = response.toString();
+            List<RadioStation> moreStations = parseRadioStations(html, 20);
+            
+            // If we got more stations, add them to our list
+            if (!moreStations.isEmpty()) {
+                // Add the new stations to the existing list
+                stations.addAll(moreStations);
+                
+                // Pre-load descriptions for the new stations
+                preloadStationDescriptions(stations, stations.size() - moreStations.size(), stations.size());
+                
+                // Check for next "Show more" button and get its offset
+                // Fix: Use the mainStation radioId instead of the searchQuery for extracting pagination info
+                PaginationInfo paginationInfo;
+                if (mainStation != null && !mainStation.radioId.isEmpty()) {
+                    paginationInfo = extractPaginationInfo(html, mainStation.radioId);
+                } else {
+                    paginationInfo = extractPaginationInfo(html, searchQuery);
+                }
+                
+                String newMoreResultsUrl = paginationInfo.moreResultsUrl;
+                int newMoreResultsOffset = paginationInfo.moreResultsOffset;
+                
+                // Show the current page with the new stations
+                int currentPageToShow = currentPage;  // Stay on the same page
+                
+                // If we were on the last page and added more stations, we might need to show a new page
+                int totalPages = (stations.size() + 4) / 5;  // Calculate total pages (5 stations per page)
+                if (currentPage >= totalPages - 1) {
+                    // We've reached the end, show the last page
+                    currentPageToShow = totalPages - 1;
+                }
+                
+                displaySubstationSearchResults(
+                    mainStation,
+                    stations, 
+                    event.getMessage(), 
+                    cmdEvent, 
+                    null, 
+                    slashEvent, 
+                    currentPageToShow, 
+                    searchQuery,
+                    newMoreResultsUrl,
+                    newMoreResultsOffset
+                );
+            } else {
+                // No more stations found
+                event.getMessage().editMessage("No more substations found.")
+                    .setComponents(disableAllButtons(event.getMessage().getActionRows()))
+                    .queue();
+            }
+        } catch (Exception ex) {
+            // Handle errors
+            event.getMessage().editMessage("Error loading more results: " + ex.getMessage())
+                .setComponents(disableAllButtons(event.getMessage().getActionRows()))
+                .queue();
+        }
+    }
+    
+    /**
+     * Handle the back to search button
+     */
+    private void handleBackToSearchButton(
+            net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent event,
+            CommandEvent cmdEvent,
+            SlashCommandEvent slashEvent,
+            String query) {
+        
+        // Extract query from button ID
+        String[] parts = event.getComponentId().split(":");
+        String searchQuery = parts.length > 2 ? parts[2] : query;
+        
+        // Show loading message
+        event.editMessage(searchingEmoji + "Returning to main search results for `[" + searchQuery + "]`...").queue();
+        
+        // Perform a new search with the original query
+        searchRadioStations(searchQuery, event.getMessage(), cmdEvent, null, slashEvent);
+    }
+
+    /**
+     * Handle the substation button click
+     */
+    private void handleSubstationButton(
+            net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent event,
+            List<RadioStation> stations, 
+            CommandEvent cmdEvent, 
+            SlashCommandEvent slashEvent,
+            String query) {
+        
+        try {
+            // Extract the station index from the button ID - format is radio:sub:index:query
+            String[] parts = event.getComponentId().split(":");
+            int stationIndex = Integer.parseInt(parts[2]);
+            String searchQuery = parts.length > 3 ? parts[3] : query;
+            
+            // Get the selected station
+            RadioStation station = stations.get(stationIndex);
+            
+            // Show loading message
+            event.editMessage(searchingEmoji + "Searching for substations of `" + station.title + "`...").queue();
+            
+            // If there's no radio ID but we know there are substations, try to extract ID from link
+            if (station.radioId.isEmpty() && station.substationCount > 0) {
+                
+                // Try to extract an ID from the path
+                if (station.path.matches(".*\\d+$")) {
+                    station.radioId = station.path.replaceAll(".*?(\\d+)$", "$1");
+                }
+            }
+            
+            // Search for substations
+            searchSubstations(station, searchQuery, event.getMessage(), cmdEvent, null, slashEvent);
+            
+        } catch (Exception e) {
+            // Handle any errors gracefully
+            event.editMessage("Error processing substation search: " + e.getMessage()).queue();
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Decode HTML entities in a URL string
+     * @param url The URL string that may contain HTML entities
+     * @return The URL with HTML entities decoded
+     */
+    private String decodeHtmlEntitiesInUrl(String url) {
+        if (url == null) return null;
+        
+        // Replace common HTML entities in URLs
+        return url.replace("&amp;", "&")
+                  .replace("&lt;", "<")
+                  .replace("&gt;", ">")
+                  .replace("&quot;", "\"")
+                  .replace("&#39;", "'");
     }
 } 

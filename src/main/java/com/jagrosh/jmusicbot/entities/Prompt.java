@@ -76,12 +76,13 @@ public class Prompt {
                         option = JOptionPane.WARNING_MESSAGE;
                         break;
                     case ERROR:
+                        option = JOptionPane.ERROR_MESSAGE;
                         break;
                     default:
                         option = JOptionPane.PLAIN_MESSAGE;
                         break;
                 }
-                JOptionPane.showMessageDialog(null, "<html><body><p style='width: 400px;'>" + message, title, option);
+                JOptionPane.showMessageDialog(null, message, title, option);
             } catch (Exception e) {
                 nogui = true;
                 alert(Level.WARNING, context, noguiMessage);

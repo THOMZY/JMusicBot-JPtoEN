@@ -18,19 +18,115 @@ package com.jagrosh.jmusicbot.audio;
 
 import net.dv8tion.jda.api.entities.User;
 
+/**
+ * Class to store metadata about track requests
+ */
 public class RequestMetadata {
     public static final RequestMetadata EMPTY = new RequestMetadata(null);
 
     public final UserInfo user;
+    private String spotifyTrackId;
+    private RadioInfo radioInfo;
 
+    /**
+     * Creates a new RequestMetadata instance
+     * @param user The user who requested the track
+     */
     public RequestMetadata(User user) {
         this.user = user == null ? null : new UserInfo(user.getIdLong(), user.getName(), user.getDiscriminator(), user.getEffectiveAvatarUrl());
+        this.spotifyTrackId = null;
+        this.radioInfo = null;
     }
 
+    /**
+     * Gets the ID of the user who requested the track
+     * @return The user ID or 0 if not set
+     */
     public long getOwner() {
         return user == null ? 0L : user.id;
     }
 
+    // ===== Spotify Methods =====
+
+    /**
+     * Checks if this track has Spotify data attached
+     * @return true if spotifyTrackId is set
+     */
+    public boolean hasSpotifyData() {
+        return spotifyTrackId != null && !spotifyTrackId.isEmpty();
+    }
+
+    /**
+     * Gets the Spotify track ID associated with this track
+     * @return the Spotify track ID or null if not set
+     */
+    public String getSpotifyTrackId() {
+        return spotifyTrackId;
+    }
+
+    /**
+     * Sets the Spotify track ID for this track
+     * @param trackId the Spotify track ID
+     */
+    public void setSpotifyTrackId(String trackId) {
+        this.spotifyTrackId = trackId;
+    }
+
+    // ===== Radio Methods =====
+    
+    /**
+     * Checks if this track has radio data attached
+     * @return true if radioInfo is set
+     */
+    public boolean hasRadioData() {
+        return radioInfo != null;
+    }
+    
+    /**
+     * Gets the radio station path (identifier)
+     * @return the station path or null if not set
+     */
+    public String getRadioStationPath() {
+        return radioInfo != null ? radioInfo.stationPath : null;
+    }
+    
+    /**
+     * Gets the radio station logo URL
+     * @return the logo URL or null if not set
+     */
+    public String getRadioLogoUrl() {
+        return radioInfo != null ? radioInfo.logoUrl : null;
+    }
+    
+    /**
+     * Gets the radio station name
+     * @return the station name or null if not set
+     */
+    public String getRadioStationName() {
+        return radioInfo != null ? radioInfo.stationName : null;
+    }
+    
+    /**
+     * Sets radio information for this track
+     * @param stationPath the station path/identifier
+     * @param stationName the station name
+     * @param logoUrl the station logo URL
+     */
+    public void setRadioInfo(String stationPath, String stationName, String logoUrl) {
+        this.radioInfo = new RadioInfo(stationPath, stationName, logoUrl);
+    }
+    
+    /**
+     * Gets all radio information as a RadioInfo object
+     * @return the RadioInfo object or null if not set
+     */
+    public RadioInfo getRadioInfo() {
+        return radioInfo;
+    }
+
+    /**
+     * Class to store information about a request
+     */
     public class RequestInfo {
         public final String query, url;
 
@@ -40,6 +136,9 @@ public class RequestMetadata {
         }
     }
 
+    /**
+     * Class to store information about a user
+     */
     public class UserInfo {
         public final long id;
         public final String username, discrim, avatar;
@@ -49,6 +148,21 @@ public class RequestMetadata {
             this.username = username;
             this.discrim = discrim;
             this.avatar = avatar;
+        }
+    }
+    
+    /**
+     * Class to store information about a radio station
+     */
+    public class RadioInfo {
+        public final String stationPath;
+        public final String stationName;
+        public final String logoUrl;
+        
+        private RadioInfo(String stationPath, String stationName, String logoUrl) {
+            this.stationPath = stationPath;
+            this.stationName = stationName;
+            this.logoUrl = logoUrl;
         }
     }
 }

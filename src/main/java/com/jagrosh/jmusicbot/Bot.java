@@ -1,5 +1,6 @@
 /*
  * Copyright 2018 John Grosh (jagrosh).
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +28,7 @@ import com.jagrosh.jmusicbot.settings.SettingsManager;
 import dev.cosgy.jmusicbot.playlist.CacheLoader;
 import dev.cosgy.jmusicbot.playlist.MylistLoader;
 import dev.cosgy.jmusicbot.playlist.PubliclistLoader;
+import dev.cosgy.jmusicbot.util.LocalAudioMetadata;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Activity;
@@ -34,7 +36,19 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -55,6 +69,15 @@ public class Bot {
     private final NowplayingHandler nowplaying;
     private final AloneInVoiceHandler aloneInVoiceHandler;
     private final IcyMetadataHandler icyMetadataHandler;
+    
+    // Map to store local audio file metadata
+    private final Map<String, LocalAudioMetadata.LocalTrackInfo> localMetadataCache;
+    
+    // Directory for storing temporary artwork files
+    private final Path artworkDir;
+    
+    // Map to store artwork URLs for local audio files
+    private final Map<String, String> localArtworkUrls;
 
     private boolean shuttingDown = false;
     private JDA jda;
@@ -76,6 +99,21 @@ public class Bot {
         this.aloneInVoiceHandler = new AloneInVoiceHandler(this);
         this.aloneInVoiceHandler.init();
         this.icyMetadataHandler = new IcyMetadataHandler(this);
+        
+        // Initialize local metadata cache
+        this.localMetadataCache = new ConcurrentHashMap<>();
+        
+        // Create directory for temporary artwork files
+        this.artworkDir = Paths.get(System.getProperty("java.io.tmpdir"), "jmusicbot_artwork");
+        this.localArtworkUrls = new ConcurrentHashMap<>();
+        
+        try {
+            if (!Files.exists(artworkDir)) {
+                Files.createDirectories(artworkDir);
+            }
+        } catch (IOException e) {
+            LoggerFactory.getLogger(Bot.class).error("Failed to create artwork directory", e);
+        }
     }
 
     public static void updatePlayStatus(Guild guild, Member selfMember, PlayStatus status) {
@@ -170,11 +208,170 @@ public class Bot {
             jda.getPresence().setActivity(game);
     }
 
+    /**
+     * Gets the cached metadata for a local audio track
+     * @return The map of track IDs to LocalTrackInfo objects
+     */
+    public Map<String, LocalAudioMetadata.LocalTrackInfo> getLocalMetadataCache() {
+        return localMetadataCache;
+    }
+    
+    /**
+     * Processes a local audio file uploaded to Discord and extracts its metadata
+     * @param trackId The track identifier
+     * @param fileUrl The URL of the file to download and process
+     * @return The LocalTrackInfo with extracted metadata, or null on failure
+     */
+    public LocalAudioMetadata.LocalTrackInfo processLocalAudioFile(String trackId, String fileUrl) {
+        // Skip processing if we already have metadata for this track
+        if (localMetadataCache.containsKey(trackId)) {
+            return localMetadataCache.get(trackId);
+        }
+        
+        // Download the file
+        File downloadedFile = LocalAudioMetadata.downloadFile(fileUrl);
+        if (downloadedFile == null) {
+            LoggerFactory.getLogger(Bot.class).warn("Failed to download file: {}", fileUrl);
+            return null;
+        }
+        
+        try {
+            // Extract metadata using just the file, track is reconstructed inside if needed
+            LocalAudioMetadata.LocalTrackInfo info = LocalAudioMetadata.extractMetadata(null, downloadedFile);
+            
+            if (info != null) {
+                // If the track has artwork, save it as a temporary file and create a data URL
+                if (info.hasArtwork()) {
+                    try {
+                        byte[] artworkData = info.getArtworkData();
+                        
+                        // Create a safe filename using hash of trackId rather than full URL
+                        String safeFilename = String.format("artwork_%d.%s", 
+                                              Math.abs(trackId.hashCode()), 
+                                              determineImageExtension(artworkData));
+                        
+                        Path artworkFile = artworkDir.resolve(safeFilename);
+                        Files.write(artworkFile, artworkData);
+                        
+                        // Store the file URI as the artwork URL
+                        String artworkUrl = artworkFile.toUri().toString();
+                        localArtworkUrls.put(trackId, artworkUrl);
+                    } catch (Exception e) {
+                        LoggerFactory.getLogger(Bot.class).error("Failed to generate artwork URL", e);
+                        // Don't fail the whole process if artwork processing fails
+                    }
+                }
+                
+                // Cache the metadata
+                localMetadataCache.put(trackId, info);
+                return info;
+            } else {
+                LoggerFactory.getLogger(Bot.class).warn("Failed to extract metadata from file: {}", fileUrl);
+            }
+        } catch (Exception e) {
+            LoggerFactory.getLogger(Bot.class).error("Error processing local audio file: {}", e.getMessage(), e);
+        } finally {
+            // Delete the temporary file
+            if (downloadedFile.exists()) {
+                downloadedFile.delete();
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Determines the image format from raw image data
+     * @param data The image data
+     * @return The file extension (jpg, png, etc.)
+     */
+    private String determineImageExtension(byte[] data) {
+        if (data == null || data.length < 4) {
+            return "jpg"; // Default to JPG
+        }
+        
+        // Check PNG signature
+        if (data[0] == (byte) 0x89 && data[1] == (byte) 0x50 && data[2] == (byte) 0x4E && data[3] == (byte) 0x47) {
+            return "png";
+        }
+        
+        // Check JPEG signature
+        if (data[0] == (byte) 0xFF && data[1] == (byte) 0xD8 && data[2] == (byte) 0xFF) {
+            return "jpg";
+        }
+        
+        // Check GIF signature
+        if (data[0] == (byte) 0x47 && data[1] == (byte) 0x49 && data[2] == (byte) 0x46) {
+            return "gif";
+        }
+        
+        return "jpg"; // Default to JPG if unknown
+    }
+    
+    /**
+     * Gets the URL for a track's artwork
+     * @param trackId The track identifier
+     * @return The URL to use in embeds
+     */
+    public String getLocalArtworkUrl(String trackId) {
+        // Get the file path from the map
+        String fileUri = localArtworkUrls.get(trackId);
+        
+        if (fileUri == null || fileUri.isEmpty()) {
+            return null;
+        }
+        
+        // Check if it's a file URI that needs to be converted
+        if (fileUri.startsWith("file:")) {
+            try {
+                // Extract the file path from the URI
+                Path artworkFile = Paths.get(new URI(fileUri));
+                
+                // Check if the file exists
+                if (Files.exists(artworkFile)) {
+                    // Return the path for the file to be loaded and attached
+                    return artworkFile.toString();
+                } else {
+                    LoggerFactory.getLogger(Bot.class).warn("Artwork file does not exist: {}", artworkFile);
+                    return null;
+                }
+            } catch (Exception e) {
+                LoggerFactory.getLogger(Bot.class).error("Failed to convert file URI to path", e);
+                return null;
+            }
+        }
+        
+        // If it's already a proper URL (not a file:// URL), return it directly
+        return fileUri;
+    }
+    
+    /**
+     * Cleans up temporary files created for local audio metadata
+     */
+    private void cleanupLocalAudioFiles() {
+        try {
+            if (Files.exists(artworkDir)) {
+                Files.list(artworkDir).forEach(file -> {
+                    try {
+                        Files.delete(file);
+                    } catch (IOException e) {
+                        // Ignore deletion failures
+                    }
+                });
+            }
+        } catch (IOException e) {
+            LoggerFactory.getLogger(Bot.class).warn("Failed to clean up artwork files", e);
+        }
+    }
+
     public void shutdown() {
         if (shuttingDown)
             return;
         shuttingDown = true;
         threadpool.shutdownNow();
+        
+        // Clean up local audio files
+        cleanupLocalAudioFiles();
         
         // Shut down the ICY metadata handler
         icyMetadataHandler.shutdown();

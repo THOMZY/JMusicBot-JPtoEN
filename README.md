@@ -25,6 +25,7 @@ This fork aims to updates dependencies when YouTube playback breaks and occasion
 * Added `/stats` command to view total play time and songs played.  
 * `/nowplaying` now have more and cleaner informations.  
 * `/play` now work with Spotify links instead of returning "Unknown file format." error.  
+* `/lyrics` his now more robust finding lyrics.  
 * Fixed Youtube livestreams fail at 30sec. 
 * Added the ability to queue multiple local files in a single message.
 

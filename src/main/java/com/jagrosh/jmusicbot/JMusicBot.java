@@ -1,5 +1,6 @@
 /*
  * Copyright 2016 John Grosh (jagrosh).
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,9 +74,9 @@ public class JMusicBot {
         Logger log = getLogger("Startup");
 
         try {
-            System.out.println(FigletFont.convertOneLine("JMusicBot v" + OtherUtil.getCurrentVersion()) + "\n" + "by Cosgy Dev");
+            System.out.println(FigletFont.convertOneLine("JMusicBot v" + OtherUtil.getCurrentVersion()) + "\n" + "by THOMZY");
         } catch (IOException e) {
-            System.out.println("JMusicBot v" + OtherUtil.getCurrentVersion() + "\nby Cosgy Dev");
+            System.out.println("JMusicBot v" + OtherUtil.getCurrentVersion() + "\nby THOMZY");
         }
 
 

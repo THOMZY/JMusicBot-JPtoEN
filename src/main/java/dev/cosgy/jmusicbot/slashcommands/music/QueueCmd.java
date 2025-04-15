@@ -1,5 +1,6 @@
 /*
  * Copyright 2018 John Grosh (jagrosh).
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -152,10 +153,22 @@ public class QueueCmd extends MusicCommand {
     private String getQueueTitle(AudioHandler ah, String success, int songslength, long total, RepeatMode repeatmode) {
         StringBuilder sb = new StringBuilder();
         if (ah.getPlayer().getPlayingTrack() != null) {
+            // Get the current track title
+            String title;
+            if (ah.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/")) {
+                title = "Gensokyo Radio";
+            } else {
+                title = ah.getPlayer().getPlayingTrack().getInfo().title;
+                if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                    // Extract filename from URL for local files
+                    String uri = ah.getPlayer().getPlayingTrack().getInfo().uri;
+                    title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                    title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+                }
+            }
+            
             sb.append(ah.getPlayer().isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI).append(" **")
-                    .append(
-                            ah.getPlayer().getPlayingTrack().getInfo().uri.matches(".*stream.gensokyoradio.net/.*") ? "Gensokyo Radio" :
-                                    ah.getPlayer().getPlayingTrack().getInfo().title).append("**\n");
+                    .append(title).append("**\n");
         }
         return FormatUtil.filter(sb.append(success).append(" Queue song list | ").append(songslength)
                 .append(" entries | `").append(FormatUtil.formatTime(total)).append("` ")

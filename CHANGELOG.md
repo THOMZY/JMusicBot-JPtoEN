@@ -10,6 +10,7 @@
 ### 🔧 Changes
 - `/nowplaying` now have more and cleaner informations.  
 - `/play` now work with Spotify links instead of returning "Unknown file format." error.  
+- `/lyrics` his now more robust finding lyrics.  
 - Fixed Youtube livestreams bug at 30sec. Stream now auto reload if fail.  
 - Reactive buttons instead of emoji reactions for selecting a song.
 - Removed kotlin files and dependencies.

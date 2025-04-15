@@ -1,5 +1,6 @@
 /*
  * Copyright 2016 John Grosh <john.a.grosh@gmail.com>.
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +21,7 @@ import com.jagrosh.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import dev.cosgy.jmusicbot.slashcommands.DJCommand;
+import dev.cosgy.jmusicbot.util.LocalAudioMetadata;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import org.slf4j.Logger;
@@ -63,7 +65,17 @@ public class SkipToCmd extends DJCommand {
             return;
         }
         handler.getQueue().skip(index - 1);
-        event.reply(event.getClient().getSuccess() + " **Skipped to " + handler.getQueue().get(0).getTrack().getInfo().title + ".**");
+        
+        // Get the track title or filename
+        String title = handler.getQueue().get(0).getTrack().getInfo().title;
+        if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+            // Extract filename from URL for local files
+            String uri = handler.getQueue().get(0).getTrack().getInfo().uri;
+            title = LocalAudioMetadata.extractFilenameFromUrl(uri);
+            title = LocalAudioMetadata.cleanupFilename(title);
+        }
+        
+        event.reply(event.getClient().getSuccess() + " **Skipped to " + title + ".**");
         handler.updateStatsOnSkip();
         handler.getPlayer().stopTrack();
     }
@@ -87,7 +99,17 @@ public class SkipToCmd extends DJCommand {
             return;
         }
         handler.getQueue().skip(index - 1);
-        event.reply(event.getClient().getSuccess() + " **Skipped to " + handler.getQueue().get(0).getTrack().getInfo().title + ".**").queue();
+        
+        // Get the track title or filename
+        String title = handler.getQueue().get(0).getTrack().getInfo().title;
+        if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+            // Extract filename from URL for local files
+            String uri = handler.getQueue().get(0).getTrack().getInfo().uri;
+            title = LocalAudioMetadata.extractFilenameFromUrl(uri);
+            title = LocalAudioMetadata.cleanupFilename(title);
+        }
+        
+        event.reply(event.getClient().getSuccess() + " **Skipped to " + title + ".**").queue();
         handler.updateStatsOnSkip();
         handler.getPlayer().stopTrack();
     }

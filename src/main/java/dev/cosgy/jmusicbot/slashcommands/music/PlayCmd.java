@@ -1,5 +1,6 @@
 /*
  * Copyright 2018 John Grosh (jagrosh).
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -372,17 +373,47 @@ public class PlayCmd extends MusicCommand {
                         " **" + (track.getInfo().uri.matches(".*stream.gensokyoradio.net/.*") ? "Gensokyo Radio" : track.getInfo().title) + "**`(" + FormatUtil.formatTime(track.getDuration()) + ")` exceeds the set length `(" + FormatUtil.formatTime(bot.getConfig().getMaxSeconds() * 1000) + ")`.")).queue();
                 return;
             }
+            
             AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+            
+            // Check if this is a local file uploaded through Discord
+            if (dev.cosgy.jmusicbot.util.LocalAudioMetadata.isDiscordUploadedFile(track)) {
+                
+                // Ensure the track has RequestMetadata before processing
+                if (track.getUserData(com.jagrosh.jmusicbot.audio.RequestMetadata.class) == null) {
+                    // Create a new RequestMetadata for this track
+                    com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getUser());
+                    track.setUserData(rm);
+                }
+                
+                // Process metadata BEFORE adding to queue
+                handleLocalAudio(track);
+            }
+            
+            // Add track to queue after metadata processing is complete
             int pos = handler.addTrack(new QueuedTrack(track, event.getUser())) + 1;
 
             // Output MSG ex:
             // Added <title><(length)>.
             // Added <title><(length)> to <playback queue number> in the queue.
-            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + (track.getInfo().uri.matches(".*stream.gensokyoradio.net/.*") ? "Gensokyo Radio" : track.getInfo().title)
-                    + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue."));
-            if (playlist == null || !event.getGuild().getSelfMember().hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION)) {
-                m.editOriginal(addMsg).queue();
+            String title;
+            if (track.getInfo().uri.contains("https://stream.gensokyoradio.net/")) {
+                title = "Gensokyo Radio";
             } else {
+                title = track.getInfo().title;
+                if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                    // Extract filename from URL for local files
+                    title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
+                    title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+                }
+            }
+            
+            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
+                    + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue. "));
+            
+            if (playlist == null || !event.getGuild().getSelfMember().hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION))
+                m.editOriginal(addMsg).queue();
+            else {
                 new ButtonMenu.Builder()
                         .setText(addMsg + "\n" + event.getClient().getWarning() + " This playlist has **" + playlist.getTracks().size() + "** additional tracks. Select " + LOAD + " to load the tracks.")
                         .setChoices(LOAD, CANCEL)
@@ -459,6 +490,48 @@ public class PlayCmd extends MusicCommand {
                 m.editOriginal(event.getClient().getError() + " An error occurred while loading the track.").queue();
             }
         }
+
+        /**
+         * Handles metadata extraction for local audio files
+         * @param track The track to extract metadata from
+         */
+        private void handleLocalAudio(AudioTrack track) {
+            // Only process if it's a file from Discord attachments
+            if (!dev.cosgy.jmusicbot.util.LocalAudioMetadata.isDiscordUploadedFile(track)) {
+                return;
+            }
+            
+            // Extract the track ID and URL
+            String trackId = track.getInfo().identifier;
+            String fileUrl = track.getInfo().uri;
+            
+            // First check if the track has user data
+            com.jagrosh.jmusicbot.audio.RequestMetadata rm = track.getUserData(com.jagrosh.jmusicbot.audio.RequestMetadata.class);
+            if (rm == null) {
+                // Create a new RequestMetadata for this track with the user from event
+                rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getUser());
+                track.setUserData(rm);
+            }
+            
+            // Process synchronously to ensure metadata is available immediately when needed
+            try {
+                // Process the file to extract metadata and artwork
+                dev.cosgy.jmusicbot.util.LocalAudioMetadata.LocalTrackInfo info = 
+                    bot.processLocalAudioFile(trackId, fileUrl);
+                
+                if (info != null) {
+                    // Set local file metadata in RequestMetadata
+                    rm.setLocalFileMetadata(info.getTitle(), 
+                                           info.getArtist(), 
+                                           info.getAlbum(),
+                                           info.getYear(),
+                                           info.getGenre());
+                }
+            } catch (Exception e) {
+                // Log the error but continue playback
+                System.err.println("Error processing local audio file: " + e.getMessage());
+            }
+        }
     }
 
     private class ResultHandler implements AudioLoadResultHandler {
@@ -478,14 +551,44 @@ public class PlayCmd extends MusicCommand {
                         " **" + track.getInfo().title + "**`(" + FormatUtil.formatTime(track.getDuration()) + ")` exceeds the set length `(" + FormatUtil.formatTime(bot.getConfig().getMaxSeconds() * 1000) + ")`.")).queue();
                 return;
             }
+            
             AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+            
+            // Check if this is a local file uploaded through Discord
+            if (dev.cosgy.jmusicbot.util.LocalAudioMetadata.isDiscordUploadedFile(track)) {
+                
+                // Ensure the track has RequestMetadata before processing
+                if (track.getUserData(com.jagrosh.jmusicbot.audio.RequestMetadata.class) == null) {
+                    // Create a new RequestMetadata for this track
+                    com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getAuthor());
+                    track.setUserData(rm);
+                }
+                
+                // Process metadata BEFORE adding to queue
+                handleLocalAudio(track);
+            }
+            
+            // Add track to queue after metadata processing is complete
             int pos = handler.addTrack(new QueuedTrack(track, event.getAuthor())) + 1;
 
             // Output MSG ex:
             // Added <title><(length)>.
             // Added <title><(length)> to <playback queue number> in the queue.
-            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + (track.getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : track.getInfo().title)
+            String title;
+            if (track.getInfo().uri.contains("https://stream.gensokyoradio.net/")) {
+                title = "Gensokyo Radio";
+            } else {
+                title = track.getInfo().title;
+                if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                    // Extract filename from URL for local files
+                    title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
+                    title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+                }
+            }
+            
+            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
                     + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue. "));
+            
             if (playlist == null || !event.getSelfMember().hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION))
                 m.editMessage(addMsg).queue();
             else {
@@ -571,6 +674,49 @@ public class PlayCmd extends MusicCommand {
                 }
 
                 m.editMessage(event.getClient().getError() + " An error occurred while loading the track.").queue();
+            }
+        }
+
+        /**
+         * Handles metadata extraction for local audio files
+         * @param track The track to extract metadata from
+         */
+        private void handleLocalAudio(AudioTrack track) {
+            // Only process if it's a file from Discord attachments
+            if (!dev.cosgy.jmusicbot.util.LocalAudioMetadata.isDiscordUploadedFile(track)) {
+                return;
+            }
+            
+            // Extract the track ID and URL
+            String trackId = track.getInfo().identifier;
+            String fileUrl = track.getInfo().uri;
+            
+            // First check if the track has user data
+            com.jagrosh.jmusicbot.audio.RequestMetadata rm = track.getUserData(com.jagrosh.jmusicbot.audio.RequestMetadata.class);
+            if (rm == null) {
+                // Create a new RequestMetadata
+                // We don't have direct access to the user here, so create an empty metadata
+                rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(null);
+                track.setUserData(rm);
+            }
+            
+            // Process synchronously to ensure metadata is available immediately when needed
+            try {
+                // Process the file to extract metadata and artwork
+                dev.cosgy.jmusicbot.util.LocalAudioMetadata.LocalTrackInfo info = 
+                    bot.processLocalAudioFile(trackId, fileUrl);
+                
+                if (info != null) {
+                    // Set local file metadata in RequestMetadata
+                    rm.setLocalFileMetadata(info.getTitle(), 
+                                           info.getArtist(), 
+                                           info.getAlbum(),
+                                           info.getYear(),
+                                           info.getGenre());
+                }
+            } catch (Exception e) {
+                // Log the error but continue playback
+                System.err.println("Error processing local audio file: " + e.getMessage());
             }
         }
     }

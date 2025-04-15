@@ -14,6 +14,7 @@ import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
+import com.jagrosh.jmusicbot.audio.AudioHandler;
 
 import java.util.concurrent.TimeUnit;
 
@@ -62,13 +63,23 @@ public class StatsCommand extends SlashCommand {
         long seconds = TimeUnit.MILLISECONDS.toSeconds(playTimeMillis) % 60;
         String timeStr = String.format("%d hours, %d minutes and %d seconds", hours, minutes, seconds);
         
-        // Create embed
+        // Create a more stylish embed
         EmbedBuilder eb = new EmbedBuilder();
         eb.setColor(guild.getSelfMember().getColor());
-        eb.setTitle("Stats for " + guild.getName());
-        eb.addField("Total Songs Played", String.valueOf(songsPlayed), true);
-        eb.addField("Total Play Time", timeStr, true);
-        eb.setFooter("Nice stASSts !");
+        eb.setTitle("📊 Music Statistics for " + guild.getName());
+        eb.setDescription("Here are the music statistics for this server :");
+        
+        // Add thumbnail if available
+        if (guild.getIconUrl() != null) {
+            eb.setThumbnail(guild.getIconUrl());
+        }
+        
+        // Add fields in vertical layout (one per line) with emojis for better styling
+        eb.addField("🎵 Total Songs Played :", "```" + songsPlayed + "```", false);
+        eb.addField("⏱️ Total Play Time :", "```" + timeStr + "```", false);
+        
+        // Add timestamp for freshness
+        eb.setTimestamp(java.time.Instant.now());
         
         return eb;
     }

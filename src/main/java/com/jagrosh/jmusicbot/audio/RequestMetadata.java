@@ -1,5 +1,6 @@
 /*
  *  Copyright 2021 Cosgy Dev (info@cosgy.dev).
+ * Edit 2025 THOMZY
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -27,6 +28,7 @@ public class RequestMetadata {
     public final UserInfo user;
     private String spotifyTrackId;
     private RadioInfo radioInfo;
+    private LocalFileInfo localFileInfo;
 
     /**
      * Creates a new RequestMetadata instance
@@ -36,6 +38,7 @@ public class RequestMetadata {
         this.user = user == null ? null : new UserInfo(user.getIdLong(), user.getName(), user.getDiscriminator(), user.getEffectiveAvatarUrl());
         this.spotifyTrackId = null;
         this.radioInfo = null;
+        this.localFileInfo = null;
     }
 
     /**
@@ -143,6 +146,76 @@ public class RequestMetadata {
         return radioInfo;
     }
 
+    // ===== Local File Methods =====
+    
+    /**
+     * Checks if this track has local file metadata attached
+     * @return true if localFileInfo is set
+     */
+    public boolean hasLocalFileData() {
+        return localFileInfo != null;
+    }
+    
+    /**
+     * Gets the title of the local file
+     * @return the title or null if not set
+     */
+    public String getLocalFileTitle() {
+        return localFileInfo != null ? localFileInfo.title : null;
+    }
+    
+    /**
+     * Gets the artist of the local file
+     * @return the artist or null if not set
+     */
+    public String getLocalFileArtist() {
+        return localFileInfo != null ? localFileInfo.artist : null;
+    }
+    
+    /**
+     * Gets the album of the local file
+     * @return the album or null if not set
+     */
+    public String getLocalFileAlbum() {
+        return localFileInfo != null ? localFileInfo.album : null;
+    }
+    
+    /**
+     * Gets the year of the local file
+     * @return the year or null if not set
+     */
+    public String getLocalFileYear() {
+        return localFileInfo != null ? localFileInfo.year : null;
+    }
+    
+    /**
+     * Gets the genre of the local file
+     * @return the genre or null if not set
+     */
+    public String getLocalFileGenre() {
+        return localFileInfo != null ? localFileInfo.genre : null;
+    }
+    
+    /**
+     * Sets metadata for a local audio file
+     * @param title the track title
+     * @param artist the track artist
+     * @param album the track album
+     * @param year the track year
+     * @param genre the track genre
+     */
+    public void setLocalFileMetadata(String title, String artist, String album, String year, String genre) {
+        this.localFileInfo = new LocalFileInfo(title, artist, album, year, genre);
+    }
+    
+    /**
+     * Gets all local file information as a LocalFileInfo object
+     * @return the LocalFileInfo object or null if not set
+     */
+    public LocalFileInfo getLocalFileInfo() {
+        return localFileInfo;
+    }
+
     /**
      * Class to store information about a request
      */
@@ -191,6 +264,25 @@ public class RequestMetadata {
             this.stationName = stationName;
             this.logoUrl = logoUrl;
             this.stationUuid = stationUuid;
+        }
+    }
+
+    /**
+     * Class to store information about a local audio file
+     */
+    public class LocalFileInfo {
+        public final String title;
+        public final String artist;
+        public final String album;
+        public final String year;
+        public final String genre;
+        
+        private LocalFileInfo(String title, String artist, String album, String year, String genre) {
+            this.title = title;
+            this.artist = artist;
+            this.album = album;
+            this.year = year;
+            this.genre = genre;
         }
     }
 }

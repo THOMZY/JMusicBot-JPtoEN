@@ -1,5 +1,6 @@
 /*
  * Copyright 2018-2020 Cosgy Dev
+ * Edit 2025 THOMZY
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -159,7 +160,7 @@ public class NowplayingHandler {
                 } else {
                     // Check if title is empty or null, provide a default if needed
                     String title = track.getInfo().title;
-                    if (title == null || title.trim().isEmpty()) {
+                    if (title == null || title.trim().isEmpty() || title.equals("Unknown title")) {
                         // Try to get a better title from different sources
                         if (handler instanceof AudioHandler) {
                             AudioHandler audioHandler = (AudioHandler) handler;
@@ -180,7 +181,14 @@ public class NowplayingHandler {
                             }
                         }
                         
-                        // If still empty, use a generic title
+                        // If still empty, try to extract filename from URL for local files
+                        if (title == null || title.trim().isEmpty() || title.equals("Unknown title")) {
+                            String uri = track.getInfo().uri;
+                            title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                            title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+                        }
+                        
+                        // If still empty after all attempts, use a generic title
                         if (title == null || title.trim().isEmpty()) {
                             title = track.getInfo().isStream ? "Live Stream" : "Music";
                         }

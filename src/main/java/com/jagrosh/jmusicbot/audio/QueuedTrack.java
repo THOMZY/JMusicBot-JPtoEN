@@ -1,5 +1,6 @@
 /*
  * Copyright 2018-2020 Cosgy Dev
+ * Edit 2025 THOMZY
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,7 +69,16 @@ public class QueuedTrack implements Queueable {
 
         String entry = "`[" + FormatUtil.formatTime(track.getDuration()) + "]` ";
         AudioTrackInfo trackInfo = track.getInfo();
-        entry = entry + (trackInfo.uri.startsWith("http") ? "[**" + trackInfo.title + "**](" + trackInfo.uri + ")" : "**" + trackInfo.title + "**");
+        
+        // Get track title or filename if title is missing or "Unknown title"
+        String title = trackInfo.title;
+        if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+            // Extract filename from URL for local files
+            title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(trackInfo.uri);
+            title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+        }
+        
+        entry = entry + (trackInfo.uri.startsWith("http") ? "[**" + title + "**](" + trackInfo.uri + ")" : "**" + title + "**");
         return entry + " - <@" + track.getUserData(RequestMetadata.class).getOwner() + ">";
     }
 }

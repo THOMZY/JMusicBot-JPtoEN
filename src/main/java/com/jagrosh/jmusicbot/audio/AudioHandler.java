@@ -1,5 +1,6 @@
 /*
  * Copyright 2018-2020 Cosgy Dev
+ * Edit 2025 THOMZY
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,6 +77,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         RADIO,      // Radio stream
         YOUTUBE,    // YouTube video
         SOUNDCLOUD, // SoundCloud track
+        LOCAL,      // Local file uploaded through Discord
         OTHER       // Any other source
     }
 
@@ -85,32 +87,28 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @return The TrackType of the track
      */
     public TrackType getTrackType(AudioTrack track) {
-        if (track == null) return null;
+        if (track == null) return TrackType.OTHER;
         
-        // Most reliable way: check RequestMetadata first
         RequestMetadata rm = track.getUserData(RequestMetadata.class);
         
-        // Check for Spotify data in RequestMetadata
-        if (rm != null && rm.hasSpotifyData()) {
+        // Check for Spotify first - high priority
+        if (isSpotifyTrack(track)) {
             return TrackType.SPOTIFY;
         }
         
-        // Check for Radio data in RequestMetadata
-        if (rm != null && rm.hasRadioData()) {
-            return TrackType.RADIO;
+        // Check for local file uploaded through Discord
+        if (dev.cosgy.jmusicbot.util.LocalAudioMetadata.isDiscordUploadedFile(track)) {
+            return TrackType.LOCAL;
         }
         
-        // Secondary checks based on track properties
-        
-        // Check if it's a radio station based on URL patterns
-        if (track.getInfo().isStream && isRadioTrack(track)) {
+        // Check if it's a radio stream
+        if (isRadioTrack(track)) {
             return TrackType.RADIO;
         }
         
         // Check for YouTube
-        if (track instanceof YoutubeAudioTrack || 
-            (track.getSourceManager() != null && 
-             track.getSourceManager().getSourceName().equalsIgnoreCase("youtube"))) {
+        if (track.getSourceManager() != null && 
+            track.getSourceManager().getSourceName().equalsIgnoreCase("youtube")) {
             return TrackType.YOUTUBE;
         }
         
@@ -120,7 +118,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             return TrackType.SOUNDCLOUD;
         }
         
-        // Everything else
+        // Default to OTHER
         return TrackType.OTHER;
     }
 
@@ -823,44 +821,127 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
 
     // Formatting
     public MessageCreateData getNowPlaying(JDA jda) throws Exception {
-        if (isMusicPlaying(jda)) {
-            Guild guild = guild(jda);
-            AudioTrack track = audioPlayer.getPlayingTrack();
-            MessageCreateBuilder mb = new MessageCreateBuilder();
-            mb.addContent(FormatUtil.filter(manager.getBot().getConfig().getSuccess() + " **" + guild.getSelfMember().getVoiceState().getChannel().getAsMention() + "** is playing now..."));
-            EmbedBuilder eb = new EmbedBuilder();
-            eb.setColor(guild.getSelfMember().getColor());
-            RequestMetadata rm = getRequestMetadata();
-            
-            // Double-check the track type to ensure we're displaying the correct format
-            // This verification is important for when track types change in the queue
-            TrackType trackType = getTrackType(track);
-            
-            // Set author (requester) for all track types
-            setRequesterAuthor(eb, rm, guild);
-            
-            // Different display based on track type
-            switch (trackType) {
-                case SPOTIFY:
-                    buildSpotifyEmbed(eb, track, rm);
-                    break;
-                case RADIO:
-                    buildRadioEmbed(eb, track, rm);
-                    break;
-                case YOUTUBE:
-                    buildYoutubeEmbed(eb, track, rm);
-                    break;
-                case SOUNDCLOUD:
-                    buildSoundCloudEmbed(eb, track, rm);
-                    break;
-                case OTHER:
-                default:
-                    buildDefaultEmbed(eb, track, rm);
-                    break;
+        Guild guild = guild(jda);
+        if (guild == null) {
+            return null;
+        }
+        
+        AudioTrack track = audioPlayer.getPlayingTrack();
+        if (track == null) {
+            return null;
+        }
+        
+        // Get RequestMetadata
+        RequestMetadata rm = getRequestMetadata();
+        
+        // Special handling for local uploaded files
+        if (getTrackType(track) == TrackType.LOCAL) {
+            // Check if we don't have metadata in RequestMetadata but do have it in the local cache
+            if ((rm == null || !rm.hasLocalFileData()) && 
+                manager.getBot().getLocalMetadataCache().containsKey(track.getInfo().identifier)) {
+                
+                // Retrieve the metadata from cache
+                dev.cosgy.jmusicbot.util.LocalAudioMetadata.LocalTrackInfo cachedInfo = 
+                    manager.getBot().getLocalMetadataCache().get(track.getInfo().identifier);
+                
+                if (cachedInfo != null) {
+                    // If RequestMetadata is null, create a new one
+                    if (rm == null) {
+                        rm = new RequestMetadata(null);
+                        track.setUserData(rm);
+                    }
+                    
+                    // Update the RequestMetadata with the cached data
+                    rm.setLocalFileMetadata(
+                        cachedInfo.getTitle(),
+                        cachedInfo.getArtist(),
+                        cachedInfo.getAlbum(),
+                        cachedInfo.getYear(),
+                        cachedInfo.getGenre()
+                    );
+                }
             }
-            
-            return mb.addEmbeds(eb.build()).build();
-        } else return null;
+        }
+        
+        EmbedBuilder eb = new EmbedBuilder();
+        eb.setColor(guild.getSelfMember().getColor());
+        
+        // Variable to track if we have artwork to attach
+        boolean hasArtwork = false;
+        String artworkFilePath = null;
+        
+        // Handle different track types with different embeds
+        TrackType trackType = getTrackType(track);
+        switch (trackType) {
+            case SPOTIFY:
+                buildSpotifyEmbed(eb, track, rm);
+                break;
+            case RADIO:
+                buildRadioEmbed(eb, track, rm);
+                break;
+            case YOUTUBE:
+                buildYoutubeEmbed(eb, track, rm);
+                break;
+            case SOUNDCLOUD:
+                buildSoundCloudEmbed(eb, track, rm);
+                break;
+            case LOCAL:
+                // For local files, check if we have artwork
+                if (manager.getBot().getConfig().useNPImages()) {
+                    String artworkPath = manager.getBot().getLocalArtworkUrl(track.getInfo().identifier);
+                    if (artworkPath != null && !artworkPath.isEmpty()) {
+                        java.io.File artworkFile = new java.io.File(artworkPath);
+                        if (artworkFile.exists() && artworkFile.isFile()) {
+                            hasArtwork = true;
+                            artworkFilePath = artworkPath;
+                        }
+                    }
+                }
+                buildLocalFileEmbed(eb, track, rm);
+                break;
+            default:
+                // Check if it's a stream with ICY metadata
+                IcyMetadataHandler.StreamMetadata metadata = manager.getBot().getIcyMetadataHandler().getMetadata(guild.getId());
+                if (metadata != null && !metadata.hasFailed() && metadata.getCurrentTrack() != null && !metadata.getCurrentTrack().isEmpty()) {
+                    buildIcyMetadataEmbed(eb, track, metadata);
+                } else if (track.getInfo().isStream) {
+                    buildGenericStreamEmbed(eb, track);
+                } else {
+                    buildDefaultEmbed(eb, track, rm);
+                }
+                break;
+        }
+        
+        // Set requester info if available
+        setRequesterAuthor(eb, rm, guild);
+        
+        // Create the message
+        MessageCreateBuilder messageBuilder = new MessageCreateBuilder();
+        
+        // Handle artwork for local files - Create message with file attachment first
+        // so we can reference the attachment URL in the embed
+        if (trackType == TrackType.LOCAL && hasArtwork && artworkFilePath != null) {
+            try {
+                // Load the file and create the attachment
+                java.io.File artworkFile = new java.io.File(artworkFilePath);
+                net.dv8tion.jda.api.utils.FileUpload fileUpload = net.dv8tion.jda.api.utils.FileUpload.fromData(
+                    artworkFile, "artwork.jpg");
+                
+                // Add file to the message
+                messageBuilder.addFiles(fileUpload);
+                
+                // Set the thumbnail URL to reference the attachment
+                // The URL format is "attachment://filename.ext"
+                eb.setThumbnail("attachment://artwork.jpg");
+            } catch (Exception e) {
+                System.err.println("Error attaching artwork: " + e.getMessage());
+            }
+        }
+        
+        // Add the embed to the message
+        messageBuilder.setEmbeds(eb.build());
+        
+        return messageBuilder.build();
     }
     
     /**
@@ -886,7 +967,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @param rm The RequestMetadata
      */
     private void buildSpotifyEmbed(EmbedBuilder eb, AudioTrack track, RequestMetadata rm) {
-        eb.setTitle("~ Now Playing Spotify Track ~");
+        eb.setTitle("~ Now Playing Spotify Track :");
         
         // Get detailed Spotify track info
         SpotifyCmd.SpotifyTrackInfo trackInfo = getSpotifyTrackInfo();
@@ -894,10 +975,16 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (trackInfo != null) {
             // Rich description with track details
             StringBuilder description = new StringBuilder();
+            
             description.append("**Track:** ").append(trackInfo.trackName);
             description.append("\n**Album:** ").append(trackInfo.albumName);
             description.append("\n**Artist:** ").append(trackInfo.artistName);
             
+            // Add Spotify link using trackId
+            if (trackInfo.trackId != null && !trackInfo.trackId.isEmpty()) {
+                description.append("\n[Open on Spotify](https://open.spotify.com/track/").append(trackInfo.trackId).append(")");
+            }
+
             // Add progress bar with proper spacing
             description.append("\n\n"); // Add an extra line here to ensure proper spacing
             appendProgressBar(description, track);
@@ -928,7 +1015,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @param rm The RequestMetadata
      */
     private void buildRadioEmbed(EmbedBuilder eb, AudioTrack track, RequestMetadata rm) {
-        eb.setTitle("~ Now Playing Radio ~");
+        eb.setTitle("~ Now Playing Radio :");
         
         // First check if we have radio info in RequestMetadata - this is most reliable
         if (rm != null && rm.hasRadioData()) {
@@ -978,20 +1065,40 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         // Description with station and track info
         StringBuilder description = new StringBuilder();
         String stationUrl = "https://onlineradiobox.com/" + stationPath;
-        description.append("**Station:** [").append(stationName).append("](").append(stationUrl).append(")");
         
         // Try to get current track info from RadioCmd
         RadioCmd.TrackInfo trackInfo = getRadioTrackInfo(track);
+        String title = "";
         
+        // Set the title in the format "artist - song | RadioName"
         if (trackInfo != null && !trackInfo.getFormattedTitle().isEmpty() && 
             !trackInfo.getFormattedTitle().equals("Unknown")) {
-            description.append("\n\n**Now playing:**\n").append(trackInfo.getFormattedTitle());
+            // Use the artist - song format for title
+            eb.setTitle("~ Now Playing Radio :");
+            title = trackInfo.getFormattedTitle() + " | " + stationName;
+            description.append("**Now playing:** ").append(trackInfo.getFormattedTitle()).append(" | [").append(stationName).append("](").append(stationUrl).append(")");
             
             // Add album art if available and npimages is enabled
             if (manager.getBot().getConfig().useNPImages() && 
                 trackInfo.imageUrl != null && 
                 !trackInfo.imageUrl.isEmpty()) {
                 eb.setImage(trackInfo.imageUrl);
+            }
+        } else {
+            // Check if we have ICY metadata
+            IcyMetadataHandler.StreamMetadata icyData = 
+                manager.getBot().getIcyMetadataHandler().getMetadata(stringGuildId);
+            
+            if (icyData != null && icyData.getCurrentTrack() != null && 
+                !icyData.getCurrentTrack().isEmpty()) {
+                // Use ICY metadata for title
+                eb.setTitle("~ Now Playing Radio :");
+                title = icyData.getCurrentTrack() + " | " + stationName;
+                description.append("**Now playing:** ").append(icyData.getCurrentTrack()).append(" | [").append(stationName).append("](").append(stationUrl).append(")");
+            } else {
+                // Fallback to just station name
+                eb.setTitle("~ Now Playing Radio :");
+                description.append("**Station:** [").append(stationName).append("](").append(stationUrl).append(")");
             }
         }
         
@@ -1024,29 +1131,30 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     private void buildIcyMetadataEmbed(EmbedBuilder eb, AudioTrack track, IcyMetadataHandler.StreamMetadata metadata) {
         // Description with station and track info
         StringBuilder description = new StringBuilder();
+        String stationName = metadata.getStationName();
+        String streamUrl = track.getInfo().uri;
         
-        // Add station name
-        description.append("**Station:** ").append(metadata.getStationName());
+        // Set title in the format requested
+        eb.setTitle("~ Now Playing Radio :");
+        
+        // Add current track info if available
+        if (metadata.getCurrentTrack() != null && !metadata.getCurrentTrack().isEmpty()) {
+            // Format the current track for display
+            String currentTrack = metadata.getCurrentTrack();
+            
+            // Add the formatted title to the description
+            description.append("**Now playing:** ").append(currentTrack).append(" | [").append(stationName).append("](").append(streamUrl).append(")");
+            
+            // Add general station info
+            description.append("\n**Station:** [").append(stationName).append("](").append(streamUrl).append(")");
+        } else {
+            // No current track, just show station info
+            description.append("**Station:** [").append(stationName).append("](").append(streamUrl).append(")");
+        }
         
         // Add genre if available
         if (metadata.getStationGenre() != null && !metadata.getStationGenre().isEmpty()) {
             description.append("\n**Genre:** ").append(metadata.getStationGenre());
-        }
-        
-        // Add current track info if available
-        if (metadata.getCurrentTrack() != null && !metadata.getCurrentTrack().isEmpty()) {
-            description.append("\n\n**Now playing:**\n");
-            
-            // If we have both artist and title
-            if (!metadata.getArtist().isEmpty() && !metadata.getTitle().isEmpty()) {
-                description.append("**")
-                          .append(metadata.getTitle())
-                          .append("**\n")
-                          .append(metadata.getArtist());
-            } else {
-                // Just use the raw current track info
-                description.append(metadata.getCurrentTrack());
-            }
         }
         
         // Add play status for streams
@@ -1084,9 +1192,27 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      */
     private void buildYoutubeEmbed(EmbedBuilder eb, AudioTrack track, RequestMetadata rm) {
                 try {
-                    eb.setTitle(track.getInfo().title, track.getInfo().uri);
+                    // Get the track title or filename for display
+                    String title = track.getInfo().title;
+                    if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                        // Extract filename from URL for local files
+                        String uri = track.getInfo().uri;
+                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+                    }
+                    
+                    eb.setTitle(title, track.getInfo().uri);
                 } catch (Exception e) {
-                    eb.setTitle(track.getInfo().title);
+                    // Get the track title or filename for display
+                    String title = track.getInfo().title;
+                    if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                        // Extract filename from URL for local files
+                        String uri = track.getInfo().uri;
+                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+                    }
+                    
+                    eb.setTitle(title);
                 }
 
         // Add YouTube thumbnail
@@ -1145,9 +1271,27 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      */
     private void buildSoundCloudEmbed(EmbedBuilder eb, AudioTrack track, RequestMetadata rm) {
         try {
-            eb.setTitle(track.getInfo().title, track.getInfo().uri);
+            // Get the track title or filename for display
+            String title = track.getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                String uri = track.getInfo().uri;
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+            }
+            
+            eb.setTitle(title, track.getInfo().uri);
         } catch (Exception e) {
-            eb.setTitle(track.getInfo().title);
+            // Get the track title or filename for display
+            String title = track.getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                String uri = track.getInfo().uri;
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+            }
+            
+            eb.setTitle(title);
         }
         
         // Add SoundCloud thumbnail
@@ -1176,7 +1320,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @param track The current track
      */
     private void buildGenericStreamEmbed(EmbedBuilder eb, AudioTrack track) {
-        eb.setTitle("~ Now Playing Stream ~");
+        eb.setTitle("~ Now Playing Stream :");
         
         // Add basic stream information
         StringBuilder description = new StringBuilder();
@@ -1201,9 +1345,27 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      */
     private void buildDefaultEmbed(EmbedBuilder eb, AudioTrack track, RequestMetadata rm) {
                 try {
-                    eb.setTitle(track.getInfo().title, track.getInfo().uri);
+                    // Get the track title or filename for display
+                    String title = track.getInfo().title;
+                    if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                        // Extract filename from URL for local files
+                        String uri = track.getInfo().uri;
+                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+                    }
+                    
+                    eb.setTitle(title, track.getInfo().uri);
                 } catch (Exception e) {
-                    eb.setTitle(track.getInfo().title);
+                    // Get the track title or filename for display
+                    String title = track.getInfo().title;
+                    if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                        // Extract filename from URL for local files
+                        String uri = track.getInfo().uri;
+                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+                    }
+                    
+                    eb.setTitle(title);
                 }
 
         // Handle thumbnail
@@ -1312,7 +1474,27 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                         // Get the station name from the track title
                         String stationName = getRadioStationName(track);
                         
-                        return "**" + stationName + " Radio** [" + (userid == 0 ? "📻" : "<@" + userid + ">") + "]" +
+                        // Try to get the current track info from RadioCmd or ICY metadata
+                        RadioCmd.TrackInfo radioInfo = getRadioTrackInfo(track);
+                        String artistSong = "";
+                        
+                        if (radioInfo != null && radioInfo.getFormattedTitle() != null && 
+                            !radioInfo.getFormattedTitle().isEmpty() && 
+                            !radioInfo.getFormattedTitle().equals("Unknown")) {
+                            // Use the formatted title from RadioTrackInfo
+                            artistSong = radioInfo.getFormattedTitle() + " | ";
+                        } else {
+                            // Check if we have ICY metadata
+                            IcyMetadataHandler.StreamMetadata icyData = 
+                                manager.getBot().getIcyMetadataHandler().getMetadata(stringGuildId);
+                            
+                            if (icyData != null && icyData.getCurrentTrack() != null && 
+                                !icyData.getCurrentTrack().isEmpty()) {
+                                artistSong = icyData.getCurrentTrack() + " | ";
+                            }
+                        }
+                        
+                        return "**" + artistSong + stationName + "** [" + (userid == 0 ? "📻" : "<@" + userid + ">") + "]" +
                                "\n" + (audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI) + " " +
                                "[LIVE] " +
                                FormatUtil.volumeIcon(audioPlayer.getVolume());
@@ -1327,7 +1509,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                         String currentTrack = icyMetadata.getCurrentTrack();
                         
                         if (!currentTrack.isEmpty()) {
-                            return "**" + stationName + "** - *" + currentTrack + "* [" + 
+                            return "**" + currentTrack + " | " + stationName + "** [" + 
                                    (userid == 0 ? "📻" : "<@" + userid + ">") + "]" +
                                    "\n" + (audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI) + " " +
                                    "[LIVE] " +
@@ -1344,8 +1526,12 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             
             // Default format for all other tracks
             String title = track.getInfo().title;
-            if (title == null || title.equals("Unknown title"))
-                title = track.getInfo().uri;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                String uri = track.getInfo().uri;
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+            }
                 
             if (track.getInfo().isStream) {
                 return "**" + title + "** [" + (userid == 0 ? "📻" : "<@" + userid + ">") + "]" +
@@ -1383,5 +1569,145 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     // Private methods
     private Guild guild(JDA jda) {
         return jda.getGuildById(guildId);
+    }
+
+    /**
+     * Builds an embed for local audio files uploaded through Discord
+     * @param eb The EmbedBuilder to populate
+     * @param track The current track
+     * @param rm The RequestMetadata
+     */
+    private void buildLocalFileEmbed(EmbedBuilder eb, AudioTrack track, RequestMetadata rm) {
+        String trackId = track.getInfo().identifier;
+        
+        // Set title with debug info
+        eb.setTitle("~ Now Playing Local File :");
+        
+        // Get the filename for display
+        String trackFilename = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
+        String fileLink = "[" + trackFilename + "](" + track.getInfo().uri + ")";
+        
+        // Check if metadata exists in Bot.localMetadataCache
+        dev.cosgy.jmusicbot.util.LocalAudioMetadata.LocalTrackInfo cachedInfo = manager.getBot().getLocalMetadataCache().get(trackId);
+        boolean hasCachedInfo = (cachedInfo != null);
+        
+        // Check if we have metadata in RequestMetadata
+        if (rm != null && rm.hasLocalFileData()) {
+            // Build a rich description with available metadata
+            StringBuilder description = new StringBuilder();
+            
+            // Add file link at the top
+            description.append(fileLink).append("\n\n");
+            
+            // Check if the title is "Unknown title" and replace with filename if needed
+            String title = rm.getLocalFileTitle();
+            if (title == null || title.equals("Unknown title") || title.equals("Unknown")) {
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(trackFilename);
+            }
+            
+            // Always show the title
+            description.append("**Title:** ").append(title).append("\n");
+            
+            // Add artist if available
+            String artist = rm.getLocalFileArtist();
+            if (artist != null && !artist.equals("Unknown Artist")) {
+                description.append("**Artist:** ").append(artist).append("\n");
+            }
+            
+            // Add album if available
+            String album = rm.getLocalFileAlbum();
+            if (album != null && !album.equals("Unknown Album")) {
+                description.append("**Album:** ").append(album).append("\n");
+            }
+            
+            // Add year if available
+            String year = rm.getLocalFileYear();
+            if (year != null && !year.isEmpty()) {
+                description.append("**Year:** ").append(year).append("\n");
+            }
+            
+            // Add genre if available
+            String genre = rm.getLocalFileGenre();
+            if (genre != null && !genre.isEmpty()) {
+                description.append("**Genre:** ").append(genre).append("\n\n");
+            } else {
+                description.append("\n"); // Add space before progress bar
+            }
+            
+            // Add progress bar
+            appendProgressBar(description, track);
+            eb.setDescription(description.toString());
+            
+            // Set footer to show it's a local file
+            eb.setFooter("Source: Local File", getSourceIconUrl("local"));
+        } 
+        // Fallback to cached metadata if available
+        else if (hasCachedInfo) {
+            StringBuilder description = new StringBuilder();
+            
+            // Add file link at the top
+            description.append(fileLink).append("\n\n");
+            
+            // Check if the title is "Unknown title" and replace with filename if needed
+            String title = cachedInfo.getTitle();
+            if (title == null || title.equals("Unknown title") || title.equals("Unknown")) {
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(trackFilename);
+            }
+            
+            // Always show the title
+            description.append("**Title:** ").append(title).append("\n");
+            
+            // Add artist if available
+            String artist = cachedInfo.getArtist();
+            if (artist != null && !artist.equals("Unknown Artist")) {
+                description.append("**Artist:** ").append(artist).append("\n");
+            }
+            
+            // Add album if available
+            String album = cachedInfo.getAlbum();
+            if (album != null && !album.equals("Unknown Album")) {
+                description.append("**Album:** ").append(album).append("\n");
+            }
+            
+            // Add year if available
+            String year = cachedInfo.getYear();
+            if (year != null && !year.isEmpty()) {
+                description.append("**Year:** ").append(year).append("\n");
+            }
+            
+            // Add genre if available
+            String genre = cachedInfo.getGenre();
+            if (genre != null && !genre.isEmpty()) {
+                description.append("**Genre:** ").append(genre).append("\n\n");
+            } else {
+                description.append("\n"); // Add space before progress bar
+            }
+            
+            // Add progress bar
+            appendProgressBar(description, track);
+            eb.setDescription(description.toString());
+            
+            // Set footer to show it's a local file
+            eb.setFooter("Source: Local File", getSourceIconUrl("local"));
+        }
+        else {
+            // Fallback if we don't have metadata
+            StringBuilder description = new StringBuilder();
+            
+            // Add file link at the top
+            description.append(fileLink).append("\n\n");
+            
+            // Use the filename without extension as the title
+            String filename = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
+            String cleanTitle = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(filename);
+            
+            description.append("**Title:** ").append(cleanTitle).append("\n\n");
+            
+            appendProgressBar(description, track);
+            eb.setDescription(description.toString());
+            
+            // Set footer to show it's a local file
+            eb.setFooter("Source: Local File", getSourceIconUrl("local"));
+        }
     }
 }

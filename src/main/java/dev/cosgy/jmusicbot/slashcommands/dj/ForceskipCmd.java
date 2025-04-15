@@ -1,5 +1,6 @@
 /*
  * Copyright 2016 John Grosh <john.a.grosh@gmail.com>.
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

@@ -126,7 +126,7 @@
         <dependency>
             <groupId>com.konghq</groupId>
             <artifactId>unirest-java-core</artifactId>
-            <version>4.4.5</version>
+            <version>4.4.6</version>
         </dependency>
         <dependency>
             <groupId>net.jthink</groupId>

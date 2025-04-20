@@ -43,20 +43,15 @@ public class SkipCmd extends MusicCommand {
 
         RequestMetadata rm = handler.getRequestMetadata();
         if (event.getAuthor().getIdLong() == rm.getOwner()) {
-            // Check if it's Gensokyo Radio
-            if (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/")) {
-                event.reply(event.getClient().getSuccess() + "**Gensokyo Radio** was skipped.");
-            } else {
-                // Get the track title or filename
-                String title = handler.getPlayer().getPlayingTrack().getInfo().title;
-                if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                    // Extract filename from URL for local files
-                    String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
-                    title = LocalAudioMetadata.extractFilenameFromUrl(uri);
-                    title = LocalAudioMetadata.cleanupFilename(title);
-                }
-                event.reply(event.getClient().getSuccess() + "**" + title + "** was skipped.");
+            // Get the track title or filename
+            String title = handler.getPlayer().getPlayingTrack().getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
+                title = LocalAudioMetadata.extractFilenameFromUrl(uri);
+                title = LocalAudioMetadata.cleanupFilename(title);
             }
+            event.reply(event.getClient().getSuccess() + "**" + title + "** was skipped.");
             handler.updateStatsOnSkip();
             handler.getPlayer().stopTrack();
         } else {
@@ -91,22 +86,15 @@ public class SkipCmd extends MusicCommand {
 
             // Check if the number of voters meets the required number of votes
             if (skippers >= required) {
-                // Check if it's Gensokyo Radio
-                if (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/")) {
-                    msg += "\n" + event.getClient().getSuccess() + "**Gensokyo Radio** was skipped. " + 
-                           (rm.getOwner() == 0L ? "(Auto-playback)" : "(Requested by **" + rm.user.username + "**)");
-                } else {
-                    // Get the track title or filename
-                    String title = handler.getPlayer().getPlayingTrack().getInfo().title;
-                    if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                        // Extract filename from URL for local files
-                        String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
-                        title = LocalAudioMetadata.extractFilenameFromUrl(uri);
-                        title = LocalAudioMetadata.cleanupFilename(title);
-                    }
-                    msg += "\n" + event.getClient().getSuccess() + "**" + title + "** was skipped. " + 
-                           (rm.getOwner() == 0L ? "(Auto-playback)" : "(Requested by **" + rm.user.username + "**)");
+                // Get the track title or filename
+                String title = handler.getPlayer().getPlayingTrack().getInfo().title;
+                if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                    // Extract filename from URL for local files
+                    String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
+                    title = LocalAudioMetadata.extractFilenameFromUrl(uri);
+                    title = LocalAudioMetadata.cleanupFilename(title);
                 }
+                msg += "\n" + event.getClient().getSuccess() + "**" + title + "** was skipped. " + (rm.getOwner() == 0L ? "(Auto-playback)" : "(Requested by **" + rm.user.username + "**)");
                 handler.updateStatsOnSkip();
                 handler.getPlayer().stopTrack();
             }
@@ -120,20 +108,15 @@ public class SkipCmd extends MusicCommand {
 
         RequestMetadata rm = handler.getRequestMetadata();
         if (event.getUser().getIdLong() == rm.getOwner()) {
-            // Check if it's Gensokyo Radio
-            if (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/")) {
-                event.reply(event.getClient().getSuccess() + "**Gensokyo Radio** was skipped.").queue();
-            } else {
-                // Get the track title or filename
-                String title = handler.getPlayer().getPlayingTrack().getInfo().title;
-                if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                    // Extract filename from URL for local files
-                    String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
-                    title = LocalAudioMetadata.extractFilenameFromUrl(uri);
-                    title = LocalAudioMetadata.cleanupFilename(title);
-                }
-                event.reply(event.getClient().getSuccess() + "**" + title + "** was skipped.").queue();
+            // Get the track title or filename
+            String title = handler.getPlayer().getPlayingTrack().getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
+                title = LocalAudioMetadata.extractFilenameFromUrl(uri);
+                title = LocalAudioMetadata.cleanupFilename(title);
             }
+            event.reply(event.getClient().getSuccess() + "**" + title + "** was skipped.").queue();
             handler.updateStatsOnSkip();
             handler.getPlayer().stopTrack();
         } else {
@@ -168,22 +151,15 @@ public class SkipCmd extends MusicCommand {
 
             // Check if the number of voters meets the required number of votes
             if (skippers >= required) {
-                // Check if it's Gensokyo Radio
-                if (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/")) {
-                    msg += "\n" + event.getClient().getSuccess() + "**Gensokyo Radio** was skipped. " + 
-                           (rm.getOwner() == 0L ? "(Auto-playback)" : "(Requested by **" + rm.user.username + "**)");
-                } else {
-                    // Get the track title or filename
-                    String title = handler.getPlayer().getPlayingTrack().getInfo().title;
-                    if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                        // Extract filename from URL for local files
-                        String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
-                        title = LocalAudioMetadata.extractFilenameFromUrl(uri);
-                        title = LocalAudioMetadata.cleanupFilename(title);
-                    }
-                    msg += "\n" + event.getClient().getSuccess() + "**" + title + "** was skipped. " + 
-                           (rm.getOwner() == 0L ? "(Auto-playback)" : "(Requested by **" + rm.user.username + "**)");
+                // Get the track title or filename
+                String title = handler.getPlayer().getPlayingTrack().getInfo().title;
+                if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                    // Extract filename from URL for local files
+                    String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
+                    title = LocalAudioMetadata.extractFilenameFromUrl(uri);
+                    title = LocalAudioMetadata.cleanupFilename(title);
                 }
+                msg += "\n" + event.getClient().getSuccess() + "**" + title + "** was skipped. " + (rm.getOwner() == 0L ? "(Auto-playback)" : "(Requested by **" + rm.user.username + "**)");
                 handler.updateStatsOnSkip();
                 handler.getPlayer().stopTrack();
             }

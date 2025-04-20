@@ -66,17 +66,17 @@ public class StatsCommand extends SlashCommand {
         // Create a more stylish embed
         EmbedBuilder eb = new EmbedBuilder();
         eb.setColor(guild.getSelfMember().getColor());
-        eb.setTitle("📊 Music Statistics for " + guild.getName());
-        eb.setDescription("Here are the music statistics for this server :");
+        eb.setTitle("📊 Music Statistics for :");
+        eb.setDescription("`" + guild.getName() + "`" + "\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         
         // Add thumbnail if available
         if (guild.getIconUrl() != null) {
             eb.setThumbnail(guild.getIconUrl());
         }
-        
+
         // Add fields in vertical layout (one per line) with emojis for better styling
-        eb.addField("🎵 Total Songs Played :", "```" + songsPlayed + "```", false);
-        eb.addField("⏱️ Total Play Time :", "```" + timeStr + "```", false);
+        eb.addField("🎵 Total Songs Played :","> " + "```" + songsPlayed + "```", false);
+        eb.addField("⏱️ Total Play Time :", "> " + "```" + timeStr + "```", false);
         
         // Add timestamp for freshness
         eb.setTimestamp(java.time.Instant.now());

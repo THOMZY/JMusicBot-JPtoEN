@@ -25,7 +25,6 @@ import com.jagrosh.jmusicbot.entities.Prompt;
 import com.jagrosh.jmusicbot.gui.GUI;
 import com.jagrosh.jmusicbot.settings.SettingsManager;
 import com.jagrosh.jmusicbot.utils.OtherUtil;
-import dev.cosgy.agent.GensokyoInfoAgent;
 import dev.cosgy.jmusicbot.slashcommands.admin.*;
 import dev.cosgy.jmusicbot.slashcommands.dj.*;
 import dev.cosgy.jmusicbot.slashcommands.general.*;
@@ -150,7 +149,7 @@ public class JMusicBot {
                 new String[]{"High-quality music playback", "FairQueue™ Technology", "Easily host it yourself"},
                 RECOMMENDED_PERMS);
         aboutCommand.setIsAuthor(false);
-        aboutCommand.setReplacementCharacter("\uD83C\uDFB6"); // 🎶
+        aboutCommand.setReplacementCharacter("\uD83C\uDFB6"); // 
 
         // set up the command client
         CommandClientBuilder cb = new CommandClientBuilder()
@@ -311,7 +310,5 @@ public class JMusicBot {
                     "Location of the configuration file: " + config.getConfigLocation());
             System.exit(1);
         }
-
-        new GensokyoInfoAgent().start();
     }
 }

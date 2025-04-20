@@ -61,13 +61,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
-
 /**
  * @author John Grosh <john.a.grosh@gmail.com>
  */
 public class PlayCmd extends MusicCommand {
-    private final static String LOAD = "\uD83D\uDCE5"; // 📥
-    private final static String CANCEL = "\uD83D\uDEAB"; // 🚫
+    private final static String LOAD = "\uD83D\uDCE5"; // 
+    private final static String CANCEL = "\uD83D\uDEAB"; // 
 
     private final String loadingEmoji;
     private SpotifyCmd spotifyCmd;
@@ -86,7 +85,7 @@ public class PlayCmd extends MusicCommand {
         options.add(new OptionData(OptionType.STRING, "input", "URL or song name", false));
         this.options = options;
 
-        // Initialize SpotifyCmd for later use
+        // Create a new SpotifyCmd instance - we'll make sure it doesn't initialize Spotify connection twice
         this.spotifyCmd = new SpotifyCmd(bot);
 
         //this.children = new SlashCommand[]{new PlaylistCmd(bot), new MylistCmd(bot), new PublistCmd(bot), new RequestCmd(bot)};
@@ -370,7 +369,7 @@ public class PlayCmd extends MusicCommand {
         private void loadSingle(AudioTrack track, AudioPlaylist playlist) {
             if (bot.getConfig().isTooLong(track)) {
                 m.editOriginal(FormatUtil.filter(event.getClient().getWarning() +
-                        " **" + (track.getInfo().uri.matches(".*stream.gensokyoradio.net/.*") ? "Gensokyo Radio" : track.getInfo().title) + "**`(" + FormatUtil.formatTime(track.getDuration()) + ")` exceeds the set length `(" + FormatUtil.formatTime(bot.getConfig().getMaxSeconds() * 1000) + ")`.")).queue();
+                        " **" + track.getInfo().title + "**`(" + FormatUtil.formatTime(track.getDuration()) + ")` exceeds the set length `(" + FormatUtil.formatTime(bot.getConfig().getMaxSeconds() * 1000) + ")`.")).queue();
                 return;
             }
             
@@ -396,16 +395,11 @@ public class PlayCmd extends MusicCommand {
             // Output MSG ex:
             // Added <title><(length)>.
             // Added <title><(length)> to <playback queue number> in the queue.
-            String title;
-            if (track.getInfo().uri.contains("https://stream.gensokyoradio.net/")) {
-                title = "Gensokyo Radio";
-            } else {
-                title = track.getInfo().title;
-                if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                    // Extract filename from URL for local files
-                    title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
-                    title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
-                }
+            String title = track.getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
             }
             
             String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
@@ -574,16 +568,11 @@ public class PlayCmd extends MusicCommand {
             // Output MSG ex:
             // Added <title><(length)>.
             // Added <title><(length)> to <playback queue number> in the queue.
-            String title;
-            if (track.getInfo().uri.contains("https://stream.gensokyoradio.net/")) {
-                title = "Gensokyo Radio";
-            } else {
-                title = track.getInfo().title;
-                if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                    // Extract filename from URL for local files
-                    title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
-                    title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
-                }
+            String title = track.getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
             }
             
             String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
@@ -722,8 +711,8 @@ public class PlayCmd extends MusicCommand {
     }
 
     public class RequestCmd extends MusicCommand {
-        private final static String LOAD = "\uD83D\uDCE5"; // 📥
-        private final static String CANCEL = "\uD83D\uDEAB"; // 🚫
+        private final static String LOAD = "\uD83D\uDCE5"; // 
+        private final static String CANCEL = "\uD83D\uDEAB"; // 
 
         private final String loadingEmoji;
         private final JDA jda;
@@ -814,7 +803,7 @@ public class PlayCmd extends MusicCommand {
                                     ? event.getClient().getWarning() + " No tracks were loaded!"
                                     : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks!");
                             if (!playlist.getErrors().isEmpty())
-                                builder.append("\nFailed to load the following tracks:");
+                                builder.append("\nThe following tracks could not be loaded:");
                             playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1).append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
                             String str = builder.toString();
                             if (str.length() > 2000)
@@ -923,12 +912,12 @@ public class PlayCmd extends MusicCommand {
             this.name = "mylist";
             this.aliases = new String[]{"ml"};
             this.arguments = "<name>";
-            this.help = "マイリストを再生します";
+            this.help = "Play a mylist";
             this.beListening = true;
             this.bePlaying = false;
 
             List<OptionData> options = new ArrayList<>();
-            options.add(new OptionData(OptionType.STRING, "name", "マイリスト名", true));
+            options.add(new OptionData(OptionType.STRING, "name", "Mylist name", true));
             this.options = options;
         }
 

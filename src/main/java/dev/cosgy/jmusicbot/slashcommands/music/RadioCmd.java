@@ -678,7 +678,7 @@ public class RadioCmd extends MusicCommand {
         
         // Add substation count only if this is not being displayed as a substation and if we have a valid ID
         if (!isSubstation && station.substationCount > 0 && (!station.radioId.isEmpty() || station.path.matches(".*\\d+$"))) {
-            stationDisplay.append(" | ").append(station.substationCount).append(" substations 📻");
+            stationDisplay.append(" | ").append("`").append(station.substationCount).append(" substations").append("`");
         }
 
         // Add description if available - continue the blockquote on a new line
@@ -688,7 +688,7 @@ public class RadioCmd extends MusicCommand {
             if (desc.length() > 150) {
                 desc = desc.substring(0, 147) + "...";
             }
-            stationDisplay.append("\n> - ").append("*").append(desc).append("*");
+            stationDisplay.append("\n> ").append("*").append(desc).append("*");
         }
         
         return stationDisplay.toString();

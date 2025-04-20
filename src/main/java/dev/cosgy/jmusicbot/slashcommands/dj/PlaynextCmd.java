@@ -94,13 +94,13 @@ public class PlaynextCmd extends DJCommand {
 
         private void loadSingle(AudioTrack track) {
             if (bot.getConfig().isTooLong(track)) {
-                m.editOriginal(FormatUtil.filter(event.getClient().getWarning() + "(**" + (track.getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : track.getInfo().title) + "**) This track is too long: `"
+                m.editOriginal(FormatUtil.filter(event.getClient().getWarning() + "(**" + track.getInfo().title + "**) This track is too long: `"
                         + FormatUtil.formatTime(track.getDuration()) + "` > `" + FormatUtil.formatTime(bot.getConfig().getMaxSeconds() * 1000) + "`")).queue();
                 return;
             }
             AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
             int pos = handler.addTrackToFront(new QueuedTrack(track, event.getUser())) + 1;
-            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + "**" + (track.getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : track.getInfo().title)
+            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
                     + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "was added to the queue." : "was added to position " + pos + " in the queue."));
             m.editOriginal(addMsg).queue();
 
@@ -158,13 +158,13 @@ public class PlaynextCmd extends DJCommand {
 
         private void loadSingle(AudioTrack track) {
             if (bot.getConfig().isTooLong(track)) {
-                m.editMessage(FormatUtil.filter(event.getClient().getWarning() + "(**" + (track.getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : track.getInfo().title) + "**) This track is too long: `"
+                m.editMessage(FormatUtil.filter(event.getClient().getWarning() + "(**" + track.getInfo().title + "**) This track is too long: `"
                         + FormatUtil.formatTime(track.getDuration()) + "` > `" + FormatUtil.formatTime(bot.getConfig().getMaxSeconds() * 1000) + "`")).queue();
                 return;
             }
             AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
             int pos = handler.addTrackToFront(new QueuedTrack(track, event.getAuthor())) + 1;
-            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + "**" + (track.getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : track.getInfo().title)
+            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + "**" + track.getInfo().title
                     + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "was added to the queue." : "was added to position " + pos + " in the queue."));
             m.editMessage(addMsg).queue();
 

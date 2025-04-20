@@ -1,4 +1,3 @@
-
 /*
  *  Copyright 2022 Cosgy Dev (info@cosgy.dev).
  *
@@ -106,4 +105,14 @@ public class Songtimes {
         this.additionalProperties.put(name, value);
     }
 
+    @Override
+    public String toString() {
+        return "Songtimes{" +
+               "duration=" + duration +
+               ", played=" + played +
+               ", remaining=" + remaining +
+               ", songstart=" + songstart +
+               ", songend=" + songend +
+               '}';
+    }
 }

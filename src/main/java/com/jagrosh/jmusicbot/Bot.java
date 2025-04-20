@@ -25,6 +25,7 @@ import com.jagrosh.jmusicbot.audio.PlayerManager;
 import com.jagrosh.jmusicbot.gui.GUI;
 import com.jagrosh.jmusicbot.playlist.PlaylistLoader;
 import com.jagrosh.jmusicbot.settings.SettingsManager;
+import dev.cosgy.agent.GensokyoInfoAgent;
 import dev.cosgy.jmusicbot.playlist.CacheLoader;
 import dev.cosgy.jmusicbot.playlist.MylistLoader;
 import dev.cosgy.jmusicbot.playlist.PubliclistLoader;

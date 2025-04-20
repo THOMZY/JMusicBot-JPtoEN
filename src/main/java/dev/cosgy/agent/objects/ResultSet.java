@@ -1,4 +1,3 @@
-
 /*
  *  Copyright 2022 Cosgy Dev (info@cosgy.dev).
  *
@@ -105,5 +104,15 @@ public class ResultSet {
     public void setAdditionalProperty(String name, Object value) {
         this.additionalProperties.put(name, value);
     }
-
+    
+    @Override
+    public String toString() {
+        return "ResultSet{" +
+               "serverinfo=" + (serverinfo != null ? serverinfo : "null") +
+               ", songinfo=" + (songinfo != null ? songinfo : "null") +
+               ", songtimes=" + (songtimes != null ? songtimes : "null") +
+               ", songdata=" + (songdata != null ? songdata : "null") +
+               ", misc=" + (misc != null ? misc : "null") +
+               '}';
+    }
 }

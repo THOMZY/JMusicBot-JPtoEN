@@ -49,6 +49,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -62,15 +63,21 @@ import java.util.stream.Collectors;
 public class SpotifyCmd extends MusicCommand {
 
     Logger log = LoggerFactory.getLogger(this.name);
-    private static final HttpClient httpClient = HttpClient.newBuilder().build();
+    private static final int CONNECTION_TIMEOUT = 5; // Connection timeout in seconds
+    private static final int RESPONSE_TIMEOUT = 5;   // Response read timeout in seconds
+    private static final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(CONNECTION_TIMEOUT))
+            .build();
     private static final String SPOTIFY_TRACK_URL_PREFIX = "https://open.spotify.com/track/";
     private static final String SPOTIFY_AUTH_URL = "https://accounts.spotify.com/api/token";
 
     private final static String LOAD = "\uD83D\uDCE5"; // 📥
     private final static String CANCEL = "\uD83D\uDEAB"; // 🚫
 
-    private String accessToken = null;
-    private long accessTokenExpirationTime;
+    // Static variables to avoid double initialization
+    private static String accessToken = null;
+    private static long accessTokenExpirationTime;
+    private static boolean initializationAttempted = false;
 
     // Maps to store Spotify track information
     public static final Map<String, String> lastTrackIds = new ConcurrentHashMap<>(); // guildId -> trackId
@@ -93,15 +100,30 @@ public class SpotifyCmd extends MusicCommand {
         options.add(new OptionData(OptionType.STRING, "tracklink", "URL of the Spotify track", true));
         this.options = options;
 
-        // Retrieve Spotify username and password
-        String clientId = bot.getConfig().getSpotifyClientId();
-        String clientSecret = bot.getConfig().getSpotifyClientSecret();
+        // Initialize Spotify connection only if it hasn't been attempted yet
+        if (!initializationAttempted) {
+            initializationAttempted = true;
+            try {
+                String clientId = bot.getConfig().getSpotifyClientId();
+                String clientSecret = bot.getConfig().getSpotifyClientSecret();
 
-        if (clientId.isEmpty() || clientSecret.isEmpty()) {
-            return;
+                if (clientId.isEmpty() || clientSecret.isEmpty()) {
+                    log.info("Spotify feature disabled: Client ID or Client Secret not configured");
+                    return;
+                }
+
+                // Single attempt to get access token with timeout
+                accessToken = getAccessToken(clientId, clientSecret);
+                if (accessToken == null) {
+                    log.info("Spotify feature disabled: Failed to obtain access token");
+                } else {
+                    log.info("Successfully connected to Spotify API");
+                }
+            } catch (Exception e) {
+                log.info("Failed to initialize Spotify connection", e);
+                // Don't rethrow - let the bot continue without Spotify functionality
+            }
         }
-        // Issue ACCESS_TOKEN
-        accessToken = getAccessToken(clientId, clientSecret);
     }
 
     @Override
@@ -118,6 +140,10 @@ public class SpotifyCmd extends MusicCommand {
             String clientId = bot.getConfig().getSpotifyClientId();
             String clientSecret = bot.getConfig().getSpotifyClientSecret();
             accessToken = getAccessToken(clientId, clientSecret);
+            if (accessToken == null) {
+                event.reply("Failed to connect to Spotify API. Please try again later.").queue();
+                return;
+            }
         }
 
         if (!isSpotifyTrackUrl(trackUrl)) {
@@ -196,6 +222,10 @@ public class SpotifyCmd extends MusicCommand {
             String clientId = bot.getConfig().getSpotifyClientId();
             String clientSecret = bot.getConfig().getSpotifyClientSecret();
             accessToken = getAccessToken(clientId, clientSecret);
+            if (accessToken == null) {
+                event.reply("Failed to connect to Spotify API. Please try again later.");
+                return;
+            }
         }
 
         if (!isSpotifyTrackUrl(trackUrl)) {
@@ -276,22 +306,59 @@ public class SpotifyCmd extends MusicCommand {
         return matcher.matches();
     }
 
-    private String getAccessToken(String clientId, String clientSecret) {
-        String encodedCredentials = Base64.getEncoder().encodeToString((clientId + ":" + clientSecret).getBytes());
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .header("Authorization", "Basic " + encodedCredentials)
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .POST(HttpRequest.BodyPublishers.ofString("grant_type=client_credentials"))
-                .uri(URI.create(SPOTIFY_AUTH_URL))
-                .build();
+    private static String getAccessToken(String clientId, String clientSecret) {
+        if (clientId.isEmpty() || clientSecret.isEmpty()) {
+            LoggerFactory.getLogger("SpotifyCmd").warn("Spotify credentials are not configured");
+            return null;
+        }
 
         try {
+            String encodedCredentials = Base64.getEncoder().encodeToString((clientId + ":" + clientSecret).getBytes());
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .header("Authorization", "Basic " + encodedCredentials)
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString("grant_type=client_credentials"))
+                    .uri(URI.create(SPOTIFY_AUTH_URL))
+                    .timeout(Duration.ofSeconds(RESPONSE_TIMEOUT))
+                    .build();
+
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            JSONObject json = new JSONObject(response.body());
-            accessTokenExpirationTime = System.currentTimeMillis() + json.getInt("expires_in") * 1000L;
-            return json.getString("access_token");
-        } catch (IOException | InterruptedException e) {
+            
+            // Check if response is successful (2xx status code)
+            if (response.statusCode() / 100 != 2) {
+                LoggerFactory.getLogger("SpotifyCmd").warn("Failed to get Spotify access token. Status code: " + response.statusCode());
+                return null;
+            }
+
+            // Check if response body is empty
+            if (response.body() == null || response.body().trim().isEmpty()) {
+                LoggerFactory.getLogger("SpotifyCmd").warn("Empty response from Spotify API");
+                return null;
+            }
+
+            // Validate JSON response
+            try {
+                JSONObject json = new JSONObject(response.body());
+                if (!json.has("access_token") || !json.has("expires_in")) {
+                    LoggerFactory.getLogger("SpotifyCmd").warn("Invalid response format from Spotify API");
+                    return null;
+                }
+                accessTokenExpirationTime = System.currentTimeMillis() + json.getInt("expires_in") * 1000L;
+                return json.getString("access_token");
+            } catch (org.json.JSONException e) {
+                LoggerFactory.getLogger("SpotifyCmd").warn("Failed to parse Spotify API response: " + e.getMessage());
+                return null;
+            }
+        } catch (IOException e) {
+            LoggerFactory.getLogger("SpotifyCmd").warn("Network error while connecting to Spotify API: " + e.getMessage());
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LoggerFactory.getLogger("SpotifyCmd").warn("Interrupted while connecting to Spotify API");
+            return null;
+        } catch (Exception e) {
+            LoggerFactory.getLogger("SpotifyCmd").warn("Unexpected error while connecting to Spotify API: " + e.getMessage());
             return null;
         }
     }

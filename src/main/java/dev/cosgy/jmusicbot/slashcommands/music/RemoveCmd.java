@@ -79,7 +79,7 @@ public class RemoveCmd extends MusicCommand {
         QueuedTrack qt = handler.getQueue().get(pos - 1);
         if (qt.getIdentifier() == event.getAuthor().getIdLong()) {
             handler.getQueue().remove(pos - 1);
-            event.replySuccess("Removed **" + (qt.getTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : qt.getTrack().getInfo().title) + "** from the queue.");
+            event.replySuccess("Removed **" + qt.getTrack().getInfo().title + "** from the queue.");
         } else if (isDJ) {
             handler.getQueue().remove(pos - 1);
             User u;
@@ -91,7 +91,7 @@ public class RemoveCmd extends MusicCommand {
             event.replySuccess("Removed **" + qt.getTrack().getInfo().title
                     + "** from the queue.\n(This song was requested by " + (u == null ? "someone." : "**" + u.getName() + "**.") + ")");
         } else {
-            event.replyError("Cannot remove **" + (qt.getTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : qt.getTrack().getInfo().title) + "**. Reason: Do you have DJ permissions? You can only remove your own requests.");
+            event.replyError("Cannot remove **" + qt.getTrack().getInfo().title + "**. Reason: Do you have DJ permissions? You can only remove your own requests.");
         }
     }
 

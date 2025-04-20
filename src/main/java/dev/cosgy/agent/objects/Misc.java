@@ -1,4 +1,3 @@
-
 /*
  *  Copyright 2022 Cosgy Dev (info@cosgy.dev).
  *
@@ -106,4 +105,26 @@ public class Misc {
         this.additionalProperties.put(name, value);
     }
 
+    /**
+     * Get the full URL to the album artwork
+     * @return The complete URL to the album artwork
+     */
+    public String getFullAlbumArtUrl() {
+        if (albumart == null || albumart.isEmpty()) {
+            return "";
+        }
+        
+        return "https://gensokyoradio.net/images/albums/500/" + albumart;
+    }
+    
+    @Override
+    public String toString() {
+        return "Misc{" +
+               "circlelink='" + circlelink + '\'' +
+               ", albumart='" + albumart + '\'' +
+               ", circleart='" + circleart + '\'' +
+               ", offset='" + offset + '\'' +
+               ", offsettime=" + offsettime +
+               '}';
+    }
 }

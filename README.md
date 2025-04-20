@@ -17,15 +17,15 @@ JMusicBot uses a simple and user-friendly UI. Both setup and launch are easy.
 
 This is an English translation of JMusicBotJP.
 
-This fork aims to updates dependencies when YouTube playback breaks and occasionally adds minor new features.
+This fork aims to updates dependencies when YouTube playback breaks and adds minor new features.
 
 ### Changes :
 
-* Added `/radio` command that searches and plays radio stations from onlineradiobox.com.  
+* Added `/radio` command that searches and plays radio stations.  
 * Added `/stats` command to view total play time and songs played.  
 * `/nowplaying` now have more and cleaner informations.  
-* `/play` now work with Spotify links instead of returning "Unknown file format." error.  
-* `/lyrics` his now more robust finding lyrics.  
+* `/lyrics` his now more robust finding lyrics. 
+* `/play` now work with Spotify links instead of returning "Unknown file format." error.   
 * Fixed Youtube livestreams fail at 30sec. 
 * Added the ability to queue multiple local files in a single message.
 

@@ -42,8 +42,8 @@ import java.util.concurrent.TimeUnit;
  * @author John Grosh <john.a.grosh@gmail.com>
  */
 public class QueueCmd extends MusicCommand {
-    private final static String REPEAT_ALL = "\uD83D\uDD01"; // 
-    private final static String REPEAT_SINGLE = "\uD83D\uDD02"; // 
+    private final static String REPEAT_ALL = "\uD83D\uDD01"; // 🔁
+    private final static String REPEAT_SINGLE = "\uD83D\uDD02"; // 🔂
 
     private final Paginator.Builder builder;
 

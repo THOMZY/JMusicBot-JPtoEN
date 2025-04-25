@@ -4,10 +4,10 @@
 [![Stars](https://img.shields.io/github/stars/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/stargazers)
 [![Release](https://img.shields.io/github/release/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest)
 [![License](https://img.shields.io/github/license/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/develop/LICENSE)
-[![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen)
+[![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge/main)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/overview/main)
 [![Build and Test](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)
 </h3>
-<h2 align="center">Youtube playback fixed ( XX April 2025 )</h2>
+<h2 align="center">Youtube playback fixed ( 25 April 2025 )</h2>
 
 
 # JMusicBot
@@ -35,7 +35,7 @@ Check the [CHANGELOG](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/develop/CH
 
 * Easy setup
 * Fast music loading
-* Setup with only a Discord Bot token
+* Setup with only a Discord Bot token ( need tokens for Youtube Premium and Spotify )
 * Smooth playback with minimal lag
 * Unique permission system with DJs
 * Simple and easy-to-use UI
@@ -69,7 +69,7 @@ Open a command line window in the downloaded and unziped folder and type :
 ```
 mvn clean package
 ```
-You will find ```JMusicBot-X-All.jar``` in the "target" folder. 
+You will find ```JMusicBot-XXXX.XX.XX-All.jar``` in the "target" folder. 
    
 Or just download the latest working provided .jar [here](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest).  
   
@@ -80,4 +80,4 @@ It is recommended for personal or small server use.
 
 # Example of Commands
 
-![Example](https://i.imgur.com/tevrtKt.png)
+![Example](https://i.imgur.com/y0WQd4V.gif)

@@ -316,7 +316,7 @@ public class IcyMetadataHandler {
             return "Stream Radio";
         }
         
-        // If title contains " - ", use the part after it as station name
+        // If title contains " | ", use the part after it as station name
         if (title.contains(" | ")) {
             return title.substring(title.lastIndexOf(" | ") + 3);
         } 

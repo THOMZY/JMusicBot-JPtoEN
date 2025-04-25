@@ -45,6 +45,9 @@ import java.awt.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -112,12 +115,12 @@ public class JMusicBot {
                 int pythonExitCode = checkPython.waitFor();
 
                 if (pythonExitCode == 0 && pythonVersion != null && pythonVersion.startsWith("Python 3")) {
-                    log.info("Python is version 3.x.");
+                    log.info(pythonVersion);
                 } else {
                     prompt.alert(Prompt.Level.WARNING, "Python", "Python (version 3.x) is not installed. Please install Python 3.");
                 }
             } else {
-                log.info("Python3 is installed.");
+                log.info("Python (version 3.x) is installed");
             }
         } catch (Exception e) {
             prompt.alert(Prompt.Level.WARNING, "Python", "An error occurred while checking the Python version. Please ensure Python 3 is installed.");
@@ -132,6 +135,42 @@ public class JMusicBot {
         if (!config.isValid())
             return;
 
+        // --- YouTube OAuth2: Log Listener for Refresh Token ---
+        // Redirect System.out to capture refresh token log and update config.txt automatically.
+        PrintStream originalOut = System.out;
+        System.setOut(new PrintStream(new OutputStream() {
+            private final StringBuilder buffer = new StringBuilder();
+            @Override
+            public void write(int b) throws IOException {
+                // Only treat '\n' as a line ending (not '\r')
+                if (b == '\n') {
+                    String line = buffer.toString();
+                    originalOut.println(line); // Always print the original line as a true line
+                    if (line.contains("OAUTH INTEGRATION: Token retrieved successfully. Store your refresh token as this can be reused.")) {
+                        int start = line.indexOf('(');
+                        int end = line.indexOf(')', start);
+                        if (start != -1 && end != -1 && end > start + 1) {
+                            String token = line.substring(start + 1, end);
+                            if (token.startsWith("1//")) {
+                                config.setYouTubeRefreshToken(token);
+                                LocalTime now = LocalTime.now();
+                                String timestamp = String.format("[%02d:%02d:%02d]", now.getHour(), now.getMinute(), now.getSecond());
+                                originalOut.println(timestamp + " [INFO] [YoutubeOauth2Handler] Refresh token saved to config.txt");
+                            }
+                        }
+                    }
+                    buffer.setLength(0);
+                } else if (b != '\r') {
+                    buffer.append((char) b);
+                }
+            }
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                for (int i = off; i < off + len; i++) {
+                    write(b[i]);
+                }
+            }
+        }, true));
 
         if (config.getAuditCommands()) {
             COMMAND_AUDIT_ENABLED = true;
@@ -267,7 +306,7 @@ public class JMusicBot {
         try {
             JDA jda = JDABuilder.create(config.getToken(), Arrays.asList(INTENTS))
                     .enableCache(CacheFlag.MEMBER_OVERRIDES, CacheFlag.VOICE_STATE)
-                    .disableCache(CacheFlag.ACTIVITY, CacheFlag.CLIENT_STATUS, CacheFlag.EMOJI, CacheFlag.ONLINE_STATUS)
+                    .disableCache(CacheFlag.ACTIVITY, CacheFlag.CLIENT_STATUS, CacheFlag.EMOJI, CacheFlag.ONLINE_STATUS, CacheFlag.STICKER, CacheFlag.SCHEDULED_EVENTS)
                     .setActivity(nogame ? null : Activity.playing("Loading..."))
                     .setStatus(config.getStatus() == OnlineStatus.INVISIBLE || config.getStatus() == OnlineStatus.OFFLINE
                             ? OnlineStatus.INVISIBLE : OnlineStatus.DO_NOT_DISTURB)

@@ -65,8 +65,8 @@ import java.util.regex.Matcher;
  * @author John Grosh <john.a.grosh@gmail.com>
  */
 public class PlayCmd extends MusicCommand {
-    private final static String LOAD = "\uD83D\uDCE5"; // 
-    private final static String CANCEL = "\uD83D\uDEAB"; // 
+    private final static String LOAD = "\uD83D\uDCE5"; // 📥
+    private final static String CANCEL = "\uD83D\uDEAB"; // 🚫
 
     private final String loadingEmoji;
     private SpotifyCmd spotifyCmd;

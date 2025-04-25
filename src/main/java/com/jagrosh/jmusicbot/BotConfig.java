@@ -1,5 +1,6 @@
 /*
  * Copyright 2018 John Grosh (jagrosh).
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,6 +58,7 @@ public class BotConfig {
     private static String nicoTwoFactor;
     private String ytEmail;
     private String ytPass;
+    private String ytRefreshToken;
     private String spClientId;
     private String spClientSecret;
     // [JMusicBot-JP] added useNicoNico, changeNickName, pauseNoUsers, resumeJoined, stopNoUsers, cosgyDevHost, helpToDm, officialInvite
@@ -132,6 +134,7 @@ public class BotConfig {
             useinvitecommand = config.getBoolean("useinvitecommand");
             ytEmail = config.getString("ytemail");
             ytPass = config.getString("ytpass");
+            ytRefreshToken = config.hasPath("ytrefreshtoken") ? config.getString("ytrefreshtoken") : null; // [YouTube OAuth] Read refresh token from config
             spClientId = config.getString("spclient");
             spClientSecret = config.getString("spsecret");
 
@@ -352,6 +355,27 @@ public class BotConfig {
 
     public String getYouTubePassword() {
         return ytPass;
+    }
+
+    public String getYouTubeRefreshToken() {
+        return ytRefreshToken;
+    }
+
+    public void setYouTubeRefreshToken(String refreshToken) {
+        this.ytRefreshToken = refreshToken;
+        // Persist to config file
+        try {
+            String configContent = FileUtils.readFileToString(path.toFile(), StandardCharsets.UTF_8);
+            // Replace or add the ytrefreshtoken line
+            if (configContent.contains("ytrefreshtoken")) {
+                configContent = configContent.replaceAll("(?m)^ytrefreshtoken\\s*=.*$", "ytrefreshtoken = \"" + refreshToken + "\"");
+            } else {
+                configContent += "\nytrefreshtoken = \"" + refreshToken + "\"\n";
+            }
+            FileUtils.writeStringToFile(path.toFile(), configContent, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            prompt.alert(Prompt.Level.ERROR, CONTEXT, "Failed to write refresh token to config: " + e.getMessage());
+        }
     }
 
     public String getSpotifyClientId(){return spClientId;}

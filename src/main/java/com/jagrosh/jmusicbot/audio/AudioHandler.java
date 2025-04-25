@@ -1773,7 +1773,8 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @param track The current track
      */
     private void buildGensokyoRadioEmbed(EmbedBuilder eb, AudioTrack track) {
-        eb.setTitle("~ Now playing :");
+        eb.setTitle("~ Now playing :");        
+        eb.setThumbnail("https://stream.gensokyoradio.net/images/logo.png");
         
         StringBuilder description = new StringBuilder();
         String streamUrl = track.getInfo().uri;

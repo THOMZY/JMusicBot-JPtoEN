@@ -1,6 +1,6 @@
-
 /*
  *  Copyright 2022 Cosgy Dev (info@cosgy.dev).
+ * Edit 2025 THOMZY
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -105,5 +105,15 @@ public class ResultSet {
     public void setAdditionalProperty(String name, Object value) {
         this.additionalProperties.put(name, value);
     }
-
+    
+    @Override
+    public String toString() {
+        return "ResultSet{" +
+               "serverinfo=" + (serverinfo != null ? serverinfo : "null") +
+               ", songinfo=" + (songinfo != null ? songinfo : "null") +
+               ", songtimes=" + (songtimes != null ? songtimes : "null") +
+               ", songdata=" + (songdata != null ? songdata : "null") +
+               ", misc=" + (misc != null ? misc : "null") +
+               '}';
+    }
 }

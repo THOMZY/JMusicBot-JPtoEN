@@ -1,5 +1,6 @@
 /*
  * Copyright 2018-2020 Cosgy Dev
+ * Edit 2025 THOMZY
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -19,6 +20,7 @@ import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.entities.Pair;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
+import com.jagrosh.jmusicbot.audio.IcyMetadataHandler;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
@@ -152,15 +154,76 @@ public class NowplayingHandler {
     public void onTrackUpdate(long guildId, AudioTrack track, AudioHandler handler) {
         // Update bot status if applicable
         if (bot.getConfig().getSongInStatus()) {
-            if (track != null && bot.getJDA().getGuilds().stream().filter(g -> Objects.requireNonNull(g.getSelfMember().getVoiceState()).inAudioChannel()).count() <= 1)
-
-                if (track.getInfo().uri.matches(".*stream.gensokyoradio.net/.*")) {
-                    bot.getJDA().getPresence().setActivity(Activity.listening("Gensokyo Radio"));
-                } else {
-                    bot.getJDA().getPresence().setActivity(Activity.listening(track.getInfo().title));
+            if (track != null && bot.getJDA().getGuilds().stream().filter(g -> Objects.requireNonNull(g.getSelfMember().getVoiceState()).inAudioChannel()).count() <= 1) {
+                // Check if this is a Gensokyo Radio track
+                if (handler instanceof AudioHandler && ((AudioHandler) handler).isGensokyoRadioTrack(track)) {
+                    try {
+                        // Get current track info from GensokyoInfoAgent
+                        dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+                        
+                        if (info != null && info.getSonginfo() != null) {
+                            // Format as Artist - Title for Gensokyo Radio
+                            String artistTitle = info.getSonginfo().getArtist() + " - " + info.getSonginfo().getTitle();
+                            bot.getJDA().getPresence().setActivity(Activity.listening(artistTitle));
+                            
+                            // Update track title to include current song info
+                            // This affects what's displayed in other places
+                            try {
+                                java.lang.reflect.Field titleField = track.getInfo().getClass().getDeclaredField("title");
+                                titleField.setAccessible(true);
+                                titleField.set(track.getInfo(), artistTitle);
+                                track.setUserData(artistTitle);
+                            } catch (Exception e) {
+                                // Ignore field access errors
+                            }
+                            return; // Skip the rest of the method
+                        }
+                    } catch (Exception e) {
+                        // If there was an error, fall back to default behavior
+                    }
                 }
-            else
+                
+                // Check if title is empty or null, provide a default if needed
+                String title = track.getInfo().title;
+                if (title == null || title.trim().isEmpty() || title.equals("Unknown title")) {
+                    // Try to get a better title from different sources
+                    if (handler instanceof AudioHandler) {
+                        AudioHandler audioHandler = (AudioHandler) handler;
+                        
+                        // Check if it's a radio stream with ICY metadata
+                        IcyMetadataHandler.StreamMetadata icyMetadata = 
+                            bot.getIcyMetadataHandler().getMetadata(String.valueOf(guildId));
+                        
+                        if (icyMetadata != null) {
+                            // First try current track if available
+                            if (icyMetadata.getCurrentTrack() != null && !icyMetadata.getCurrentTrack().trim().isEmpty()) {
+                                title = icyMetadata.getCurrentTrack();
+                            } 
+                            // Otherwise use station name
+                            else if (icyMetadata.getStationName() != null && !icyMetadata.getStationName().trim().isEmpty()) {
+                                title = icyMetadata.getStationName();
+                            }
+                        }
+                    }
+                    
+                    // If still empty, try to extract filename from URL for local files
+                    if (title == null || title.trim().isEmpty() || title.equals("Unknown title")) {
+                        String uri = track.getInfo().uri;
+                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+                    }
+                    
+                    // If still empty after all attempts, use a generic title
+                    if (title == null || title.trim().isEmpty()) {
+                        title = track.getInfo().isStream ? "Live Stream" : "Music";
+                    }
+                }
+                
+                // Now set the activity with our guaranteed non-empty title
+                bot.getJDA().getPresence().setActivity(Activity.listening(title));
+            } else {
                 bot.resetGame();
+            }
         }
 
         // Update channel topic if applicable

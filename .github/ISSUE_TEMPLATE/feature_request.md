@@ -1,23 +1,25 @@
 ---
-name: 機能リクエスト about: このプロジェクトにアイデアを提案 title: "[機能要求]タイトルを入力"
+name: Feature Request 
+about: Suggest an idea for this project 
+title: "[Feature Request] Enter title"
 labels: ''
 assignees: ''
 
 ---
 
-**機能リクエストは問題に関連していますか。 記述してください。**
-問題が何であるかの明確で簡潔な説明。
+**Is your feature request related to a problem? Please describe.**
+A clear and concise description of what the problem is.
 
-**この機能を使用するための基本的な流れ/手順を説明する**
-この機能の使い方:
+**Describe the basic flow/steps for using this feature**
+How this feature would be used:
 
-1. 何かを設定 '...'
-2. コマンドを実行する '...'
-3. その他の手順や関連情報 '...'
+1. Set up something '...'
+2. Execute command '...'
+3. Other steps or related information '...'
 4. ...
 
-**追加のコンテキスト**
-機能要求に関するその他のコンテキストやスクリーンショットをここに追加してください。
+**Additional context**
+Add any other context or screenshots about the feature request here.
 
-**あなたはこの考えがまだここで説明されていないことを確認しましたか？**
-https://github.com/Cosgy-Dev/JMusicBot-JP/projects/1
+**Have you confirmed that this idea has not already been shared here?**
+https://github.com/THOMZY/JMusicBot-JPtoEN/projects/1

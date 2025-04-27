@@ -1,6 +1,7 @@
 name: Maven Build & Release .jar
 on:
   push:
+    branches: [ main ]
 
 jobs:
   build-and-release:

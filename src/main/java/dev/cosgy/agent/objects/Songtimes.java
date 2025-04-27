@@ -1,6 +1,6 @@
-
 /*
  *  Copyright 2022 Cosgy Dev (info@cosgy.dev).
+ * Edit 2025 THOMZY
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -106,4 +106,14 @@ public class Songtimes {
         this.additionalProperties.put(name, value);
     }
 
+    @Override
+    public String toString() {
+        return "Songtimes{" +
+               "duration=" + duration +
+               ", played=" + played +
+               ", remaining=" + remaining +
+               ", songstart=" + songstart +
+               ", songend=" + songend +
+               '}';
+    }
 }

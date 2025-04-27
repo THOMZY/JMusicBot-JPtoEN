@@ -44,7 +44,7 @@ import java.nio.file.Paths;
 public class OtherUtil {
     public final static String NEW_VERSION_AVAILABLE = "A new version of JMusicBot JPtoEN is available!\n"
             + "Current version: %s\n"
-            + "Latest version: %s\n\n"
+            + "Latest version: %s\n"
             + "Please download the latest version from https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest.";
     private final static String WINDOWS_INVALID_PATH = "c:\\windows\\system32\\";
 

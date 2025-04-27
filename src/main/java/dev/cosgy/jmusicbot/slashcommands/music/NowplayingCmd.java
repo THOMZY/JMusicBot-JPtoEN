@@ -1,5 +1,6 @@
 /*
  * Copyright 2018 John Grosh (jagrosh).
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,11 +23,29 @@ import com.jagrosh.jmusicbot.audio.AudioHandler;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
+import net.dv8tion.jda.api.EmbedBuilder;
+import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import java.util.function.Consumer;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
+import net.dv8tion.jda.api.JDA;
+import com.jagrosh.jmusicbot.JMusicBot;
+import com.jagrosh.jmusicbot.utils.FormatUtil;
+import com.jagrosh.jmusicbot.audio.RequestMetadata;
 
 /**
+ * Command that displays the currently playing track
  * @author John Grosh <john.a.grosh@gmail.com>
  */
 public class NowplayingCmd extends MusicCommand {
+
     public NowplayingCmd(Bot bot) {
         super(bot);
         this.name = "nowplaying";
@@ -38,36 +57,54 @@ public class NowplayingCmd extends MusicCommand {
     @Override
     public void doCommand(CommandEvent event) {
         AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-        MessageCreateData m = null;
-        try {
-            m = handler.getNowPlaying(event.getJDA());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        if (handler == null || handler.getPlayer().getPlayingTrack() == null) {
+            event.reply(handler != null ? handler.getNoMusicPlaying(event.getJDA()) : MessageCreateData.fromContent("No music is currently playing."));
+            bot.getNowplayingHandler().clearLastNPMessage(event.getGuild());
+            return;
         }
-        if (m == null) {
+
+        // Get nowplaying information from AudioHandler
+        MessageCreateData np;
+        try {
+            np = handler.getNowPlaying(event.getJDA());
+        } catch (Exception e) {
+            event.reply("Error getting now playing information: " + e.getMessage());
+            return;
+        }
+        
+        if (np == null) {
             event.reply(handler.getNoMusicPlaying(event.getJDA()));
             bot.getNowplayingHandler().clearLastNPMessage(event.getGuild());
         } else {
-            event.reply(m, bot.getNowplayingHandler()::setLastNPMessage);
+            event.reply(np, bot.getNowplayingHandler()::setLastNPMessage);
         }
     }
 
     @Override
     public void doCommand(SlashCommandEvent event) {
         AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-        MessageCreateData m = null;
-        try {
-            m = handler.getNowPlaying(event.getJDA());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        if (handler == null || handler.getPlayer().getPlayingTrack() == null) {
+            event.reply("No music is currently playing.").queue();
+            bot.getNowplayingHandler().clearLastNPMessage(event.getGuild());
+            return;
         }
+
         event.reply("Displaying the currently playing track...").queue(h -> h.deleteOriginal().queue());
 
-        if (m == null) {
-            event.getTextChannel().sendMessage(handler.getNoMusicPlaying(event.getJDA())).queue();
+        // Get nowplaying information from AudioHandler
+        MessageCreateData np;
+        try {
+            np = handler.getNowPlaying(event.getJDA());
+        } catch (Exception e) {
+            event.reply("Error getting now playing information: " + e.getMessage()).queue();
+            return;
+        }
+        
+        if (np == null) {
+            event.getChannel().sendMessage(handler.getNoMusicPlaying(event.getJDA())).queue();
             bot.getNowplayingHandler().clearLastNPMessage(event.getGuild());
         } else {
-            event.getTextChannel().sendMessage(m).queue(bot.getNowplayingHandler()::setLastNPMessage);
+            event.getChannel().sendMessage(np).queue(m -> bot.getNowplayingHandler().setLastNPMessage(m));
         }
     }
 }

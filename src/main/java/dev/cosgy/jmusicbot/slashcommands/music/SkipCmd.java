@@ -1,5 +1,6 @@
 /*
  * Copyright 2018 John Grosh (jagrosh).
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +22,7 @@ import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.audio.RequestMetadata;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
+import dev.cosgy.jmusicbot.util.LocalAudioMetadata;
 
 /**
  * @author John Grosh <john.a.grosh@gmail.com>
@@ -41,7 +43,16 @@ public class SkipCmd extends MusicCommand {
 
         RequestMetadata rm = handler.getRequestMetadata();
         if (event.getAuthor().getIdLong() == rm.getOwner()) {
-            event.reply(event.getClient().getSuccess() + "**" + (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : handler.getPlayer().getPlayingTrack().getInfo().title) + "** was skipped.");
+            // Get the track title or filename
+            String title = handler.getPlayer().getPlayingTrack().getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
+                title = LocalAudioMetadata.extractFilenameFromUrl(uri);
+                title = LocalAudioMetadata.cleanupFilename(title);
+            }
+            event.reply(event.getClient().getSuccess() + "**" + title + "** was skipped.");
+            handler.updateStatsOnSkip();
             handler.getPlayer().stopTrack();
         } else {
             // Number of people in voice chat (excluding bots and those who are deafened)
@@ -75,8 +86,16 @@ public class SkipCmd extends MusicCommand {
 
             // Check if the number of voters meets the required number of votes
             if (skippers >= required) {
-                msg += "\n" + event.getClient().getSuccess() + "**" + (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : handler.getPlayer().getPlayingTrack().getInfo().title)
-                        + "** was skipped. " + (rm.getOwner() == 0L ? "(Auto-playback)" : "(Requested by **" + rm.user.username + "**)");
+                // Get the track title or filename
+                String title = handler.getPlayer().getPlayingTrack().getInfo().title;
+                if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                    // Extract filename from URL for local files
+                    String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
+                    title = LocalAudioMetadata.extractFilenameFromUrl(uri);
+                    title = LocalAudioMetadata.cleanupFilename(title);
+                }
+                msg += "\n" + event.getClient().getSuccess() + "**" + title + "** was skipped. " + (rm.getOwner() == 0L ? "(Auto-playback)" : "(Requested by **" + rm.user.username + "**)");
+                handler.updateStatsOnSkip();
                 handler.getPlayer().stopTrack();
             }
             event.reply(msg);
@@ -89,7 +108,16 @@ public class SkipCmd extends MusicCommand {
 
         RequestMetadata rm = handler.getRequestMetadata();
         if (event.getUser().getIdLong() == rm.getOwner()) {
-            event.reply(event.getClient().getSuccess() + "**" + (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : handler.getPlayer().getPlayingTrack().getInfo().title) + "** was skipped.").queue();
+            // Get the track title or filename
+            String title = handler.getPlayer().getPlayingTrack().getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
+                title = LocalAudioMetadata.extractFilenameFromUrl(uri);
+                title = LocalAudioMetadata.cleanupFilename(title);
+            }
+            event.reply(event.getClient().getSuccess() + "**" + title + "** was skipped.").queue();
+            handler.updateStatsOnSkip();
             handler.getPlayer().stopTrack();
         } else {
             // Number of people in voice chat (excluding bots and those who are deafened)
@@ -123,8 +151,16 @@ public class SkipCmd extends MusicCommand {
 
             // Check if the number of voters meets the required number of votes
             if (skippers >= required) {
-                msg += "\n" + event.getClient().getSuccess() + "**" + (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : handler.getPlayer().getPlayingTrack().getInfo().title)
-                        + "** was skipped. " + (rm.getOwner() == 0L ? "(Auto-playback)" : "(Requested by **" + rm.user.username + "**)");
+                // Get the track title or filename
+                String title = handler.getPlayer().getPlayingTrack().getInfo().title;
+                if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                    // Extract filename from URL for local files
+                    String uri = handler.getPlayer().getPlayingTrack().getInfo().uri;
+                    title = LocalAudioMetadata.extractFilenameFromUrl(uri);
+                    title = LocalAudioMetadata.cleanupFilename(title);
+                }
+                msg += "\n" + event.getClient().getSuccess() + "**" + title + "** was skipped. " + (rm.getOwner() == 0L ? "(Auto-playback)" : "(Requested by **" + rm.user.username + "**)");
+                handler.updateStatsOnSkip();
                 handler.getPlayer().stopTrack();
             }
             event.reply(msg).queue();

@@ -1,6 +1,6 @@
-
 /*
  *  Copyright 2022 Cosgy Dev (info@cosgy.dev).
+ * Edit 2025 THOMZY
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -28,7 +28,8 @@ import java.util.Map;
         "ARTIST",
         "ALBUM",
         "YEAR",
-        "CIRCLE"
+        "CIRCLE",
+        "ALBUMART"
 })
 public class Songinfo {
 
@@ -42,6 +43,8 @@ public class Songinfo {
     private String year;
     @JsonProperty("CIRCLE")
     private String circle;
+    @JsonProperty("ALBUMART")
+    private String albumArt;
     @JsonIgnore
     private Map<String, Object> additionalProperties = new HashMap<String, Object>();
 
@@ -95,6 +98,16 @@ public class Songinfo {
         this.circle = circle;
     }
 
+    @JsonProperty("ALBUMART")
+    public String getAlbumArt() {
+        return albumArt;
+    }
+
+    @JsonProperty("ALBUMART")
+    public void setAlbumArt(String albumArt) {
+        this.albumArt = albumArt;
+    }
+
     @JsonAnyGetter
     public Map<String, Object> getAdditionalProperties() {
         return this.additionalProperties;
@@ -105,4 +118,15 @@ public class Songinfo {
         this.additionalProperties.put(name, value);
     }
 
+    @Override
+    public String toString() {
+        return "Songinfo{" +
+               "title='" + title + '\'' +
+               ", artist='" + artist + '\'' +
+               ", album='" + album + '\'' +
+               ", year='" + year + '\'' +
+               ", circle='" + circle + '\'' +
+               ", albumArt='" + albumArt + '\'' +
+               '}';
+    }
 }

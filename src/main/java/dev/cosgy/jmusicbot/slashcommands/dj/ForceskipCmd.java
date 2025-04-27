@@ -1,5 +1,6 @@
 /*
  * Copyright 2016 John Grosh <john.a.grosh@gmail.com>.
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +45,7 @@ public class ForceskipCmd extends DJCommand {
         RequestMetadata rm = handler.getRequestMetadata();
         event.reply(event.getClient().getSuccess() + "**" + handler.getPlayer().getPlayingTrack().getInfo().title
                 + "** " + (rm.getOwner() == 0L ? "(Auto-play)" : "(**" + rm.user.username + "** requested)"));
+        handler.updateStatsOnSkip();
         handler.getPlayer().stopTrack();
     }
 
@@ -57,6 +59,7 @@ public class ForceskipCmd extends DJCommand {
         RequestMetadata rm = handler.getRequestMetadata();
         event.reply(event.getClient().getSuccess() + "**" + handler.getPlayer().getPlayingTrack().getInfo().title
                 + "** " + (rm.getOwner() == 0L ? "(Auto-play)" : "(**" + rm.user.username + "** requested)")).queue();
+        handler.updateStatsOnSkip();
         handler.getPlayer().stopTrack();
     }
 }

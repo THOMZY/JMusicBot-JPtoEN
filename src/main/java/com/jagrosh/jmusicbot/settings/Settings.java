@@ -1,5 +1,6 @@
 /*
  * Copyright 2018 John Grosh (jagrosh).
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +43,9 @@ public class Settings implements GuildSettingsProvider {
     private double skipRatio;
     private boolean vcStatus;
     private boolean ForceToEndQue;
+    // Stats tracking
+    private int songsPlayed;
+    private long playTimeMillis;
 
 
     public Settings(SettingsManager manager, String textId, String voiceId, String roleId, int volume, String defaultPlaylist, RepeatMode repeatMode, String prefix, boolean bitrateWarningReaded, int announce, double skipRatio, boolean vcStatus, boolean forceToEndQue) {
@@ -61,15 +65,7 @@ public class Settings implements GuildSettingsProvider {
         } catch (NumberFormatException e) {
             this.roleId = 0;
         }
-        this.volume = volume;
-        this.defaultPlaylist = defaultPlaylist;
-        this.repeatMode = repeatMode;
-        this.prefix = prefix;
-        this.bitrateWarningReaded = bitrateWarningReaded;
-        this.announce = announce;
-        this.skipRatio = skipRatio;
-        this.vcStatus = vcStatus;
-        this.ForceToEndQue = forceToEndQue;
+        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, forceToEndQue, songsPlayed, playTimeMillis);
     }
 
     public Settings(SettingsManager manager, long textId, long voiceId, long roleId, int volume, String defaultPlaylist, RepeatMode repeatMode, String prefix, boolean bitrateWarningReaded, int announce, double skipRatio, boolean vcStatus, boolean forceToEndQue) {
@@ -77,6 +73,49 @@ public class Settings implements GuildSettingsProvider {
         this.textId = textId;
         this.voiceId = voiceId;
         this.roleId = roleId;
+        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, forceToEndQue, songsPlayed, playTimeMillis);
+    }
+
+    // Constructor with stats parameters
+    public Settings(SettingsManager manager, long textId, long voiceId, long roleId, int volume, String defaultPlaylist, 
+                    RepeatMode repeatMode, String prefix, boolean bitrateWarningReaded, int announce, double skipRatio, 
+                    boolean vcStatus, boolean forceToEndQue, int songsPlayed, long playTimeMillis) {
+        this.manager = manager;
+        this.textId = textId;
+        this.voiceId = voiceId;
+        this.roleId = roleId;
+        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, forceToEndQue, songsPlayed, playTimeMillis);
+    }
+
+    // Constructor with stats parameters and String IDs
+    public Settings(SettingsManager manager, String textId, String voiceId, String roleId, int volume, String defaultPlaylist, 
+                    RepeatMode repeatMode, String prefix, boolean bitrateWarningReaded, int announce, double skipRatio, 
+                    boolean vcStatus, boolean forceToEndQue, int songsPlayed, long playTimeMillis) {
+        this.manager = manager;
+        try {
+            this.textId = Long.parseLong(textId);
+        } catch (NumberFormatException e) {
+            this.textId = 0;
+        }
+        try {
+            this.voiceId = Long.parseLong(voiceId);
+        } catch (NumberFormatException e) {
+            this.voiceId = 0;
+        }
+        try {
+            this.roleId = Long.parseLong(roleId);
+        } catch (NumberFormatException e) {
+            this.roleId = 0;
+        }
+        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, forceToEndQue, songsPlayed, playTimeMillis);
+    }
+    
+    /**
+     * Initialize common settings
+     */
+    private void initializeSettings(int volume, String defaultPlaylist, RepeatMode repeatMode, String prefix, 
+                                   boolean bitrateWarningReaded, int announce, double skipRatio, boolean vcStatus, 
+                                   boolean forceToEndQue, int songsPlayed, long playTimeMillis) {
         this.volume = volume;
         this.defaultPlaylist = defaultPlaylist;
         this.repeatMode = repeatMode;
@@ -86,6 +125,8 @@ public class Settings implements GuildSettingsProvider {
         this.skipRatio = skipRatio;
         this.vcStatus = vcStatus;
         this.ForceToEndQue = forceToEndQue;
+        this.songsPlayed = songsPlayed;
+        this.playTimeMillis = playTimeMillis;
     }
 
     // Getters
@@ -200,5 +241,24 @@ public class Settings implements GuildSettingsProvider {
 
     public boolean isForceToEndQue() {
         return ForceToEndQue;
+    }
+    
+    // Stats getters and setters
+    public int getSongsPlayed() {
+        return songsPlayed;
+    }
+    
+    public void incrementSongsPlayed() {
+        this.songsPlayed++;
+        this.manager.writeSettings();
+    }
+    
+    public long getPlayTimeMillis() {
+        return playTimeMillis;
+    }
+    
+    public void addPlayTime(long millis) {
+        this.playTimeMillis += millis;
+        this.manager.writeSettings();
     }
 }

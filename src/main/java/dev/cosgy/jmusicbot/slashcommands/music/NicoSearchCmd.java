@@ -1,3 +1,20 @@
+/*
+ *  Copyright 2021 Cosgy Dev (info@cosgy.dev).
+ * Edit 2025 THOMZY
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package dev.cosgy.jmusicbot.slashcommands.music;
 
 import com.jagrosh.jdautilities.command.CommandEvent;
@@ -14,16 +31,20 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
 import dev.cosgy.niconicoSearchAPI.nicoSearchAPI;
 import dev.cosgy.niconicoSearchAPI.nicoVideoSearchResult;
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
+import net.dv8tion.jda.api.interactions.components.buttons.Button;
+import net.dv8tion.jda.api.interactions.components.ActionRow;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class NicoSearchCmd extends MusicCommand {
     public static final nicoSearchAPI niconicoAPI = new nicoSearchAPI(true, 100);
@@ -63,22 +84,104 @@ public class NicoSearchCmd extends MusicCommand {
                 return;
             }
 
-            OrderedMenu.Builder builder = new OrderedMenu.Builder()
-                    .allowTextInput(true)
-                    .useNumbers()
-                    .useCancelButton(true)
-                    .setEventWaiter(bot.getWaiter())
-                    .setTimeout(1, TimeUnit.MINUTES)
-                    .setCancel(msg -> msg.delete().complete())
-                    .setText(FormatUtil.filter(event.getClient().getSuccess() + "`" + event.getArgs() + "` search results:"))
-                    .setSelection((msg, sel) -> {
-                        nicoVideoSearchResult selectedResultVideo = results.get((sel - 1));
-                        System.out.println("URL = " + selectedResultVideo.getWatchUrl() + ", title = " + selectedResultVideo.getTitle());
-                        bot.getPlayerManager().loadItemOrdered(event.getGuild(), selectedResultVideo.getWatchUrl(), new ResultHandler(m, event, bot));
-                    });
+            EmbedBuilder embed = new EmbedBuilder()
+                    .setColor(event.getSelfMember().getColor())
+                    .setTitle(FormatUtil.filter(event.getClient().getSuccess() + "`" + event.getArgs() + "` search results:"));
+                    
+            StringBuilder description = new StringBuilder();
+            description.append("Choose a track to play :\n\n");
 
-            results.forEach(result -> builder.addChoice("`[" + result.getInfo().getLengthFormatted() + "]` [**" + result.getTitle() + "**](" + result.getWatchUrl() + ")"));
-            builder.build().display(m);
+            // Create a list for the buttons and choices
+            List<Button> buttons = new ArrayList<>();
+            List<String> choices = new ArrayList<>();
+            
+            for (int i = 0; i < results.size(); i++) {
+                nicoVideoSearchResult result = results.get(i);
+                String choice = "`[" + result.getInfo().getLengthFormatted() + "]` [**" + result.getTitle() + "**](" + result.getWatchUrl() + ")";
+                choices.add(choice);
+                buttons.add(Button.primary("nico:" + i, String.valueOf(i + 1)));
+            }
+            
+            // Add all choices to description
+            for (int i = 0; i < choices.size(); i++) {
+                description.append("**").append(i + 1).append(".** ").append(choices.get(i)).append("\n\n");
+            }
+            
+            embed.setDescription(description.toString());
+            
+            // Add cancel button
+            buttons.add(Button.danger("nico:cancel", "❌ Cancel"));
+            
+            // Create the action row with buttons
+            ActionRow actionRow = ActionRow.of(buttons);
+            
+            // Send the message with buttons
+            m.editMessageEmbeds(embed.build())
+                    .setComponents(actionRow)
+                    .queue(message -> {
+                        // Set up button listener
+                        bot.getWaiter().waitForEvent(
+                            net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent.class,
+                            e -> {
+                                // Check if it's the correct message and the user is authorized
+                                return e.getMessage().equals(message) && e.getUser().equals(event.getAuthor());
+                            },
+                            e -> {
+                                // Handle button interaction
+                                String buttonId = e.getComponentId();
+                                
+                                if (buttonId.equals("nico:cancel")) {
+                                    // Disable all buttons and indicate cancellation
+                                    e.editMessage("Selection canceled.")
+                                        .setComponents(
+                                            e.getMessage().getActionRows().stream()
+                                                .map(row -> ActionRow.of(
+                                                    row.getButtons().stream()
+                                                        .map(Button::asDisabled)
+                                                        .collect(Collectors.toList())
+                                                ))
+                                                .collect(Collectors.toList())
+                                        )
+                                        .queue();
+                                } else if (buttonId.startsWith("nico:")) {
+                                    // Extract the track index
+                                    int index = Integer.parseInt(buttonId.substring(5));
+                                    
+                                    // Select video
+                                    nicoVideoSearchResult selectedResultVideo = results.get(index);
+                                    
+                                    // Disable all buttons and indicate selection
+                                    e.editMessage("Video **" + selectedResultVideo.getTitle() + "** selected!")
+                                        .setComponents(
+                                            e.getMessage().getActionRows().stream()
+                                                .map(row -> ActionRow.of(
+                                                    row.getButtons().stream()
+                                                        .map(Button::asDisabled)
+                                                        .collect(Collectors.toList())
+                                                ))
+                                                .collect(Collectors.toList())
+                                        )
+                                        .queue();
+                                    
+                                    System.out.println("URL = " + selectedResultVideo.getWatchUrl() + ", title = " + selectedResultVideo.getTitle());
+                                    bot.getPlayerManager().loadItemOrdered(event.getGuild(), selectedResultVideo.getWatchUrl(), new ResultHandler(m, event, bot));
+                                }
+                            },
+                            1, TimeUnit.MINUTES,
+                            () -> {
+                                // If the wait timeout expires, disable all buttons
+                                message.editMessageComponents(
+                                    message.getActionRows().stream()
+                                        .map(row -> ActionRow.of(
+                                            row.getButtons().stream()
+                                                .map(Button::asDisabled)
+                                                .collect(Collectors.toList())
+                                        ))
+                                        .collect(Collectors.toList())
+                                ).queue();
+                            }
+                        );
+                    });
         }
     }
 
@@ -101,22 +204,104 @@ public class NicoSearchCmd extends MusicCommand {
                 return;
             }
 
-            OrderedMenu.Builder builder = new OrderedMenu.Builder()
-                    .allowTextInput(true)
-                    .useNumbers()
-                    .useCancelButton(true)
-                    .setEventWaiter(bot.getWaiter())
-                    .setTimeout(1, TimeUnit.MINUTES)
-                    .setCancel(msg -> msg.delete().complete())
-                    .setText(FormatUtil.filter(event.getClient().getSuccess() + "`" + input + "` search results:"))
-                    .setSelection((msg, sel) -> {
-                        nicoVideoSearchResult selectedResultVideo = results.get((sel - 1));
-                        System.out.println("URL = " + selectedResultVideo.getWatchUrl() + ", title = " + selectedResultVideo.getTitle());
-                        bot.getPlayerManager().loadItemOrdered(event.getGuild(), selectedResultVideo.getWatchUrl(), new SlashResultHandler(m, event, bot));
-                    });
+            EmbedBuilder embed = new EmbedBuilder()
+                    .setColor(event.getGuild().getSelfMember().getColor())
+                    .setTitle(FormatUtil.filter(event.getClient().getSuccess() + "`" + input + "` search results:"));
+                    
+            StringBuilder description = new StringBuilder();
+            description.append("Choose a track to play :\n\n");
 
-            results.forEach(result -> builder.addChoice("`[" + result.getInfo().getLengthFormatted() + "]` [**" + result.getTitle() + "**](" + result.getWatchUrl() + ")"));
-            builder.build().display(event.getChannel());
+            // Create a list for the buttons and choices
+            List<Button> buttons = new ArrayList<>();
+            List<String> choices = new ArrayList<>();
+            
+            for (int i = 0; i < results.size(); i++) {
+                nicoVideoSearchResult result = results.get(i);
+                String choice = "`[" + result.getInfo().getLengthFormatted() + "]` [**" + result.getTitle() + "**](" + result.getWatchUrl() + ")";
+                choices.add(choice);
+                buttons.add(Button.primary("nico:" + i, String.valueOf(i + 1)));
+            }
+            
+            // Add all choices to description
+            for (int i = 0; i < choices.size(); i++) {
+                description.append("**").append(i + 1).append(".** ").append(choices.get(i)).append("\n\n");
+            }
+            
+            embed.setDescription(description.toString());
+            
+            // Add cancel button
+            buttons.add(Button.danger("nico:cancel", "❌ Cancel"));
+            
+            // Create the action row with buttons
+            ActionRow actionRow = ActionRow.of(buttons);
+            
+            // Send the message with buttons
+            event.getChannel().sendMessageEmbeds(embed.build())
+                    .setComponents(actionRow)
+                    .queue(message -> {
+                        // Set up button listener
+                        bot.getWaiter().waitForEvent(
+                            net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent.class,
+                            e -> {
+                                // Check if it's the correct message and the user is authorized
+                                return e.getMessage().equals(message) && e.getUser().equals(event.getUser());
+                            },
+                            e -> {
+                                // Handle button interaction
+                                String buttonId = e.getComponentId();
+                                
+                                if (buttonId.equals("nico:cancel")) {
+                                    // Disable all buttons and indicate cancellation
+                                    e.editMessage("Selection canceled.")
+                                        .setComponents(
+                                            e.getMessage().getActionRows().stream()
+                                                .map(row -> ActionRow.of(
+                                                    row.getButtons().stream()
+                                                        .map(Button::asDisabled)
+                                                        .collect(Collectors.toList())
+                                                ))
+                                                .collect(Collectors.toList())
+                                        )
+                                        .queue();
+                                } else if (buttonId.startsWith("nico:")) {
+                                    // Extract the track index
+                                    int index = Integer.parseInt(buttonId.substring(5));
+                                    
+                                    // Select video
+                                    nicoVideoSearchResult selectedResultVideo = results.get(index);
+                                    
+                                    // Disable all buttons and indicate selection
+                                    e.editMessage("Video **" + selectedResultVideo.getTitle() + "** selected!")
+                                        .setComponents(
+                                            e.getMessage().getActionRows().stream()
+                                                .map(row -> ActionRow.of(
+                                                    row.getButtons().stream()
+                                                        .map(Button::asDisabled)
+                                                        .collect(Collectors.toList())
+                                                ))
+                                                .collect(Collectors.toList())
+                                        )
+                                        .queue();
+                                    
+                                    System.out.println("URL = " + selectedResultVideo.getWatchUrl() + ", title = " + selectedResultVideo.getTitle());
+                                    bot.getPlayerManager().loadItemOrdered(event.getGuild(), selectedResultVideo.getWatchUrl(), new SlashResultHandler(m, event, bot));
+                                }
+                            },
+                            1, TimeUnit.MINUTES,
+                            () -> {
+                                // If the wait timeout expires, disable all buttons
+                                message.editMessageComponents(
+                                    message.getActionRows().stream()
+                                        .map(row -> ActionRow.of(
+                                            row.getButtons().stream()
+                                                .map(Button::asDisabled)
+                                                .collect(Collectors.toList())
+                                        ))
+                                        .collect(Collectors.toList())
+                                ).queue();
+                            }
+                        );
+                    });
         });
     }
 

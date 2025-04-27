@@ -1,5 +1,6 @@
 /*
  *  Copyright 2021 Cosgy Dev (info@cosgy.dev).
+ * Edit 2025 THOMZY
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -41,9 +42,9 @@ public class NextCmd extends DJCommand {
         AudioTrack track = handler.getPlayer().getPlayingTrack();
         handler.addTrackIfRepeat(track);
 
-        event.reply(event.getClient().getSuccess() + " **" +
-                (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : handler.getPlayer().getPlayingTrack().getInfo().title) +
+        event.reply(event.getClient().getSuccess() + " **" + handler.getPlayer().getPlayingTrack().getInfo().title +
                 "** has been skipped. (" + (u == null ? "Someone" : "**" + u.getName() + "**") + " requested it.)");
+        handler.updateStatsOnSkip();
         handler.getPlayer().stopTrack();
     }
 
@@ -59,9 +60,9 @@ public class NextCmd extends DJCommand {
         AudioTrack track = handler.getPlayer().getPlayingTrack();
         handler.addTrackIfRepeat(track);
 
-        event.reply(event.getClient().getSuccess() + " **" +
-                (handler.getPlayer().getPlayingTrack().getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : handler.getPlayer().getPlayingTrack().getInfo().title) +
+        event.reply(event.getClient().getSuccess() + " **" + handler.getPlayer().getPlayingTrack().getInfo().title +
                 "** has been skipped. (" + (u == null ? "Someone" : "**" + u.getName() + "**") + " requested it.)").queue();
+        handler.updateStatsOnSkip();
         handler.getPlayer().stopTrack();
     }
 }

@@ -1,5 +1,6 @@
 /*
  * Copyright 2018 John Grosh (jagrosh).
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +58,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 /**
  * @author John Grosh <john.a.grosh@gmail.com>
@@ -67,6 +69,7 @@ public class PlayCmd extends MusicCommand {
     private final static String CANCEL = "\uD83D\uDEAB"; // 🚫
 
     private final String loadingEmoji;
+    private SpotifyCmd spotifyCmd;
 
     public PlayCmd(Bot bot) {
         super(bot);
@@ -82,7 +85,21 @@ public class PlayCmd extends MusicCommand {
         options.add(new OptionData(OptionType.STRING, "input", "URL or song name", false));
         this.options = options;
 
+        // Create a new SpotifyCmd instance - we'll make sure it doesn't initialize Spotify connection twice
+        this.spotifyCmd = new SpotifyCmd(bot);
+
         //this.children = new SlashCommand[]{new PlaylistCmd(bot), new MylistCmd(bot), new PublistCmd(bot), new RequestCmd(bot)};
+    }
+
+    // Check if URL is a Spotify track
+    private boolean isSpotifyUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return false;
+        }
+        
+        Pattern pattern = Pattern.compile("https://open\\.spotify\\.com/(intl-[a-z]+/)?track/\\w+");
+        Matcher matcher = pattern.matcher(url.split("\\?")[0]);
+        return matcher.matches();
     }
 
     @Override
@@ -188,8 +205,36 @@ public class PlayCmd extends MusicCommand {
 				String args = event.getArgs().startsWith("<") && event.getArgs().endsWith(">")
 					? event.getArgs().substring(1, event.getArgs().length() - 1)
 					: event.getArgs();
-				event.reply(loadingEmoji + "`[" + args + "]` is loading...", m -> 
-						bot.getPlayerManager().loadItemOrdered(event.getGuild(), args, new ResultHandler(m, event, false)));
+                
+                // Check if the URL is a Spotify link
+                if (isSpotifyUrl(args)) {
+                    // For Spotify URLs, use SpotifyCmd's functionality
+                    if (spotifyCmd.isConfigured()) {
+                        // Process the Spotify URL
+                        String trackId = SpotifyCmd.extractTrackIdFromUrl(args);
+                        if (trackId != null) {
+                            // Handle loading message and processing
+                            event.getChannel().sendMessage(loadingEmoji + " Loading Spotify track...").queue(message -> {
+                                try {
+                                    // Call SpotifyCmd to handle the track
+                                    spotifyCmd.handleSpotifyTrack(trackId, event, message);
+                                } catch (Exception e) {
+                                    message.editMessage("Error processing Spotify track: " + e.getMessage()).queue();
+                                }
+                            });
+                        } else {
+                            event.reply("Error: Invalid Spotify track URL format");
+                        }
+                    } else {
+                        // Spotify functionality is not configured
+                        event.reply("Spotify support is not configured on this bot. Please contact the bot owner.");
+                    }
+                    return;
+                }
+                
+                // Normal track loading
+                event.reply(loadingEmoji + " Loading `[" + args + "]`...", m -> 
+                        bot.getPlayerManager().loadItemOrdered(event.getGuild(), args, new ResultHandler(m, event, false)));
 			} //end of edit//
     }
 
@@ -276,7 +321,38 @@ public class PlayCmd extends MusicCommand {
             event.reply(builder.toString()).queue();
             return;
         }
-        event.reply(loadingEmoji + "Loading `[" + event.getOption("input").getAsString() + "]`...").queue(m -> bot.getPlayerManager().loadItemOrdered(event.getGuild(), event.getOption("input").getAsString(), new SlashResultHandler(m, event, false)));
+        
+        String input = event.getOption("input").getAsString();
+        
+        // Check if the URL is a Spotify link
+        if (isSpotifyUrl(input)) {
+            // For Spotify URLs, handle separately using SpotifyCmd
+            if (spotifyCmd.isConfigured()) {
+                // Get the track ID from the URL
+                String trackId = SpotifyCmd.extractTrackIdFromUrl(input);
+                if (trackId != null) {
+                    // Send initial loading message and process with SpotifyCmd
+                    event.deferReply().queue(hook -> {
+                        try {
+                            // Use SpotifyCmd to handle the track
+                            spotifyCmd.handleSpotifyTrack(trackId, event, hook);
+                        } catch (Exception e) {
+                            hook.editOriginal("Error processing Spotify track: " + e.getMessage()).queue();
+                        }
+                    });
+                } else {
+                    event.reply("Error: Invalid Spotify track URL format").queue();
+                }
+            } else {
+                // Spotify functionality is not configured
+                event.reply("Spotify support is not configured on this bot. Please contact the bot owner.").queue();
+            }
+            return;
+        }
+        
+        // Normal track loading
+        event.reply(loadingEmoji + " Loading `[" + input + "]`...").queue(m -> 
+            bot.getPlayerManager().loadItemOrdered(event.getGuild(), input, new SlashResultHandler(m, event, false)));
     }
 
     public class SlashResultHandler implements AudioLoadResultHandler {
@@ -293,20 +369,45 @@ public class PlayCmd extends MusicCommand {
         private void loadSingle(AudioTrack track, AudioPlaylist playlist) {
             if (bot.getConfig().isTooLong(track)) {
                 m.editOriginal(FormatUtil.filter(event.getClient().getWarning() +
-                        " **" + (track.getInfo().uri.matches(".*stream.gensokyoradio.net/.*") ? "Gensokyo Radio" : track.getInfo().title) + "**`(" + FormatUtil.formatTime(track.getDuration()) + ")` exceeds the set length `(" + FormatUtil.formatTime(bot.getConfig().getMaxSeconds() * 1000) + ")`.")).queue();
+                        " **" + track.getInfo().title + "**`(" + FormatUtil.formatTime(track.getDuration()) + ")` exceeds the set length `(" + FormatUtil.formatTime(bot.getConfig().getMaxSeconds() * 1000) + ")`.")).queue();
                 return;
             }
+            
             AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+            
+            // Check if this is a local file uploaded through Discord
+            if (dev.cosgy.jmusicbot.util.LocalAudioMetadata.isDiscordUploadedFile(track)) {
+                
+                // Ensure the track has RequestMetadata before processing
+                if (track.getUserData(com.jagrosh.jmusicbot.audio.RequestMetadata.class) == null) {
+                    // Create a new RequestMetadata for this track
+                    com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getUser());
+                    track.setUserData(rm);
+                }
+                
+                // Process metadata BEFORE adding to queue
+                handleLocalAudio(track);
+            }
+            
+            // Add track to queue after metadata processing is complete
             int pos = handler.addTrack(new QueuedTrack(track, event.getUser())) + 1;
 
             // Output MSG ex:
             // Added <title><(length)>.
             // Added <title><(length)> to <playback queue number> in the queue.
-            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + (track.getInfo().uri.matches(".*stream.gensokyoradio.net/.*") ? "Gensokyo Radio" : track.getInfo().title)
-                    + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue."));
-            if (playlist == null || !event.getGuild().getSelfMember().hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION)) {
+            String title = track.getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+            }
+            
+            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
+                    + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue. "));
+            
+            if (playlist == null || !event.getGuild().getSelfMember().hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION))
                 m.editOriginal(addMsg).queue();
-            } else {
+            else {
                 new ButtonMenu.Builder()
                         .setText(addMsg + "\n" + event.getClient().getWarning() + " This playlist has **" + playlist.getTracks().size() + "** additional tracks. Select " + LOAD + " to load the tracks.")
                         .setChoices(LOAD, CANCEL)
@@ -383,6 +484,48 @@ public class PlayCmd extends MusicCommand {
                 m.editOriginal(event.getClient().getError() + " An error occurred while loading the track.").queue();
             }
         }
+
+        /**
+         * Handles metadata extraction for local audio files
+         * @param track The track to extract metadata from
+         */
+        private void handleLocalAudio(AudioTrack track) {
+            // Only process if it's a file from Discord attachments
+            if (!dev.cosgy.jmusicbot.util.LocalAudioMetadata.isDiscordUploadedFile(track)) {
+                return;
+            }
+            
+            // Extract the track ID and URL
+            String trackId = track.getInfo().identifier;
+            String fileUrl = track.getInfo().uri;
+            
+            // First check if the track has user data
+            com.jagrosh.jmusicbot.audio.RequestMetadata rm = track.getUserData(com.jagrosh.jmusicbot.audio.RequestMetadata.class);
+            if (rm == null) {
+                // Create a new RequestMetadata for this track with the user from event
+                rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getUser());
+                track.setUserData(rm);
+            }
+            
+            // Process synchronously to ensure metadata is available immediately when needed
+            try {
+                // Process the file to extract metadata and artwork
+                dev.cosgy.jmusicbot.util.LocalAudioMetadata.LocalTrackInfo info = 
+                    bot.processLocalAudioFile(trackId, fileUrl);
+                
+                if (info != null) {
+                    // Set local file metadata in RequestMetadata
+                    rm.setLocalFileMetadata(info.getTitle(), 
+                                           info.getArtist(), 
+                                           info.getAlbum(),
+                                           info.getYear(),
+                                           info.getGenre());
+                }
+            } catch (Exception e) {
+                // Log the error but continue playback
+                System.err.println("Error processing local audio file: " + e.getMessage());
+            }
+        }
     }
 
     private class ResultHandler implements AudioLoadResultHandler {
@@ -402,14 +545,39 @@ public class PlayCmd extends MusicCommand {
                         " **" + track.getInfo().title + "**`(" + FormatUtil.formatTime(track.getDuration()) + ")` exceeds the set length `(" + FormatUtil.formatTime(bot.getConfig().getMaxSeconds() * 1000) + ")`.")).queue();
                 return;
             }
+            
             AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+            
+            // Check if this is a local file uploaded through Discord
+            if (dev.cosgy.jmusicbot.util.LocalAudioMetadata.isDiscordUploadedFile(track)) {
+                
+                // Ensure the track has RequestMetadata before processing
+                if (track.getUserData(com.jagrosh.jmusicbot.audio.RequestMetadata.class) == null) {
+                    // Create a new RequestMetadata for this track
+                    com.jagrosh.jmusicbot.audio.RequestMetadata rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(event.getAuthor());
+                    track.setUserData(rm);
+                }
+                
+                // Process metadata BEFORE adding to queue
+                handleLocalAudio(track);
+            }
+            
+            // Add track to queue after metadata processing is complete
             int pos = handler.addTrack(new QueuedTrack(track, event.getAuthor())) + 1;
 
             // Output MSG ex:
             // Added <title><(length)>.
             // Added <title><(length)> to <playback queue number> in the queue.
-            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + (track.getInfo().uri.contains("https://stream.gensokyoradio.net/") ? "Gensokyo Radio" : track.getInfo().title)
+            String title = track.getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+            }
+            
+            String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
                     + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue. "));
+            
             if (playlist == null || !event.getSelfMember().hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION))
                 m.editMessage(addMsg).queue();
             else {
@@ -497,11 +665,54 @@ public class PlayCmd extends MusicCommand {
                 m.editMessage(event.getClient().getError() + " An error occurred while loading the track.").queue();
             }
         }
+
+        /**
+         * Handles metadata extraction for local audio files
+         * @param track The track to extract metadata from
+         */
+        private void handleLocalAudio(AudioTrack track) {
+            // Only process if it's a file from Discord attachments
+            if (!dev.cosgy.jmusicbot.util.LocalAudioMetadata.isDiscordUploadedFile(track)) {
+                return;
+            }
+            
+            // Extract the track ID and URL
+            String trackId = track.getInfo().identifier;
+            String fileUrl = track.getInfo().uri;
+            
+            // First check if the track has user data
+            com.jagrosh.jmusicbot.audio.RequestMetadata rm = track.getUserData(com.jagrosh.jmusicbot.audio.RequestMetadata.class);
+            if (rm == null) {
+                // Create a new RequestMetadata
+                // We don't have direct access to the user here, so create an empty metadata
+                rm = new com.jagrosh.jmusicbot.audio.RequestMetadata(null);
+                track.setUserData(rm);
+            }
+            
+            // Process synchronously to ensure metadata is available immediately when needed
+            try {
+                // Process the file to extract metadata and artwork
+                dev.cosgy.jmusicbot.util.LocalAudioMetadata.LocalTrackInfo info = 
+                    bot.processLocalAudioFile(trackId, fileUrl);
+                
+                if (info != null) {
+                    // Set local file metadata in RequestMetadata
+                    rm.setLocalFileMetadata(info.getTitle(), 
+                                           info.getArtist(), 
+                                           info.getAlbum(),
+                                           info.getYear(),
+                                           info.getGenre());
+                }
+            } catch (Exception e) {
+                // Log the error but continue playback
+                System.err.println("Error processing local audio file: " + e.getMessage());
+            }
+        }
     }
 
     public class RequestCmd extends MusicCommand {
-        private final static String LOAD = "\uD83D\uDCE5"; // 📥
-        private final static String CANCEL = "\uD83D\uDEAB"; // 🚫
+        private final static String LOAD = "\uD83D\uDCE5"; // 
+        private final static String CANCEL = "\uD83D\uDEAB"; // 
 
         private final String loadingEmoji;
         private final JDA jda;
@@ -552,7 +763,7 @@ public class PlayCmd extends MusicCommand {
                     CacheLoader.CacheResult cache = bot.getCacheLoader().ConvertCache(data);
                     event.reply(":calling: Loading cache file... (" + cache.getItems().size() + " tracks)").queue(m -> {
                         cache.loadTracks(bot.getPlayerManager(), (at) -> {
-                            // TODO: Use user ID stored in cache.
+							
                             handler.addTrack(new QueuedTrack(at, event.getUser()));
                             count.getAndIncrement();
                         }, () -> {
@@ -592,7 +803,7 @@ public class PlayCmd extends MusicCommand {
                                     ? event.getClient().getWarning() + " No tracks were loaded!"
                                     : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks!");
                             if (!playlist.getErrors().isEmpty())
-                                builder.append("\nFailed to load the following tracks:");
+                                builder.append("\nThe following tracks could not be loaded:");
                             playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1).append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
                             String str = builder.toString();
                             if (str.length() > 2000)
@@ -684,7 +895,8 @@ public class PlayCmd extends MusicCommand {
                             : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks.");
                     if (!playlist.getErrors().isEmpty())
                         builder.append("\nThe following tracks could not be loaded:");
-                    playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1).append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
+                    playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
+                            .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
                     String str = builder.toString();
                     if (str.length() > 2000)
                         str = str.substring(0, 1994) + " (truncated)";
@@ -700,12 +912,12 @@ public class PlayCmd extends MusicCommand {
             this.name = "mylist";
             this.aliases = new String[]{"ml"};
             this.arguments = "<name>";
-            this.help = "マイリストを再生します";
+            this.help = "Play a mylist";
             this.beListening = true;
             this.bePlaying = false;
 
             List<OptionData> options = new ArrayList<>();
-            options.add(new OptionData(OptionType.STRING, "name", "マイリスト名", true));
+            options.add(new OptionData(OptionType.STRING, "name", "Mylist name", true));
             this.options = options;
         }
 

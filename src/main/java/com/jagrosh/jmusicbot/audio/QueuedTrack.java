@@ -1,5 +1,6 @@
 /*
  * Copyright 2018-2020 Cosgy Dev
+ * Edit 2025 THOMZY
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -19,8 +20,6 @@ import com.jagrosh.jmusicbot.queue.Queueable;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
-import dev.cosgy.agent.GensokyoInfoAgent;
-import dev.cosgy.agent.objects.ResultSet;
 import net.dv8tion.jda.api.entities.User;
 
 /**
@@ -51,24 +50,21 @@ public class QueuedTrack implements Queueable {
     public String toString() {
 
         if (track.getInfo().uri.contains("https://stream.gensokyoradio.net/")) {
-
-            ResultSet data = null;
-            try {
-                data = GensokyoInfoAgent.getInfo();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-
-            String title = data.getSonginfo().getTitle();
-            String titleUrl = data.getMisc().getCirclelink().equals("") ?
-                    "https://gensokyoradio.net/" :
-                    data.getMisc().getCirclelink();
-            return "`[" + FormatUtil.formatTime(data.getSongtimes().getDuration()) + "]` [**" + title + "**](" + titleUrl + ") - <@" + track.getUserData(RequestMetadata.class).getOwner() + ">";
+            // Gensokyo Radio support removed
         }
 
         String entry = "`[" + FormatUtil.formatTime(track.getDuration()) + "]` ";
         AudioTrackInfo trackInfo = track.getInfo();
-        entry = entry + (trackInfo.uri.startsWith("http") ? "[**" + trackInfo.title + "**](" + trackInfo.uri + ")" : "**" + trackInfo.title + "**");
+        
+        // Get track title or filename if title is missing or "Unknown title"
+        String title = trackInfo.title;
+        if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+            // Extract filename from URL for local files
+            title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(trackInfo.uri);
+            title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+        }
+        
+        entry = entry + (trackInfo.uri.startsWith("http") ? "[**" + title + "**](" + trackInfo.uri + ")" : "**" + title + "**");
         return entry + " - <@" + track.getUserData(RequestMetadata.class).getOwner() + ">";
     }
 }

@@ -62,7 +62,14 @@ public class PlayerManager extends DefaultAudioPlayerManager {
         AudioSourceManagers.registerLocalSource(this);
 
         source(YoutubeAudioSourceManager.class).setPlaylistPageCount(10);
-        source(YoutubeAudioSourceManager.class).useOauth2(null, false);
+
+        // YouTube OAuth2 integration with persistent refresh token
+        String ytRefreshToken = bot.getConfig().getYouTubeRefreshToken();
+        if (ytRefreshToken != null && !ytRefreshToken.isEmpty()) {
+            source(YoutubeAudioSourceManager.class).useOauth2(ytRefreshToken, true);
+        } else {
+            source(YoutubeAudioSourceManager.class).useOauth2(null, false);
+        }
 
         if (getConfiguration().getOpusEncodingQuality() != 10) {
             logger.debug("OpusEncodingQuality is {}, setting quality to 10.", getConfiguration().getOpusEncodingQuality());

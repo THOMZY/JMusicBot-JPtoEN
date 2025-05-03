@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Handles audio playback and track management for a guild
@@ -368,7 +369,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @param sourceName The name of the source
      * @return URL to the source's icon
      */
-    private String getSourceIconUrl(String sourceName) {
+    public String getSourceIconUrl(String sourceName) {
         // Check if we have this icon cached
         if (sourceIconCache.containsKey(sourceName)) {
             return sourceIconCache.get(sourceName);
@@ -1215,32 +1216,32 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @param rm The RequestMetadata
      */
     private void buildYoutubeEmbed(EmbedBuilder eb, AudioTrack track, RequestMetadata rm) {
-                try {
-                    // Get the track title or filename for display
-                    String title = track.getInfo().title;
-                    if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                        // Extract filename from URL for local files
-                        String uri = track.getInfo().uri;
-                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
-                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
-                    }
-                    
-                    eb.setTitle(title, track.getInfo().uri);
-                } catch (Exception e) {
-                    // Get the track title or filename for display
-                    String title = track.getInfo().title;
-                    if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                        // Extract filename from URL for local files
-                        String uri = track.getInfo().uri;
-                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
-                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
-                    }
-                    
-                    eb.setTitle(title);
-                }
+        try {
+            // Get the track title or filename for display
+            String title = track.getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                String uri = track.getInfo().uri;
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+            }
+            
+            eb.setTitle(title, track.getInfo().uri);
+        } catch (Exception e) {
+            // Get the track title or filename for display
+            String title = track.getInfo().title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                // Extract filename from URL for local files
+                String uri = track.getInfo().uri;
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+            }
+            
+            eb.setTitle(title);
+        }
 
         // Add YouTube thumbnail
-                if (manager.getBot().getConfig().useNPImages()) {
+        if (manager.getBot().getConfig().useNPImages()) {
             // Extract video ID
             String videoId = extractYoutubeVideoId(track);
             if (videoId != null) {
@@ -1253,6 +1254,55 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         StringBuilder description = new StringBuilder();
         if (track.getInfo().author != null && !track.getInfo().author.isEmpty()) {
             description.append("**Channel:** ").append(track.getInfo().author).append("\n\n");
+        }
+        
+        // Get current chapter if available
+        YouTubeChapterManager chapterManager = manager.getBot().getYoutubeChapterManager();
+        com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor.Chapter currentChapter = 
+            chapterManager.getCurrentChapter(track, track.getPosition());
+        
+        if (currentChapter != null) {
+            description.append("**Current Chapter:** ").append(currentChapter.getName()).append("\n\n");
+            
+            // List up to 5 chapters to avoid cluttering the embed
+            List<com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor.Chapter> chapters = 
+                chapterManager.getChapters(track);
+            
+            if (chapters.size() > 1) {
+                description.append("**Chapters:**\n");
+                
+                // Find the index of the current chapter
+                int currentIndex = chapters.indexOf(currentChapter);
+                
+                // Determine which chapters to show (try to center around current chapter)
+                int startIdx = Math.max(0, currentIndex - 2);
+                int endIdx = Math.min(chapters.size() - 1, startIdx + 4);
+                
+                // Readjust start if we have less than 5 chapters at the end
+                if (endIdx - startIdx < 4) {
+                    startIdx = Math.max(0, endIdx - 4);
+                }
+                
+                for (int i = startIdx; i <= endIdx; i++) {
+                    com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor.Chapter chapter = chapters.get(i);
+                    String prefix = (chapter == currentChapter) ? "▶️ " : "⏺️ ";
+                    description.append(prefix)
+                        .append(FormatUtil.formatTime(chapter.getStartTimeMs()))
+                        .append(" - ")
+                        .append(chapter.getName())
+                        .append("\n");
+                }
+                
+                // If there are more chapters before or after, indicate that
+                if (startIdx > 0) {
+                    description.append("*... and ").append(startIdx).append(" more before*\n");
+                }
+                if (endIdx < chapters.size() - 1) {
+                    description.append("*... and ").append(chapters.size() - 1 - endIdx).append(" more after*\n");
+                }
+                
+                description.append("\n");
+            }
         }
         
         appendProgressBar(description, track);

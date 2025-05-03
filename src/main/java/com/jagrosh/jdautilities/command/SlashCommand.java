@@ -1,5 +1,6 @@
 /*
  * Copyright 2016-2018 John Grosh (jagrosh) & Kaidan Gustave (TheMonitorLizard)
+ * Edit 2025 THOMZY
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -140,6 +141,7 @@ public abstract class SlashCommand extends Command
      * The command client to be retrieved if needed.
      * @deprecated This is now retrieved from {@link SlashCommandEvent#getClient()}.
      */
+    @Deprecated
     protected CommandClient client;
 
     /**

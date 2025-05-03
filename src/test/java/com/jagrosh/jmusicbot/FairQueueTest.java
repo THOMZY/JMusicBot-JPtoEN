@@ -31,7 +31,7 @@ public class FairQueueTest {
         FairQueue<Q> queue = new FairQueue<>();
         int size = 100;
         for (int i = 0; i < size; i++)
-            queue.add(new Q(i));
+            queue.add(new Q(i), false);
         assertEquals(size, queue.size());
     }
 
@@ -40,7 +40,7 @@ public class FairQueueTest {
         FairQueue<Q> queue = new FairQueue<>();
         int size = 100;
         for (int i = 0; i < size; i++)
-            queue.add(new Q(0));
+            queue.add(new Q(0), false);
         assertEquals(size, queue.size());
     }
 

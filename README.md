@@ -3,11 +3,11 @@
 [![Downloads](https://img.shields.io/github/downloads/THOMZY/JMusicBot-JPtoEN/total.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest)
 [![Stars](https://img.shields.io/github/stars/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/stargazers)
 [![Release](https://img.shields.io/github/release/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest)
-[![License](https://img.shields.io/github/license/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/develop/LICENSE)
+[![License](https://img.shields.io/github/license/THOMZY/JMusicBot-JPtoEN.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/main/LICENSE)
 [![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge/main)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/overview/main)
 [![Build and Test](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)
 </h3>
-<h2 align="center">Youtube playback fixed ( 27 April 2025 )</h2>
+<h2 align="center">▶️ Youtube playback fixed ( 03 May 2025 )</h2>
 
 
 # JMusicBot
@@ -21,6 +21,7 @@ This fork aims to updates dependencies when YouTube playback breaks and adds min
 
 ### Changes :
 
+* Added an optional web panel for bot control / management.
 * Added `/radio` command that searches and plays radio stations.  
 * Added `/stats` command to view total play time and songs played.  
 * `/nowplaying` now have more and cleaner informations.  
@@ -37,6 +38,7 @@ Check the [CHANGELOG](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/develop/CH
 * Fast music loading
 * Setup with only a Discord Bot token ( need tokens for Youtube Premium and Spotify )
 * Smooth playback with minimal lag
+* Optional web panel for management
 * Unique permission system with DJs
 * Simple and easy-to-use UI
 * Playback bar displayed in channel topics

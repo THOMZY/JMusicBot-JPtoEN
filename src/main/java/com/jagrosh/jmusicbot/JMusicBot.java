@@ -303,6 +303,7 @@ public class JMusicBot {
         log.info("Loaded settings from {}", config.getConfigLocation());
 
         // attempt to log in and start
+        final JDA[] jdaRef = new JDA[1];
         try {
             JDA jda = JDABuilder.create(config.getToken(), Arrays.asList(INTENTS))
                     .enableCache(CacheFlag.MEMBER_OVERRIDES, CacheFlag.VOICE_STATE)
@@ -313,6 +314,7 @@ public class JMusicBot {
                     .addEventListeners(cb.build(), waiter, new Listener(bot))
                     .setBulkDeleteSplittingEnabled(true)
                     .build();
+            jdaRef[0] = jda;
             bot.setJDA(jda);
 
             String unsupportedReason = OtherUtil.getUnsupportedBotReason(jda);
@@ -349,5 +351,26 @@ public class JMusicBot {
                     "Location of the configuration file: " + config.getConfigLocation());
             System.exit(1);
         }
+
+        // Start web panel if enabled
+        if (config.isWebPanelEnabled()) {
+            try {
+                log.info("Starting Web Panel on port " + config.getWebPanelPort());
+                com.jagrosh.jmusicbot.webpanel.WebPanelApplication.start(bot, config.getWebPanelPort());
+            } catch (Exception e) {
+                log.error("Failed to start Web Panel", e);
+            }
+        }
+        
+        // Shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            if (jdaRef[0] == null)
+                return;
+            jdaRef[0].shutdown();
+            if (config.isWebPanelEnabled()) {
+                log.info("Stopping Web Panel");
+                com.jagrosh.jmusicbot.webpanel.WebPanelApplication.stop();
+            }
+        }));
     }
 }

@@ -61,8 +61,10 @@ public class BotConfig {
     private String ytRefreshToken;
     private String spClientId;
     private String spClientSecret;
+    // WebPanel settings
+    private int webPanelPort;
     // [JMusicBot-JP] added useNicoNico, changeNickName, pauseNoUsers, resumeJoined, stopNoUsers, cosgyDevHost, helpToDm, officialInvite
-    private boolean useNicoNico, changeNickName, stayInChannel, pauseNoUsers, resumeJoined, stopNoUsers, songInGame, npImages, updatealerts, useEval, dbots, cosgyDevHost, helpToDm, autoStopQueueSave, auditCommands, officialInvite, useinvitecommand;
+    private boolean useNicoNico, changeNickName, stayInChannel, pauseNoUsers, resumeJoined, stopNoUsers, songInGame, npImages, updatealerts, useEval, dbots, cosgyDevHost, helpToDm, autoStopQueueSave, auditCommands, officialInvite, useinvitecommand, webPanelEnabled;
     private long owner, maxSeconds, aloneTimeUntilStop;
     private OnlineStatus status;
     private Activity game;
@@ -141,6 +143,10 @@ public class BotConfig {
 
             cosgyDevHost = false;
             // [JMusicBot-JP] End
+
+            // WebPanel settings
+            webPanelEnabled = config.hasPath("webpanelenabled") ? config.getBoolean("webpanelenabled") : false;
+            webPanelPort = config.hasPath("webpanelport") ? config.getInt("webpanelport") : 8080;
 
             // we may need to write a new config file
             boolean write = false;
@@ -410,5 +416,13 @@ public class BotConfig {
 
     public boolean isUseInviteCommand() {
         return useinvitecommand;
+    }
+
+    public boolean isWebPanelEnabled() {
+        return webPanelEnabled;
+    }
+
+    public int getWebPanelPort() {
+        return webPanelPort;
     }
 }

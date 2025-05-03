@@ -33,6 +33,7 @@ public class FairQueue<T extends Queueable> {
      * @param item Song information to add
      * @return What song did you add it to?
      */
+    @Deprecated
     public int add(T item) {
         int lastIndex;
         for (lastIndex = list.size() - 1; lastIndex > -1; lastIndex--)

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Standard console appender for Spring Boot -->
+    <include resource="org/springframework/boot/logging/logback/base.xml"/>
+    
+    <!-- Our custom appender that captures logs for the web panel -->
+    <appender name="WEBPANEL" class="com.jagrosh.jmusicbot.webpanel.logging.WebPanelLogListener">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>INFO</level>
+        </filter>
+    </appender>
+    
+    <!-- Add our appender to the root logger -->
+    <root level="info">
+        <appender-ref ref="WEBPANEL" />
+    </root>
+    
+    <!-- Set specific logger levels as needed -->
+    <logger name="com.jagrosh.jmusicbot" level="INFO" />
+    <logger name="org.springframework.web" level="INFO" />
+</configuration> 

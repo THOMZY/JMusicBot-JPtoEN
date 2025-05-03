@@ -1,6 +1,23 @@
 # Global Changelog
 ---
 
+# 03 May 2025
+
+### ▶️ Youtube playback fixed with **[`youtube-source 1.13.1`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.13.1)**  
+
+### 🚀 New Features
+- Added YouTube chapters supports in `/nowplaying`.
+- Added an optional web panel ( Backend : `Spring Boot` / Frontend : `React` ) [ V1, more to come...]  
+
+### 🔧 Changes
+- No changes.
+
+### 📦 Dependency Updates
+- **youtube-source**: `1.13.0` → `1.13.1` 
+- **net.dv8tion-JDA**: `5.3.0` → `5.5.0`   
+
+---
+
 # 26 April 2025
 
 ### ▶️ Youtube playback fixed with **[`youtube-source 1.13.0`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.13.0)**  

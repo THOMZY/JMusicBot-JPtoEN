@@ -22,6 +22,7 @@ import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.audio.IcyMetadataHandler;
 import com.jagrosh.jmusicbot.audio.NowplayingHandler;
 import com.jagrosh.jmusicbot.audio.PlayerManager;
+import com.jagrosh.jmusicbot.audio.YouTubeChapterManager;
 import com.jagrosh.jmusicbot.gui.GUI;
 import com.jagrosh.jmusicbot.playlist.PlaylistLoader;
 import com.jagrosh.jmusicbot.settings.SettingsManager;
@@ -70,6 +71,7 @@ public class Bot {
     private final NowplayingHandler nowplaying;
     private final AloneInVoiceHandler aloneInVoiceHandler;
     private final IcyMetadataHandler icyMetadataHandler;
+    private final YouTubeChapterManager youtubeChapterManager;
     
     // Map to store local audio file metadata
     private final Map<String, LocalAudioMetadata.LocalTrackInfo> localMetadataCache;
@@ -100,6 +102,7 @@ public class Bot {
         this.aloneInVoiceHandler = new AloneInVoiceHandler(this);
         this.aloneInVoiceHandler.init();
         this.icyMetadataHandler = new IcyMetadataHandler(this);
+        this.youtubeChapterManager = new YouTubeChapterManager();
         
         // Initialize local metadata cache
         this.localMetadataCache = new ConcurrentHashMap<>();
@@ -187,6 +190,10 @@ public class Bot {
 
     public IcyMetadataHandler getIcyMetadataHandler() {
         return icyMetadataHandler;
+    }
+
+    public YouTubeChapterManager getYoutubeChapterManager() {
+        return youtubeChapterManager;
     }
 
     public JDA getJDA() {
@@ -369,17 +376,8 @@ public class Bot {
         if (shuttingDown)
             return;
         shuttingDown = true;
-        threadpool.shutdownNow();
-        
-        // Clean up local audio files
-        cleanupLocalAudioFiles();
-        
-        // Shut down the ICY metadata handler
-        icyMetadataHandler.shutdown();
-        
         if (jda.getStatus() != JDA.Status.SHUTTING_DOWN) {
-            jda.getGuilds().forEach(g ->
-            {
+            jda.getGuilds().forEach((g) -> {
                 g.getAudioManager().closeAudioConnection();
                 AudioHandler ah = (AudioHandler) g.getAudioManager().getSendingHandler();
                 if (ah != null) {
@@ -390,6 +388,13 @@ public class Bot {
             });
             jda.shutdown();
         }
+        threadpool.shutdownNow();
+        icyMetadataHandler.shutdown();
+        youtubeChapterManager.shutdown();
+        
+        // Clean up local audio files
+        cleanupLocalAudioFiles();
+        
         if (gui != null)
             gui.dispose();
         System.exit(0);

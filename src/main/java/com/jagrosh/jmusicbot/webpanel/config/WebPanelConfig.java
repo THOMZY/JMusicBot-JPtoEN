@@ -24,6 +24,12 @@ public class WebPanelConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/**")
                 .addResourceLocations("classpath:/static/");
+        
+        // Add resource handler for local artwork
+        // This assumes 'local_artwork' is a directory at the root of your application's runtime path
+        String artworkDir = "file:local_artwork/";
+        registry.addResourceHandler("/local_artwork/**")
+                .addResourceLocations(artworkDir);
     }
 
     @Override

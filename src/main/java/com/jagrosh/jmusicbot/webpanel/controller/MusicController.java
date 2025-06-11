@@ -64,6 +64,19 @@ public class MusicController {
                 response.put("name", Bot.INSTANCE.getJDA().getSelfUser().getName());
                 response.put("avatarUrl", Bot.INSTANCE.getJDA().getSelfUser().getEffectiveAvatarUrl());
                 response.put("id", Bot.INSTANCE.getJDA().getSelfUser().getId());
+                
+                // Add banner URL if available
+                try {
+                    // We need to retrieve the banner from the self user
+                    net.dv8tion.jda.api.entities.User user = Bot.INSTANCE.getJDA().getSelfUser().getJDA().retrieveUserById(Bot.INSTANCE.getJDA().getSelfUser().getId()).complete();
+                    String bannerUrl = user.retrieveProfile().complete().getBannerUrl();
+                    if (bannerUrl != null) {
+                        response.put("bannerUrl", bannerUrl);
+                    }
+                } catch (Exception e) {
+                    // Ignore if we can't get the banner
+                    System.out.println("Could not retrieve banner: " + e.getMessage());
+                }
             } else {
                 response.put("name", "JMusicBot");
                 response.put("avatarUrl", "https://cdn.discordapp.com/embed/avatars/0.png");
@@ -113,6 +126,19 @@ public class MusicController {
         return ResponseEntity.ok(response);
     }
     
+    @PostMapping("/stop")
+    public ResponseEntity<Map<String, Object>> stopTrack() {
+        boolean success = musicService.stopTrack();
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", success);
+        if (success) {
+            response.put("message", "Playback stopped and queue cleared");
+        } else {
+            response.put("message", "Failed to stop playback");
+        }
+        return ResponseEntity.ok(response);
+    }
+    
     @PostMapping("/seek")
     public ResponseEntity<Map<String, Object>> seekTrack(@RequestParam(name = "position") long position) {
         boolean success = musicService.seekTrack(position);
@@ -125,7 +151,7 @@ public class MusicController {
     }
     
     @DeleteMapping("/queue/{index}")
-    public ResponseEntity<Map<String, Object>> removeFromQueue(@PathVariable int index) {
+    public ResponseEntity<Map<String, Object>> removeFromQueue(@PathVariable(name = "index") int index) {
         boolean success = musicService.removeTrack(index);
         Map<String, Object> response = new HashMap<>();
         response.put("success", success);
@@ -134,6 +160,11 @@ public class MusicController {
     
     @PostMapping("/queue/add")
     public ResponseEntity<Map<String, Object>> addTrackToQueue(@RequestParam(name = "url") String url) {
+        // Check if the URL is a Spotify link
+        if (isSpotifyUrl(url)) {
+            return handleSpotifyUrl(url, false);
+        }
+        
         CompletableFuture<String> future = musicService.addTrackByUrl(url);
         Map<String, Object> response = new HashMap<>();
         
@@ -147,6 +178,75 @@ public class MusicController {
         }
         
         return ResponseEntity.ok(response);
+    }
+    
+    @PostMapping("/queue/playnext")
+    public ResponseEntity<Map<String, Object>> playNextTrack(@RequestParam(name = "url") String url) {
+        // Check if the URL is a Spotify link
+        if (isSpotifyUrl(url)) {
+            return handleSpotifyUrl(url, true);
+        }
+        
+        CompletableFuture<String> future = musicService.playNextTrackByUrl(url);
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            String result = future.get();
+            response.put("success", !result.startsWith("Failed") && !result.startsWith("No matches"));
+            response.put("message", result);
+        } catch (InterruptedException | ExecutionException e) {
+            response.put("success", false);
+            response.put("message", "Error adding track to play next: " + e.getMessage());
+        }
+        
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Helper method to check if a URL is a Spotify track URL
+     */
+    private boolean isSpotifyUrl(String url) {
+        // Clean URL to handle query parameters
+        String cleanUrl = url.split("\\?")[0];
+        return cleanUrl.matches("https://open\\.spotify\\.com/(intl-[a-z]+/)?track/[a-zA-Z0-9]+");
+    }
+    
+    /**
+     * Helper method to handle Spotify URLs
+     */
+    private ResponseEntity<Map<String, Object>> handleSpotifyUrl(String url, boolean playNext) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Extract the track ID from the URL
+            String trackId = dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.extractTrackIdFromUrl(url);
+            if (trackId == null) {
+                response.put("success", false);
+                response.put("message", "Invalid Spotify track URL format");
+                return ResponseEntity.ok(response);
+            }
+            
+            // Check if we can access the SpotifyCmd class
+            try {
+                Class.forName("dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd");
+            } catch (ClassNotFoundException e) {
+                response.put("success", false);
+                response.put("message", "Spotify support is not available");
+                return ResponseEntity.ok(response);
+            }
+            
+            // Use the processSpotifyTrack method
+            String searchResult = musicService.processSpotifyTrack(trackId, playNext);
+            
+            response.put("success", !searchResult.startsWith("Failed") && !searchResult.startsWith("Error"));
+            response.put("message", searchResult);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Error processing Spotify track: " + e.getMessage());
+            return ResponseEntity.ok(response);
+        }
     }
     
     @PostMapping("/queue/move")
@@ -300,6 +400,80 @@ public class MusicController {
             response.put("message", e.getMessage());
         }
         
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Set the bot's banner image
+     */
+    @PostMapping("/bot/setbanner")
+    public ResponseEntity<Map<String, Object>> setBotBanner(@RequestParam(value = "url") String url) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            if (Bot.INSTANCE != null && Bot.INSTANCE.getJDA() != null) {
+                // Use the OtherUtil to load the image from the URL
+                InputStream imageStream = com.jagrosh.jmusicbot.utils.OtherUtil.imageFromUrl(url);
+                
+                if (imageStream != null) {
+                    // Update the bot's banner using JDA's interface
+                    Bot.INSTANCE.getJDA().getSelfUser().getManager().setBanner(net.dv8tion.jda.api.entities.Icon.from(imageStream)).queue(
+                        success -> {
+                            // Success handling happens in the frontend
+                        },
+                        error -> {
+                            // Error handling happens in the frontend
+                        }
+                    );
+                    
+                    response.put("success", true);
+                    response.put("message", "Bot banner update initiated");
+                } else {
+                    response.put("success", false);
+                    response.put("message", "Could not load image from provided URL");
+                }
+            } else {
+                response.put("success", false);
+                response.put("message", "Bot is not available");
+            }
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get YouTube chapters for the current track
+     */
+    @GetMapping("/track/chapters")
+    public ResponseEntity<Map<String, Object>> getTrackChapters() {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            var chaptersResult = musicService.getCurrentTrackChapters();
+            response.put("success", true);
+            response.put("chapters", chaptersResult);
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Seek to a specific time in the track
+     */
+    @PostMapping("/player/seek/{seconds}")
+    public ResponseEntity<Map<String, Object>> seekToPosition(@PathVariable(value = "seconds") long seconds) {
+        boolean success = musicService.seekTrack(seconds * 1000);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", success);
+        if (!success) {
+            response.put("message", "Failed to seek to position. Track may not be seekable.");
+        }
         return ResponseEntity.ok(response);
     }
 } 

@@ -40,7 +40,7 @@ public class ArtworkController {
     @GetMapping("/{trackId}")
     public ResponseEntity<Resource> getArtwork(@PathVariable String trackId) {
         // Get the artwork path from the bot
-        String artworkPath = bot.getLocalArtworkUrl(trackId);
+        String artworkPath = bot.getLocalArtworkPath(trackId);
         
         if (artworkPath == null || artworkPath.isEmpty()) {
             return ResponseEntity.notFound().build();

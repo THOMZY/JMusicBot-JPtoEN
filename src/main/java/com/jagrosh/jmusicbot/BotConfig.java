@@ -64,7 +64,7 @@ public class BotConfig {
     // WebPanel settings
     private int webPanelPort;
     // [JMusicBot-JP] added useNicoNico, changeNickName, pauseNoUsers, resumeJoined, stopNoUsers, cosgyDevHost, helpToDm, officialInvite
-    private boolean useNicoNico, changeNickName, stayInChannel, pauseNoUsers, resumeJoined, stopNoUsers, songInGame, npImages, updatealerts, useEval, dbots, cosgyDevHost, helpToDm, autoStopQueueSave, auditCommands, officialInvite, useinvitecommand, webPanelEnabled;
+    private boolean useNicoNico, changeNickName, stayInChannel, pauseNoUsers, resumeJoined, stopNoUsers, songInGame, npImages, updatealerts, useEval, dbots, cosgyDevHost, helpToDm, autoStopQueueSave, auditCommands, officialInvite, useinvitecommand, webPanelEnabled, enableHistory;
     private long owner, maxSeconds, aloneTimeUntilStop;
     private OnlineStatus status;
     private Activity game;
@@ -139,6 +139,7 @@ public class BotConfig {
             ytRefreshToken = config.hasPath("ytrefreshtoken") ? config.getString("ytrefreshtoken") : null; // [YouTube OAuth] Read refresh token from config
             spClientId = config.getString("spclient");
             spClientSecret = config.getString("spsecret");
+            enableHistory = config.hasPath("enablehistory") ? config.getBoolean("enablehistory") : true;
 
 
             cosgyDevHost = false;
@@ -424,5 +425,9 @@ public class BotConfig {
 
     public int getWebPanelPort() {
         return webPanelPort;
+    }
+
+    public boolean isHistoryEnabled() {
+        return enableHistory;
     }
 }

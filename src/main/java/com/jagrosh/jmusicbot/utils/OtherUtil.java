@@ -29,6 +29,8 @@ import okhttp3.ResponseBody;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.URISyntaxException;
@@ -160,7 +162,9 @@ public class OtherUtil {
         String latestVersion = getLatestVersion();
 
         if (latestVersion != null && !latestVersion.equals(version) && JMusicBot.CHECK_UPDATE) {
-            prompt.alert(Prompt.Level.WARNING, "Version", String.format(NEW_VERSION_AVAILABLE, version, latestVersion));
+            // Always log to console instead of using JOptionPane
+            Logger log = LoggerFactory.getLogger("Version");
+            log.warn(String.format(NEW_VERSION_AVAILABLE, version, latestVersion));
         }
 
         // Return the current version

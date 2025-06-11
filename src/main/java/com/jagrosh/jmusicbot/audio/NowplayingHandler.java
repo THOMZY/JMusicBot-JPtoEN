@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -45,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 public class NowplayingHandler {
     private final Bot bot;
     private final HashMap<Long, Pair<Long, Long>> lastNP; // guild -> channel,message
+    private final HashMap<Long, ScheduledFuture<?>> gensokyoUpdateTasks = new HashMap<>();
 
     public NowplayingHandler(Bot bot) {
         this.bot = bot;
@@ -173,9 +175,15 @@ public class NowplayingHandler {
                                 titleField.setAccessible(true);
                                 titleField.set(track.getInfo(), artistTitle);
                                 track.setUserData(artistTitle);
+                                
+                                // Add a listener to update the status when Gensokyo Radio track changes
+                                setupGensokyoTrackUpdateListener(guildId, track, handler);
                             } catch (Exception e) {
                                 // Ignore field access errors
                             }
+                            
+                            // Update topics immediately
+                            updateTopic(guildId, handler, false);
                             return; // Skip the rest of the method
                         }
                     } catch (Exception e) {
@@ -229,6 +237,15 @@ public class NowplayingHandler {
         // Update channel topic if applicable
         updateTopic(guildId, handler, false);
     }
+    
+    /**
+     * Overload that takes the handler directly and extracts the guild ID
+     * @param track The track that started
+     * @param handler The audio handler that started the track
+     */
+    public void onTrackUpdate(AudioTrack track, AudioHandler handler) {
+        onTrackUpdate(handler.getGuildId(), track, handler);
+    }
 
     public void onMessageDelete(Guild guild, long messageId) {
         Pair<Long, Long> pair = lastNP.get(guild.getIdLong());
@@ -236,5 +253,121 @@ public class NowplayingHandler {
             return;
         if (pair.getValue() == messageId)
             lastNP.remove(guild.getIdLong());
+    }
+
+    /**
+     * Sets up a scheduled task to periodically check for Gensokyo Radio track updates
+     * @param guildId The guild ID
+     * @param track The Gensokyo Radio track
+     * @param handler The audio handler
+     */
+    private void setupGensokyoTrackUpdateListener(long guildId, AudioTrack track, AudioHandler handler) {
+        // Store the current track title to detect changes
+        String currentTitle = track.getInfo().title;
+        
+        // Check if we already have an update task for this guild
+        if (gensokyoUpdateTasks.containsKey(guildId)) {
+            // Cancel the existing task
+            ScheduledFuture<?> existingTask = gensokyoUpdateTasks.get(guildId);
+            if (existingTask != null && !existingTask.isDone()) {
+                existingTask.cancel(false);
+            }
+        }
+        
+        // Create a track change listener
+        dev.cosgy.agent.GensokyoInfoAgent.GensokyoTrackChangeListener listener = new dev.cosgy.agent.GensokyoInfoAgent.GensokyoTrackChangeListener() {
+            @Override
+            public void onTrackChanged(dev.cosgy.agent.objects.ResultSet info) {
+                try {
+                    // Make sure the track is still playing
+                    AudioTrack currentTrack = handler.getPlayer().getPlayingTrack();
+                    if (currentTrack == null || !handler.isGensokyoRadioTrack(currentTrack)) {
+                        // Track is no longer playing or not a Gensokyo Radio track
+                        dev.cosgy.agent.GensokyoInfoAgent.removeTrackChangeListener(this);
+                        return;
+                    }
+                    
+                    // Format as Artist - Title
+                    String artist = info.getSonginfo().getArtist() != null ? info.getSonginfo().getArtist() : "Unknown Artist";
+                    String title = info.getSonginfo().getTitle() != null ? info.getSonginfo().getTitle() : "Unknown Title";
+                    String artistTitle = artist + " - " + title;
+                    
+                    // Update track title
+                    try {
+                        java.lang.reflect.Field titleField = currentTrack.getInfo().getClass().getDeclaredField("title");
+                        titleField.setAccessible(true);
+                        titleField.set(currentTrack.getInfo(), artistTitle);
+                        currentTrack.setUserData(artistTitle);
+                    } catch (Exception e) {
+                        // Ignore field access errors
+                    }
+                    
+                    // Update bot status if applicable
+                    if (bot.getConfig().getSongInStatus()) {
+                        bot.getJDA().getPresence().setActivity(Activity.listening(artistTitle));
+                    }
+                    
+                    // Update topics
+                    updateTopic(guildId, handler, false);
+                    
+                } catch (Exception e) {
+                    // Log errors but don't stop the task
+                    System.err.println("Error updating Gensokyo Radio track info: " + e.getMessage());
+                }
+            }
+        };
+        
+        // Register the listener
+        dev.cosgy.agent.GensokyoInfoAgent.addTrackChangeListener(listener);
+        
+        // Create a task to periodically check if the track is still playing
+        ScheduledFuture<?> task = bot.getThreadpool().scheduleAtFixedRate(() -> {
+            try {
+                // Make sure the track is still playing
+                AudioTrack currentTrack = handler.getPlayer().getPlayingTrack();
+                if (currentTrack == null || !handler.isGensokyoRadioTrack(currentTrack)) {
+                    // Track is no longer playing or not a Gensokyo Radio track
+                    dev.cosgy.agent.GensokyoInfoAgent.removeTrackChangeListener(listener);
+                    cancelGensokyoUpdateTask(guildId);
+                }
+            } catch (Exception e) {
+                // Log errors but don't stop the task
+                System.err.println("Error checking Gensokyo Radio track: " + e.getMessage());
+            }
+        }, 30, 30, TimeUnit.SECONDS);
+        
+        // Store the task for later cancellation
+        gensokyoUpdateTasks.put(guildId, task);
+    }
+    
+    /**
+     * Cancels the Gensokyo update task for a guild
+     * @param guildId The guild ID
+     */
+    public void cancelGensokyoUpdateTask(long guildId) {
+        ScheduledFuture<?> task = gensokyoUpdateTasks.remove(guildId);
+        if (task != null && !task.isDone()) {
+            task.cancel(false);
+        }
+        
+        // Remove any track change listeners associated with this guild
+        // We can't directly identify which listener belongs to which guild,
+        // so let's rely on GensokyoInfoAgent's own cleanup when the track changes
+    }
+
+    /**
+     * Cancels all Gensokyo update tasks
+     */
+    public void cancelAllGensokyoUpdateTasks() {
+        // Create a copy of the keys to avoid concurrent modification
+        Set<Long> guildIds = new HashSet<>(gensokyoUpdateTasks.keySet());
+        
+        // Cancel each task
+        for (Long guildId : guildIds) {
+            cancelGensokyoUpdateTask(guildId);
+        }
+        
+        // Clear the map just to be safe
+        gensokyoUpdateTasks.clear();
     }
 }

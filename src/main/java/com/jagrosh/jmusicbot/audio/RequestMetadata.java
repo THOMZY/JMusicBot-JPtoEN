@@ -195,7 +195,15 @@ public class RequestMetadata {
     public String getLocalFileGenre() {
         return localFileInfo != null ? localFileInfo.genre : null;
     }
-    
+
+    /**
+     * Gets the artwork hash of the local file
+     * @return the artwork hash or null if not set
+     */
+    public String getLocalFileArtworkHash() {
+        return localFileInfo != null ? localFileInfo.artworkHash : null;
+    }
+
     /**
      * Sets metadata for a local audio file
      * @param title the track title
@@ -203,9 +211,10 @@ public class RequestMetadata {
      * @param album the track album
      * @param year the track year
      * @param genre the track genre
+     * @param artworkHash the artwork hash
      */
-    public void setLocalFileMetadata(String title, String artist, String album, String year, String genre) {
-        this.localFileInfo = new LocalFileInfo(title, artist, album, year, genre);
+    public void setLocalFileMetadata(String title, String artist, String album, String year, String genre, String artworkHash) {
+        this.localFileInfo = new LocalFileInfo(title, artist, album, year, genre, artworkHash);
     }
     
     /**
@@ -276,13 +285,15 @@ public class RequestMetadata {
         public final String album;
         public final String year;
         public final String genre;
-        
-        private LocalFileInfo(String title, String artist, String album, String year, String genre) {
+        public final String artworkHash;
+
+        private LocalFileInfo(String title, String artist, String album, String year, String genre, String artworkHash) {
             this.title = title;
             this.artist = artist;
             this.album = album;
             this.year = year;
             this.genre = genre;
+            this.artworkHash = artworkHash;
         }
     }
 }

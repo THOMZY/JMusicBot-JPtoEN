@@ -1,4 +1,21 @@
 # Global Changelog
+
+---
+
+# 11 June 2025
+
+### ▶️ Youtube playback fixed with **[`youtube-source 1.13.3`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.13.3)**  
+
+### 🚀 New Features
+- Added `/history` command that track played songs.  
+
+### 🔧 Changes
+- Web panel update : working player and visuals for different sources, history page, ...
+- **Java version**: `11` → `17`
+
+### 📦 Dependency Updates
+- **youtube-source**: `1.13.1` → `1.13.3` 
+
 ---
 
 # 03 May 2025
@@ -7,10 +24,7 @@
 
 ### 🚀 New Features
 - Added YouTube chapters supports in `/nowplaying`.
-- Added an optional web panel ( Backend : `Spring Boot` / Frontend : `React` ) [ V1, more to come...]  
-
-### 🔧 Changes
-- No changes.
+- Added a web panel for music / bot management. ( Backend : `Spring Boot` / Frontend : `React` ) [ V1, more to come...]  
 
 ### 📦 Dependency Updates
 - **youtube-source**: `1.13.0` → `1.13.1` 

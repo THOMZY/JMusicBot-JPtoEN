@@ -1,0 +1,134 @@
+<!-- Common Modal Components for JMusicBot Web Panel -->
+
+<!-- Console Modal -->
+<div class="modal" id="console-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">Console</div>
+            <button class="modal-close" id="console-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="console-controls">
+                <button id="refresh-console-btn"><i class="fas fa-sync-alt"></i> Refresh Logs</button>
+                <button id="clear-console-btn"><i class="fas fa-trash"></i> Clear Console</button>
+                <span style="flex-grow: 1"></span>
+                <label>
+                    <input type="checkbox" id="auto-scroll-checkbox" checked>
+                    Auto-scroll to bottom
+                </label>
+            </div>
+            <div class="console-container" id="console-log">
+                <!-- Console logs will be added here dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Commands Modal -->
+<div class="modal" id="commands-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">Discord Commands</div>
+            <button class="modal-close" id="commands-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="command-input-container">
+                <div class="command-form">
+                    <div class="command-input-wrapper">
+                        <div class="command-input-box">
+                            <input type="text" id="command-input" placeholder="Enter a command (e.g. /vol 100, /play URL)" autocomplete="off">
+                            <button id="execute-command-btn"><i class="fas fa-paper-plane"></i> Execute</button>
+                        </div>
+                        <div class="command-autocomplete" id="command-autocomplete">
+                            <!-- Command suggestions will be added here dynamically -->
+                        </div>
+                    </div>
+                    <div class="command-preview" id="command-preview">
+                        <!-- Command preview will be shown here -->
+                    </div>
+                </div>
+                <div class="command-history">
+                    <div class="command-history-header">
+                        <div class="command-history-title">Command History</div>
+                        <button id="clear-history-btn"><i class="fas fa-trash"></i> Clear</button>
+                    </div>
+                    <div class="command-history-list" id="command-history-list">
+                        <!-- Command history items will be added here dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Config Modal -->
+<div class="modal" id="config-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">Bot Configuration ( reboot to apply )</div>
+            <button class="modal-close" id="config-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <textarea id="config-editor" class="config-editor" spellcheck="false"></textarea>
+            <div style="display: flex; justify-content: center;">
+                <button id="save-config-btn"><i class="fas fa-save"></i> Save Configuration</button>
+            </div>
+            <div id="config-result" style="margin-top: 15px; padding: 10px; display: none; border-radius: 4px; text-align: center;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Bot Profile Modal -->
+<div class="modal" id="bot-profile-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">Bot Profile</div>
+            <button class="modal-close" id="bot-profile-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="bot-profile-editor">
+                <div class="current-profile">
+                    <div class="profile-banner-container">
+                        <img id="profile-banner" src="" alt="Bot Banner" class="profile-banner">
+                    </div>
+                    <div class="profile-info-center">
+                        <img id="profile-avatar" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="Bot Avatar" class="profile-avatar">
+                        <div class="profile-name" id="profile-name">Loading...</div>
+                    </div>
+                </div>
+                
+                <div class="profile-form">
+                    <div class="form-section">
+                        <label for="bot-name-input">Bot Name</label>
+                        <div class="input-with-button">
+                            <input type="text" id="bot-name-input" placeholder="Enter new bot name">
+                            <button id="update-name-btn"><i class="fas fa-save"></i> Update Name</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <label for="bot-avatar-input">Bot Avatar URL</label>
+                        <div class="input-with-button">
+                            <input type="text" id="bot-avatar-input" placeholder="Enter URL for bot avatar">
+                            <button id="update-avatar-btn"><i class="fas fa-save"></i> Update Avatar</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-section">
+                        <label for="bot-banner-input">Bot Banner URL</label>
+                        <div class="input-with-button">
+                            <input type="text" id="bot-banner-input" placeholder="Enter URL for bot banner">
+                            <button id="update-banner-btn"><i class="fas fa-save"></i> Update Banner</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="profile-result" style="margin-top: 15px; padding: 10px; display: none; border-radius: 4px; text-align: center;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container">
+    <!-- Toast messages will be added here dynamically -->
+</div> 

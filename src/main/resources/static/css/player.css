@@ -1,0 +1,464 @@
+/**
+ * Player-specific styles for JMusicBot Web Panel
+ */
+
+/* Player Section */
+.player-container {
+    background-color: var(--darker-bg);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    width: 100%;
+}
+
+.player-content {
+    display: flex;
+    padding: 20px;
+    gap: 20px;
+}
+
+.album-art {
+    width: 150px;
+    height: 150px;
+    background-color: var(--darkest-bg);
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.album-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background-color: var(--darkest-bg);
+}
+
+.track-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.track-title {
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.track-author {
+    font-size: 16px;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+/* Track title and author links */
+.track-title-link, .track-author-link {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.2s, text-decoration 0.2s;
+    display: inline-block;
+}
+
+.track-title-link:hover, .track-author-link:hover {
+    color: #1db954;
+    text-decoration: underline;
+}
+
+.track-title-link:active, .track-author-link:active {
+    color: #1ed760;
+}
+
+/* Queue item specific styles */
+.queue-item-info .track-title-link, .queue-item-info .track-author-link {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Spotify info buttons */
+.spotify-info-btn {
+    display: inline-flex;
+    align-items: center;
+    background-color: rgba(29, 185, 84, 0.1);
+    border: 1px solid rgba(29, 185, 84, 0.3);
+    border-radius: 12px;
+    padding: 4px 8px;
+    font-size: 12px;
+    margin-right: 8px;
+    color: #1db954;
+    transition: all 0.2s;
+}
+
+.spotify-info-btn:hover {
+    background-color: rgba(29, 185, 84, 0.2);
+    border-color: rgba(29, 185, 84, 0.5);
+}
+
+/* Gensokyo Radio info buttons - using purple theme instead of Spotify green */
+.gensokyo-info-btn {
+    display: inline-flex;
+    align-items: center;
+    background-color: rgba(138, 43, 226, 0.1); /* Purple background */
+    border: 1px solid rgba(138, 43, 226, 0.3);
+    border-radius: 12px;
+    padding: 4px 8px;
+    font-size: 12px;
+    margin-right: 8px;
+    color: #9370DB; /* Medium purple */
+    transition: all 0.2s;
+}
+
+.gensokyo-info-btn:hover {
+    background-color: rgba(138, 43, 226, 0.2);
+    border-color: rgba(138, 43, 226, 0.5);
+}
+
+.gensokyo-info-btn i {
+    margin-right: 4px;
+    font-size: 14px;
+}
+
+.gensokyo-info-container {
+    display: none;
+    margin-top: 8px;
+    margin-bottom: 12px;
+}
+
+/* Local File info buttons - using a gold/yellow theme */
+.localfile-info-btn {
+    display: inline-flex;
+    align-items: center;
+    background-color: rgba(255, 215, 0, 0.1); /* Gold background */
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 12px;
+    padding: 4px 8px;
+    font-size: 12px;
+    margin-right: 8px;
+    color: #FFD700; /* Gold */
+    transition: all 0.2s;
+}
+
+.localfile-info-btn:hover {
+    background-color: rgba(255, 215, 0, 0.2);
+    border-color: rgba(255, 215, 0, 0.5);
+}
+
+.localfile-info-btn i {
+    margin-right: 4px;
+    font-size: 14px;
+}
+
+.localfile-info-container {
+    display: none; /* Hidden by default */
+    margin-top: 8px;
+    margin-bottom: 12px;
+}
+
+.track-metadata {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.metadata-item {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: var(--muted-text);
+}
+
+.metadata-item i {
+    margin-right: 5px;
+}
+
+/* Status message styling */
+.status {
+    font-weight: bold;
+    font-size: 16px;
+    padding: 5px 12px;
+    border-radius: 15px;
+    display: inline-flex;
+    align-items: center;
+    margin-top: 10px;
+    transition: all 0.3s ease;
+    max-width: fit-content;
+}
+
+.status::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-playing {
+    background-color: rgba(29, 185, 84, 0.15);
+    color: #1db954;
+    border: 1px solid rgba(29, 185, 84, 0.3);
+}
+
+.status-playing::before {
+    background-color: #1db954;
+    box-shadow: 0 0 8px #1db954;
+    animation: pulse 2s infinite;
+}
+
+.status-paused {
+    background-color: rgba(255, 165, 0, 0.15);
+    color: #ffa500;
+    border: 1px solid rgba(255, 165, 0, 0.3);
+}
+
+.status-paused::before {
+    background-color: #ffa500;
+}
+
+.status-idle {
+    background-color: rgba(128, 128, 128, 0.15);
+    color: #a0a0a0;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+}
+
+.status-idle::before {
+    background-color: #a0a0a0;
+}
+
+.status-error {
+    background-color: rgba(255, 0, 0, 0.15);
+    color: #ff5555;
+    border: 1px solid rgba(255, 0, 0, 0.3);
+}
+
+.status-error::before {
+    background-color: #ff5555;
+    box-shadow: 0 0 8px #ff5555;
+}
+
+/* Progress Bar and Player Controls */
+.progress-container {
+    position: relative;
+    cursor: pointer;
+    height: 8px;
+    background-color: #3c3f45;
+    border-radius: 4px;
+    transition: height 0.2s;
+    margin-bottom: 15px; /* Add space for the live indicator */
+}
+
+.progress-container:hover {
+    height: 12px;
+}
+
+.progress-container:hover .progress-bar {
+    background: linear-gradient(90deg, #5865f2, #7289da);
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: #5865f2;
+    border-radius: 4px;
+    transition: width 0.1s;
+}
+
+.progress-handle {
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    background-color: #fff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 2;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.progress-container:hover .progress-handle {
+    opacity: 1;
+}
+
+.progress-preview {
+    position: absolute;
+    bottom: 25px;
+    background-color: #2c2f33;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.1s;
+    pointer-events: none;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    border: 1px solid #3c3f45;
+    font-weight: bold;
+    z-index: 10;
+    white-space: nowrap;
+}
+
+.progress-preview::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -6px;
+    border-width: 6px;
+    border-style: solid;
+    border-color: #2c2f33 transparent transparent transparent;
+}
+
+.progress-container .progress-preview {
+    opacity: 0;
+}
+
+.progress-container:hover .progress-preview {
+    opacity: 1;
+}
+
+/* Add a slight highlighting effect when clicking */
+.progress-container:active {
+    background-color: #4a4d55;
+}
+
+.progress-container:active .progress-handle {
+    transform: translate(-50%, -50%) scale(1.2);
+    background-color: #ffffff;
+}
+
+/* Time display for current and total duration */
+.time-display {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: var(--muted-text);
+    margin: 0 20px 15px;
+    position: relative; /* Add position relative to host the live indicator */
+}
+
+/* When both time and LIVE indicator are visible */
+.time-display.with-live-indicator {
+    gap: 10px;
+}
+
+/* LIVE indicator styling */
+.live-indicator {
+    color: var(--error-color);
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    animation: pulse 2s infinite;
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    background-color: var(--darkest-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--error-color);
+}
+
+.live-indicator::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--error-color);
+}
+
+/* Add a special class for LIVE indicator when no time display is shown */
+.time-display-hidden .live-indicator {
+    position: relative;
+    top: 0;
+    margin: 0 20px 15px;
+    display: flex;
+    justify-content: center;
+} 
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 0 20px 20px;
+}
+
+/* Player and Chapters Layout */
+.player-chapters-container {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+    align-items: flex-start;
+}
+
+/* Radio and live stream related styles */
+.radio-logo-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 15px;
+    min-width: 70px;
+}
+
+.player-station-logo {
+    width: 70px;
+    height: 70px;
+    object-fit: contain;
+    transition: transform 0.3s;
+    background-color: transparent;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    position: static;
+    display: block;
+    margin: 0;
+}
+
+.player-station-logo:hover {
+    transform: scale(1.1);
+    border-color: transparent;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .player-content {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .album-art {
+        width: 120px;
+        height: 120px;
+    }
+
+    .track-info {
+        text-align: center;
+    }
+
+    .track-metadata {
+        justify-content: center;
+    }
+}

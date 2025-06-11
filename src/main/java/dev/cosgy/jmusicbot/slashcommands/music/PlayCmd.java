@@ -519,7 +519,10 @@ public class PlayCmd extends MusicCommand {
                                            info.getArtist(), 
                                            info.getAlbum(),
                                            info.getYear(),
-                                           info.getGenre());
+                                           info.getGenre(),
+                                           info.getArtworkPath());
+                    // Log after setting metadata
+                    System.out.println("[PlayCmd - SlashResultHandler] Set Local Metadata: Album=" + rm.getLocalFileAlbum() + ", ArtworkHash=" + rm.getLocalFileArtworkHash());
                 }
             } catch (Exception e) {
                 // Log the error but continue playback
@@ -701,7 +704,8 @@ public class PlayCmd extends MusicCommand {
                                            info.getArtist(), 
                                            info.getAlbum(),
                                            info.getYear(),
-                                           info.getGenre());
+                                           info.getGenre(),
+                                           info.getArtworkPath());
                 }
             } catch (Exception e) {
                 // Log the error but continue playback

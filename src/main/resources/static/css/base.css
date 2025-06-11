@@ -1,0 +1,189 @@
+/**
+ * Base styles and CSS variables for JMusicBot Web Panel
+ */
+
+:root {
+    --primary-color: #7289DA;
+    --primary-hover: #5a6cbd;
+    --dark-bg: #2C2F33;
+    --darker-bg: #23272A;
+    --darkest-bg: #1e2124;  
+    --light-text: #FFFFFF;
+    --muted-text: #B9BBBE;
+    --border-color: #4a4d51;
+    --success-color: #43B581;
+    --error-color: #F04747;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--dark-bg);
+    color: var(--light-text);
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Common button styles */
+button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: var(--primary-hover);
+}
+
+button:disabled {
+    background-color: var(--border-color);
+    cursor: not-allowed;
+}
+
+/* Main content layout */
+.main-content {
+    width: 100%;
+    max-width: 1200px;
+    padding: 0 20px;
+    margin: 0 auto;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 70px);
+    overflow: hidden;
+}
+
+.content-with-chapters {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+    align-items: flex-start;
+    flex-grow: 1;
+}
+
+.main-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .form-buttons {
+        flex-direction: column;
+    }
+} 
+
+/* Notification */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background-color: var(--darker-bg);
+    color: var(--light-text);
+    z-index: 1000;
+    max-width: 300px;
+    transition: opacity 0.5s;
+}
+
+.notification.success {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.notification.error {
+    background-color: var(--error-color);
+    color: white;
+}
+
+.notification.fade-out {
+    opacity: 0;
+}
+
+/* Toast Messages */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toast {
+    background-color: var(--darker-bg);
+    color: var(--light-text);
+    padding: 12px 16px;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    transform: translateY(50px);
+    animation: slideIn 0.3s forwards, fadeOut 0.5s forwards 4.5s;
+    max-width: 300px;
+    border-left: 4px solid var(--primary-color);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+}
+
+.toast.success {
+    border-left-color: var(--success-color);
+}
+
+.toast::before {
+    content: '';
+    margin-right: 10px;
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+}
+
+.toast.success::before {
+    content: '\f00c';
+    color: var(--success-color);
+}
+
+.toast.error {
+    border-left-color: var(--error-color);
+}
+
+.toast.error::before {
+    content: '\f00d';
+    color: var(--error-color);
+}
+
+@keyframes slideIn {
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+    to { opacity: 0; transform: translateY(-20px); }
+}
+
+/* For channels page specifically */
+#channels-component {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    height: 100%;
+} 

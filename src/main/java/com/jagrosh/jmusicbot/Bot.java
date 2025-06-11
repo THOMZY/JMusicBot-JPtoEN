@@ -20,6 +20,7 @@ import com.jagrosh.jdautilities.commons.waiter.EventWaiter;
 import com.jagrosh.jmusicbot.audio.AloneInVoiceHandler;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.audio.IcyMetadataHandler;
+import com.jagrosh.jmusicbot.audio.MusicHistory;
 import com.jagrosh.jmusicbot.audio.NowplayingHandler;
 import com.jagrosh.jmusicbot.audio.PlayerManager;
 import com.jagrosh.jmusicbot.audio.YouTubeChapterManager;
@@ -38,21 +39,17 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Base64;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import javax.swing.SwingUtilities;
+
+import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * @author John Grosh (john.a.grosh@gmail.com)
@@ -73,18 +70,13 @@ public class Bot {
     private final IcyMetadataHandler icyMetadataHandler;
     private final YouTubeChapterManager youtubeChapterManager;
     
-    // Map to store local audio file metadata
+    // Map to store local audio file metadata (LocalTrackInfo now contains artwork path)
     private final Map<String, LocalAudioMetadata.LocalTrackInfo> localMetadataCache;
     
-    // Directory for storing temporary artwork files
-    private final Path artworkDir;
-    
-    // Map to store artwork URLs for local audio files
-    private final Map<String, String> localArtworkUrls;
-
     private boolean shuttingDown = false;
     private JDA jda;
     private GUI gui;
+    private final MusicHistory musicHistory;
 
     public Bot(EventWaiter waiter, BotConfig config, SettingsManager settings) {
         this.waiter = waiter;
@@ -107,17 +99,7 @@ public class Bot {
         // Initialize local metadata cache
         this.localMetadataCache = new ConcurrentHashMap<>();
         
-        // Create directory for temporary artwork files
-        this.artworkDir = Paths.get(System.getProperty("java.io.tmpdir"), "jmusicbot_artwork");
-        this.localArtworkUrls = new ConcurrentHashMap<>();
-        
-        try {
-            if (!Files.exists(artworkDir)) {
-                Files.createDirectories(artworkDir);
-            }
-        } catch (IOException e) {
-            LoggerFactory.getLogger(Bot.class).error("Failed to create artwork directory", e);
-        }
+        this.musicHistory = new MusicHistory(this);
     }
 
     public static void updatePlayStatus(Guild guild, Member selfMember, PlayStatus status) {
@@ -225,7 +207,8 @@ public class Bot {
     }
     
     /**
-     * Processes a local audio file uploaded to Discord and extracts its metadata
+     * Processes a local audio file uploaded to Discord and extracts its metadata.
+     * Artwork is now handled by LocalAudioMetadata.
      * @param trackId The track identifier
      * @param fileUrl The URL of the file to download and process
      * @return The LocalTrackInfo with extracted metadata, or null on failure
@@ -244,31 +227,14 @@ public class Bot {
         }
         
         try {
-            // Extract metadata using just the file, track is reconstructed inside if needed
-            LocalAudioMetadata.LocalTrackInfo info = LocalAudioMetadata.extractMetadata(null, downloadedFile);
+            // Extract metadata using LocalAudioMetadata.extractMetadata
+            // This method now handles artwork saving internally.
+            // Pass the original trackId (Discord URL) as the identifier for caching.
+            LocalAudioMetadata.LocalTrackInfo info = LocalAudioMetadata.extractMetadata(trackId, downloadedFile);
             
             if (info != null) {
-                // If the track has artwork, save it as a temporary file and create a data URL
-                if (info.hasArtwork()) {
-                    try {
-                        byte[] artworkData = info.getArtworkData();
-                        
-                        // Create a safe filename using hash of trackId rather than full URL
-                        String safeFilename = String.format("artwork_%d.%s", 
-                                              Math.abs(trackId.hashCode()), 
-                                              determineImageExtension(artworkData));
-                        
-                        Path artworkFile = artworkDir.resolve(safeFilename);
-                        Files.write(artworkFile, artworkData);
-                        
-                        // Store the file URI as the artwork URL
-                        String artworkUrl = artworkFile.toUri().toString();
-                        localArtworkUrls.put(trackId, artworkUrl);
-                    } catch (Exception e) {
-                        LoggerFactory.getLogger(Bot.class).error("Failed to generate artwork URL", e);
-                        // Don't fail the whole process if artwork processing fails
-                    }
-                }
+                // Artwork saving and URL generation is now done within LocalAudioMetadata.extractMetadata
+                // No need for specific artwork handling code here anymore.
                 
                 // Cache the metadata
                 localMetadataCache.put(trackId, info);
@@ -279,9 +245,11 @@ public class Bot {
         } catch (Exception e) {
             LoggerFactory.getLogger(Bot.class).error("Error processing local audio file: {}", e.getMessage(), e);
         } finally {
-            // Delete the temporary file
+            // Delete the temporary downloaded file
             if (downloadedFile.exists()) {
-                downloadedFile.delete();
+                if (!downloadedFile.delete()) {
+                     LoggerFactory.getLogger(Bot.class).warn("Failed to delete temporary file: {}", downloadedFile.getAbsolutePath());
+                }
             }
         }
         
@@ -289,94 +257,52 @@ public class Bot {
     }
     
     /**
-     * Determines the image format from raw image data
-     * @param data The image data
-     * @return The file extension (jpg, png, etc.)
-     */
-    private String determineImageExtension(byte[] data) {
-        if (data == null || data.length < 4) {
-            return "jpg"; // Default to JPG
-        }
-        
-        // Check PNG signature
-        if (data[0] == (byte) 0x89 && data[1] == (byte) 0x50 && data[2] == (byte) 0x4E && data[3] == (byte) 0x47) {
-            return "png";
-        }
-        
-        // Check JPEG signature
-        if (data[0] == (byte) 0xFF && data[1] == (byte) 0xD8 && data[2] == (byte) 0xFF) {
-            return "jpg";
-        }
-        
-        // Check GIF signature
-        if (data[0] == (byte) 0x47 && data[1] == (byte) 0x49 && data[2] == (byte) 0x46) {
-            return "gif";
-        }
-        
-        return "jpg"; // Default to JPG if unknown
-    }
-    
-    /**
-     * Gets the URL for a track's artwork
+     * Gets the relative path for a track's artwork, suitable for web panel use.
+     * This path is now directly retrieved from LocalTrackInfo.
      * @param trackId The track identifier
-     * @return The URL to use in embeds
+     * @return The relative path to the artwork (e.g., "local_artwork/hash.png") or null if no artwork.
      */
-    public String getLocalArtworkUrl(String trackId) {
-        // Get the file path from the map
-        String fileUri = localArtworkUrls.get(trackId);
-        
-        if (fileUri == null || fileUri.isEmpty()) {
-            return null;
+    public String getLocalArtworkPath(String trackId) {
+        LocalAudioMetadata.LocalTrackInfo trackInfo = localMetadataCache.get(trackId);
+        if (trackInfo != null && trackInfo.hasArtwork()) {
+            return trackInfo.getArtworkPath();
         }
-        
-        // Check if it's a file URI that needs to be converted
-        if (fileUri.startsWith("file:")) {
-            try {
-                // Extract the file path from the URI
-                Path artworkFile = Paths.get(new URI(fileUri));
-                
-                // Check if the file exists
-                if (Files.exists(artworkFile)) {
-                    // Return the path for the file to be loaded and attached
-                    return artworkFile.toString();
-                } else {
-                    LoggerFactory.getLogger(Bot.class).warn("Artwork file does not exist: {}", artworkFile);
-                    return null;
-                }
-            } catch (Exception e) {
-                LoggerFactory.getLogger(Bot.class).error("Failed to convert file URI to path", e);
-                return null;
-            }
-        }
-        
-        // If it's already a proper URL (not a file:// URL), return it directly
-        return fileUri;
+        return null;
     }
     
     /**
-     * Cleans up temporary files created for local audio metadata
+     * Cleans up temporary files created for local audio metadata (downloaded files).
+     * Artwork files are now permanent and managed by LocalAudioMetadata, so no cleanup here.
      */
     private void cleanupLocalAudioFiles() {
-        try {
-            if (Files.exists(artworkDir)) {
-                Files.list(artworkDir).forEach(file -> {
-                    try {
-                        Files.delete(file);
-                    } catch (IOException e) {
-                        // Ignore deletion failures
-                    }
-                });
-            }
-        } catch (IOException e) {
-            LoggerFactory.getLogger(Bot.class).warn("Failed to clean up artwork files", e);
-        }
+        // This method is now primarily for cleaning up temporary downloaded files if any were missed.
+        // The artworkDir and its contents are no longer managed/cleaned by this Bot class instance.
+        // LocalAudioMetadata handles the `local_artwork` directory.
+        // If there were other temporary files this Bot class created, they could be cleaned here.
+        // For now, the main cleanup is the downloadedFile in processLocalAudioFile's finally block.
+        LoggerFactory.getLogger(Bot.class).debug("cleanupLocalAudioFiles called. Note: Artwork cleanup is handled by LocalAudioMetadata.");
     }
 
     public void shutdown() {
         if (shuttingDown)
             return;
         shuttingDown = true;
-        if (jda.getStatus() != JDA.Status.SHUTTING_DOWN) {
+        
+        // Shutdown executor services first
+        threadpool.shutdownNow();
+        icyMetadataHandler.shutdown();
+        youtubeChapterManager.shutdown();
+        
+        // Stop GensokyoInfoAgent if it's running
+        dev.cosgy.agent.GensokyoInfoAgent.stopAgent();
+        
+        // Cancel all Gensokyo update tasks if any
+        if (this.nowplaying != null) {
+            this.nowplaying.cancelAllGensokyoUpdateTasks();
+        }
+        
+        // Then close audio connections and cleanup audio resources
+        if (jda != null && jda.getStatus() != JDA.Status.SHUTTING_DOWN) {
             jda.getGuilds().forEach((g) -> {
                 g.getAudioManager().closeAudioConnection();
                 AudioHandler ah = (AudioHandler) g.getAudioManager().getSendingHandler();
@@ -386,21 +312,41 @@ public class Bot {
                     nowplaying.updateTopic(g.getIdLong(), ah, true);
                 }
             });
+            
+            // Finally shutdown JDA
             jda.shutdown();
         }
-        threadpool.shutdownNow();
-        icyMetadataHandler.shutdown();
-        youtubeChapterManager.shutdown();
         
-        // Clean up local audio files
-        cleanupLocalAudioFiles();
+        // Clean up local audio files (temporary downloads, artwork is permanent)
+        cleanupLocalAudioFiles(); // This call remains, but its scope is reduced.
         
-        if (gui != null)
-            gui.dispose();
-        System.exit(0);
+        // Close the GUI last after everything else is done
+        if (gui != null) {
+            SwingUtilities.invokeLater(() -> {
+                gui.dispose();
+            });
+        }
+        
+        // Schedule System.exit with a slight delay to ensure resources are released
+        new Thread(() -> {
+            try {
+                Thread.sleep(500);
+                System.exit(0);
+            } catch (InterruptedException e) {
+                System.exit(0);
+            }
+        }).start();
     }
 
     public void setGUI(GUI gui) {
         this.gui = gui;
+    }
+
+    /**
+     * Gets the music history manager
+     * @return The music history manager
+     */
+    public MusicHistory getMusicHistory() {
+        return musicHistory;
     }
 }

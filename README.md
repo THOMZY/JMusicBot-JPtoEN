@@ -7,7 +7,7 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge/main)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/overview/main)
 [![Build and Test](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)
 </h3>
-<h2 align="center">▶️ Youtube playback fixed ( 03 May 2025 )</h2>
+<h2 align="center">▶️ Youtube playback fixed ( 11 June 2025 )</h2>
 
 
 # JMusicBot
@@ -21,7 +21,8 @@ This fork aims to updates dependencies when YouTube playback breaks and adds min
 
 ### Changes :
 
-* Added an optional web panel for bot control / management.
+* Added a web panel for music / bot management.  
+* Added `/history` command that track played songs.  
 * Added `/radio` command that searches and plays radio stations.  
 * Added `/stats` command to view total play time and songs played.  
 * `/nowplaying` now have more and cleaner informations.  
@@ -50,8 +51,8 @@ Check the [CHANGELOG](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/develop/CH
 
 # Setting up :
 
-This bot requires Java version 11 or higher.
-If Java is not installed, download it from [here](https://www.oracle.com/jp/java/technologies/downloads/).  
+This bot requires Java version 17 or higher.
+If Java is not installed, download it from [here](https://www.oracle.com/jp/java/technologies/downloads/#java17).  
 To start this bot yourself, refer to the [official Jagrosh website](https://jmusicbot.com/setup/).  
 You can check the [Cosgy Dev Official Page](https://www.cosgy.dev/2019/09/06/jmusicbot-setup/) too.  
 You can find the raw 'config.txt' file [here](https://raw.githubusercontent.com/THOMZY/JMusicBot-JPtoEN/refs/heads/develop/src/main/resources/reference.conf) or in release tab.  

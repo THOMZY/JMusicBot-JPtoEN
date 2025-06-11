@@ -1,0 +1,84 @@
+<!-- History Content Component for JMusicBot Web Panel -->
+<div id="history-container" class="history-container">
+    <div class="history-header">
+        <div class="history-title">
+            <i class="fas fa-history"></i> Music History
+        </div>
+        <div class="requester-filter">
+            <div class="filter-label">Requested By:</div>
+            <div class="filter-options">
+                <button class="history-filter-btn active" data-filter="requester" data-value="all">Anyone</button>
+                <div class="requester-filter-container">
+                    <select id="requester-filter-select" class="requester-filter-select">
+                        <option value="">Loading requesters...</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="history-search">
+            <div class="search-input-container">
+                <input type="text" id="history-search-input" class="history-search-input" placeholder="Search history...">
+                <button id="history-search-btn" class="history-search-btn">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="history-filters">
+        <div class="filter-group">
+            <div class="filter-label">Source:</div>
+            <div class="filter-options">
+                <button class="history-filter-btn active" data-filter="type" data-value="all">All</button>                
+                <button class="history-filter-btn" data-filter="type" data-value="youtube">
+                    <i class="fab fa-youtube"></i> YouTube
+                </button>
+                <button class="history-filter-btn" data-filter="type" data-value="soundcloud">
+                    <i class="fab fa-soundcloud"></i> SoundCloud
+                </button>
+                <button class="history-filter-btn" data-filter="type" data-value="spotify">
+                    <i class="fab fa-spotify"></i> Spotify
+                </button>
+                <button class="history-filter-btn" data-filter="type" data-value="radio">
+                    <i class="fas fa-broadcast-tower"></i> Radio
+                </button>
+                <button class="history-filter-btn" data-filter="type" data-value="gensokyo">
+                    <i class="fas fa-music"></i> Gensokyo Radio
+                </button>
+                <button class="history-filter-btn" data-filter="type" data-value="local">
+                    <i class="fas fa-file-audio"></i> Local Files
+                </button>                
+            </div>
+        </div>
+        
+        <div class="filter-group">
+            <div class="filter-label">Time Range:</div>
+            <div class="filter-options">
+                <button class="history-filter-btn active" data-filter="timeRange" data-value="all">All Time</button>
+                <button class="history-filter-btn" data-filter="timeRange" data-value="today">Today</button>
+                <button class="history-filter-btn" data-filter="timeRange" data-value="week">This Week</button>
+                <button class="history-filter-btn" data-filter="timeRange" data-value="month">This Month</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- History Info -->
+    <div class="history-info">
+        <div id="history-page-info" class="history-page-info">Loading...</div>
+    </div>
+    
+    <!-- Scrollable content wrapper -->
+    <div class="history-content-wrapper">
+        <!-- History List -->
+        <div id="history-list" class="history-list">
+            <!-- History items will be loaded here dynamically -->
+            <div class="history-loading">Loading history data...</div>
+        </div>
+    </div>
+    
+    <!-- Pagination -->
+    <div id="history-pagination" class="history-pagination">
+        <!-- Pagination will be loaded here dynamically -->
+    </div>
+</div> 

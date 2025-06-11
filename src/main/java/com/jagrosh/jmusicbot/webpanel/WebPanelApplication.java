@@ -58,9 +58,25 @@ public class WebPanelApplication {
      */
     public static void stop() {
         if (context != null) {
-            restoreOriginalStreams();
-            context.close();
-            System.out.println("Web Panel stopped");
+            try {
+                // Restore original output streams
+                restoreOriginalStreams();
+                
+                // Close the application context
+                context.close();
+                
+                // Wait a moment for resources to be released
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                
+                System.out.println("Web Panel stopped successfully");
+                context = null;
+            } catch (Exception e) {
+                System.err.println("Error stopping Web Panel: " + e.getMessage());
+            }
         }
     }
 

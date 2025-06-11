@@ -10,6 +10,8 @@ import com.jagrosh.jmusicbot.audio.IcyMetadataHandler;
 import com.jagrosh.jmusicbot.audio.PlayerManager;
 import com.jagrosh.jmusicbot.audio.QueuedTrack;
 import com.jagrosh.jmusicbot.audio.RequestMetadata;
+import com.jagrosh.jmusicbot.audio.YouTubeChapterManager;
+import com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor;
 import com.jagrosh.jmusicbot.webpanel.model.Guild;
 import com.jagrosh.jmusicbot.webpanel.model.MusicStatus;
 import com.jagrosh.jmusicbot.webpanel.model.QueueTrack;
@@ -20,11 +22,32 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import net.dv8tion.jda.api.entities.GuildVoiceState;
 import org.springframework.stereotype.Service;
 
+import java.awt.Color;
+import java.lang.reflect.Field;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+
+import org.json.JSONObject;
+
+import com.jagrosh.jmusicbot.PlayStatus;
+import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
+import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
+
+import net.dv8tion.jda.api.EmbedBuilder;
 
 @Service
 public class MusicService {
@@ -159,6 +182,23 @@ public class MusicService {
      */
     public MusicStatus getCurrentStatus() {
         Optional<AudioHandler> handler = getAudioHandler();
+        
+        // Check if the bot is in a voice channel in the selected guild
+        boolean inVoiceChannel = false;
+        
+        if (selectedGuildId != null && bot.getJDA() != null) {
+            net.dv8tion.jda.api.entities.Guild guild = bot.getJDA().getGuildById(selectedGuildId);
+            if (guild != null) {
+                // Get the bot's voice state
+                GuildVoiceState voiceState = guild.getSelfMember().getVoiceState();
+                // Check if the bot is in a voice channel
+                inVoiceChannel = voiceState != null && voiceState.inAudioChannel();
+            }
+        }
+        
+        // Variables for radio info that need broader scope
+        String radioLogoUrl = null;
+        String radioSongImageUrl = null;
 
         if (handler.isPresent() && handler.get().getPlayer().getPlayingTrack() != null) {
             AudioHandler audioHandler = handler.get();
@@ -169,6 +209,11 @@ public class MusicService {
             String sourceType = "Unknown";
             String source = "Unknown";
             String thumbnailUrl = "";
+
+            // Variables for local file metadata
+            String localAlbum = null;
+            String localGenre = null;
+            String localYear = null;
             
             // Determine track type using AudioHandler methods
             AudioHandler.TrackType trackType = audioHandler.getTrackType(track);
@@ -194,7 +239,7 @@ public class MusicService {
                     }
                     
                     if (videoId != null) {
-                        thumbnailUrl = "https://img.youtube.com/vi/" + videoId + "/maxresdefault.jpg";
+                        thumbnailUrl = "https://img.youtube.com/vi/" + videoId + "/mqdefault.jpg";
                     }
                     break;
                     
@@ -202,14 +247,36 @@ public class MusicService {
                     sourceType = "Spotify";
                     source = "Spotify";
                     
-                    // Get Spotify track info from AudioHandler
-                    dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotifyInfo = 
-                        audioHandler.getSpotifyTrackInfo();
-                    
-                    if (spotifyInfo != null && spotifyInfo.albumImageUrl != null && !spotifyInfo.albumImageUrl.isEmpty()) {
-                        thumbnailUrl = spotifyInfo.albumImageUrl;
+                    // Get Spotify track ID from RequestMetadata
+                    String spotifyTrackId = null;
+                    if (track.getUserData(RequestMetadata.class) != null && 
+                        track.getUserData(RequestMetadata.class).hasSpotifyData()) {
+                        spotifyTrackId = track.getUserData(RequestMetadata.class).getSpotifyTrackId();
+                        
+                        // If we have a Spotify track ID, try to get the album image
+                        if (spotifyTrackId != null) {
+                            // Check if we have album art information stored for this track ID
+                            String albumUrl = dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.albumImageUrls.get(spotifyTrackId);
+                            if (albumUrl != null && !albumUrl.isEmpty()) {
+                                thumbnailUrl = albumUrl;
+                            } else {
+                                // Fallback to default Spotify logo
+                                thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
+                            }
+                        } else {
+                            // Fallback to default Spotify logo
+                            thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
+                        }
                     } else {
-                        thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
+                        // Try to get current track's Spotify info if this is the playing track
+                        dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotifyInfo = 
+                            audioHandler.getSpotifyTrackInfo();
+                        if (spotifyInfo != null && spotifyInfo.albumImageUrl != null && !spotifyInfo.albumImageUrl.isEmpty()) {
+                            thumbnailUrl = spotifyInfo.albumImageUrl;
+                        } else {
+                            // Fallback to default Spotify logo
+                            thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
+                        }
                     }
                     break;
                     
@@ -219,15 +286,26 @@ public class MusicService {
                     // Get radio info from AudioHandler
                     String stationName = audioHandler.getRadioStationName(track);
                     String logoUrl = audioHandler.getRadioLogoUrl(track);
+                    String songImageUrl = null;
                     
-                    source = stationName != null ? stationName : "Radio Stream";
-                    
-                    // For radio streams, use the station logo
-                    if (logoUrl != null && !logoUrl.isEmpty()) {
+                    // Try to get current song image for radio
+                    dev.cosgy.jmusicbot.slashcommands.music.RadioCmd.TrackInfo radioInfo = 
+                        audioHandler.getRadioTrackInfo(track);
+                    if (radioInfo != null && radioInfo.imageUrl != null && !radioInfo.imageUrl.isEmpty()) {
+                        songImageUrl = radioInfo.imageUrl;
+                        thumbnailUrl = songImageUrl; // Use song image as main thumbnail
+                    } else if (logoUrl != null && !logoUrl.isEmpty()) {
+                        // Fallback to station logo if no song image
                         thumbnailUrl = logoUrl;
                     } else {
                         thumbnailUrl = "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png";
                     }
+                    
+                    source = stationName != null ? stationName : "Radio Stream";
+                    
+                    // Save radio info for return value
+                    radioLogoUrl = logoUrl;
+                    radioSongImageUrl = songImageUrl;
                     
                     // Special case for Gensokyo Radio
                     if (audioHandler.isGensokyoRadioTrack(track)) {
@@ -238,14 +316,18 @@ public class MusicService {
                         // Try to get album art from Gensokyo Agent
                         try {
                             dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-                            if (info != null && info.getMisc() != null && info.getMisc().getFullAlbumArtUrl() != null) {
-                                String albumArtUrl = info.getMisc().getFullAlbumArtUrl();
-                                if (!albumArtUrl.isEmpty()) {
-                                    thumbnailUrl = albumArtUrl;
+                            if (info != null) {
+                                // Get album art if available
+                                if (info.getMisc() != null && info.getMisc().getFullAlbumArtUrl() != null) {
+                                    String albumArtUrl = info.getMisc().getFullAlbumArtUrl();
+                                    if (!albumArtUrl.isEmpty()) {
+                                        thumbnailUrl = albumArtUrl;
+                                    }
                                 }
                             }
                         } catch (Exception e) {
                             // Fall back to logo if there's an error
+                            System.out.println("Error fetching Gensokyo Radio album art: " + e.getMessage());
                         }
                     }
                     break;
@@ -263,29 +345,34 @@ public class MusicService {
                     break;
                     
                 case LOCAL:
-                    sourceType = "Local";
+                    sourceType = "Local File";
                     source = "Local File";
                     
-                    // Check if we have local file metadata in RequestMetadata
+                    // Get local metadata from RequestMetadata or Bot's cache
                     if (rm != null && rm.hasLocalFileData()) {
-                        if (rm.getLocalFileAlbum() != null && !rm.getLocalFileAlbum().isEmpty()) {
-                            source = rm.getLocalFileAlbum();
+                        localAlbum = rm.getLocalFileAlbum();
+                        localGenre = rm.getLocalFileGenre();
+                        localYear = rm.getLocalFileYear();
+                        if (rm.getLocalFileArtworkHash() != null && !rm.getLocalFileArtworkHash().isEmpty()) {
+                            thumbnailUrl = "/" + rm.getLocalFileArtworkHash(); // Prepend /
+                        }
+                    } else {
+                        // Fallback to bot's cache if RM is not populated (should be less common now)
+                        dev.cosgy.jmusicbot.util.LocalAudioMetadata.LocalTrackInfo cachedInfo = 
+                            bot.getLocalMetadataCache().get(track.getInfo().identifier);
+                        if (cachedInfo != null) {
+                            localAlbum = cachedInfo.getAlbum();
+                            localGenre = cachedInfo.getGenre();
+                            localYear = cachedInfo.getYear();
+                            if (cachedInfo.hasArtwork() && cachedInfo.getArtworkPath() != null) {
+                                thumbnailUrl = "/" + cachedInfo.getArtworkPath(); // Prepend /
+                            }
                         }
                     }
                     
-                    // Get artwork from local files cache if available
-                    String artworkPath = bot.getLocalArtworkUrl(track.getInfo().identifier);
-                    if (artworkPath != null && !artworkPath.isEmpty()) {
-                        java.io.File artworkFile = new java.io.File(artworkPath);
-                        if (artworkFile.exists() && artworkFile.isFile()) {
-                            // Transform the local path to a URL accessible from the web
-                            thumbnailUrl = "/api/artwork/" + track.getInfo().identifier;
-                        }
-                    }
-                    
-                    // Fall back to generic icon if no artwork
-                    if (thumbnailUrl.isEmpty()) {
-                        thumbnailUrl = "https://cdn-icons-png.flaticon.com/512/4725/4725478.png";
+                    // Default thumbnail if still none
+                    if (thumbnailUrl == null || thumbnailUrl.isEmpty()) {
+                        thumbnailUrl = "/images/default_local.png"; // Placeholder for default local
                     }
                     break;
                     
@@ -340,6 +427,94 @@ public class MusicService {
             // Get volume
             int volume = audioHandler.getPlayer().getVolume();
             
+            // Prepare Spotify info if this is a Spotify track
+            Map<String, Object> spotifyInfoMap = null;
+            if (trackType == AudioHandler.TrackType.SPOTIFY) {
+                dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotInfo = 
+                    audioHandler.getSpotifyTrackInfo();
+                if (spotInfo != null) {
+                    spotifyInfoMap = new HashMap<>();
+                    spotifyInfoMap.put("trackId", spotInfo.trackId);
+                    spotifyInfoMap.put("albumName", spotInfo.albumName);
+                    spotifyInfoMap.put("albumImageUrl", spotInfo.albumImageUrl);
+                    spotifyInfoMap.put("artistName", spotInfo.artistName);
+                    spotifyInfoMap.put("releaseYear", spotInfo.releaseYear);
+                }
+            }
+            // Add Gensokyo Radio metadata if applicable
+            else if (audioHandler.isGensokyoRadioTrack(track)) {
+                try {
+                    dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+                    if (info != null && info.getSonginfo() != null) {
+                        // Create gensokyoInfo map similar to spotifyInfo
+                        spotifyInfoMap = new HashMap<>();
+                        
+                        // Add album, circle, and year information
+                        if (info.getSonginfo().getAlbum() != null && !info.getSonginfo().getAlbum().isEmpty()) {
+                            spotifyInfoMap.put("albumName", info.getSonginfo().getAlbum());
+                        }
+                        
+                        if (info.getSonginfo().getCircle() != null && !info.getSonginfo().getCircle().isEmpty()) {
+                            spotifyInfoMap.put("circleName", info.getSonginfo().getCircle());
+                        }
+                        
+                        if (info.getSonginfo().getYear() != null && !info.getSonginfo().getYear().isEmpty()) {
+                            spotifyInfoMap.put("releaseYear", info.getSonginfo().getYear());
+                        }
+                        
+                        // Add album art URL if available
+                        if (info.getMisc() != null && info.getMisc().getFullAlbumArtUrl() != null) {
+                            String albumArtUrl = info.getMisc().getFullAlbumArtUrl();
+                            if (!albumArtUrl.isEmpty()) {
+                                spotifyInfoMap.put("albumImageUrl", albumArtUrl);
+                            }
+                        }
+                        
+                        // Add song time information if available
+                        if (info.getSongtimes() != null) {
+                            if (info.getSongtimes().getDuration() != null) {
+                                spotifyInfoMap.put("gensokyoDuration", info.getSongtimes().getDuration() * 1000); // Convert to milliseconds
+                            }
+                            
+                            if (info.getSongtimes().getPlayed() != null) {
+                                spotifyInfoMap.put("gensokyoPlayed", info.getSongtimes().getPlayed() * 1000); // Convert to milliseconds
+                            }
+                            
+                            if (info.getSongtimes().getRemaining() != null) {
+                                spotifyInfoMap.put("gensokyoRemaining", info.getSongtimes().getRemaining() * 1000); // Convert to milliseconds
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.out.println("Error fetching Gensokyo Radio metadata: " + e.getMessage());
+                }
+            }
+            
+            // Extract radio country and alias from the station path if this is a radio track
+            String radioCountry = null;
+            String radioAlias = null;
+            if (trackType == AudioHandler.TrackType.RADIO) {
+                // Get the station path from RequestMetadata first
+                String stationPath = null;
+                if (rm != null && rm.hasRadioData()) {
+                    stationPath = rm.getRadioStationPath();
+                }
+                
+                // Or try to get it from AudioHandler
+                if (stationPath == null) {
+                    stationPath = audioHandler.getCurrentRadioStationPath(track);
+                }
+                
+                // Extract country and alias from the path (format: "country/alias")
+                if (stationPath != null && stationPath.contains("/")) {
+                    String[] parts = stationPath.split("/");
+                    if (parts.length >= 2) {
+                        radioCountry = parts[0];
+                        radioAlias = parts[1];
+                    }
+                }
+            }
+            
             return new MusicStatus(
                     track.getInfo().title,
                     track.getInfo().author,
@@ -355,11 +530,20 @@ public class MusicService {
                     requesterName,
                     requesterAvatar,
                     volume,
-                    sourceType
+                    sourceType,
+                    inVoiceChannel,
+                    spotifyInfoMap,
+                    trackType == AudioHandler.TrackType.RADIO ? radioLogoUrl : null,
+                    trackType == AudioHandler.TrackType.RADIO ? radioSongImageUrl : null,
+                    radioCountry,
+                    radioAlias,
+                    localAlbum,
+                    localGenre,
+                    localYear
             );
         }
         
-        // Return empty status if no track is playing
+        // Return empty status if no track is playing, but still include voice channel status
         return new MusicStatus(
                 "No track playing",
                 "",
@@ -375,7 +559,16 @@ public class MusicService {
                 "",
                 "",
                 100,
-                ""
+                "",
+                inVoiceChannel,
+                null, // spotifyInfo
+                null, // radioLogoUrl
+                null, // radioSongImageUrl
+                null, // radioCountry
+                null, // radioAlias
+                null, // localAlbum
+                null, // localGenre
+                null  // localYear
         );
     }
     
@@ -413,7 +606,7 @@ public class MusicService {
                     // Get source type and thumbnail
                     String sourceType = "Unknown";
                     String source = "Unknown";
-                    String thumbnailUrl = "";
+                    String thumbnailUrl = ""; // Initialize thumbnailUrl
                     
                     // Determine track type using AudioHandler methods
                     AudioHandler.TrackType trackType = handler.get().getTrackType(track);
@@ -447,24 +640,36 @@ public class MusicService {
                             sourceType = "Spotify";
                             source = "Spotify";
                             
-                            // For queue items, just use the Spotify logo
-                            thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
-                            
-                            // Try to get actual album art from SpotifyCmd
-                            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotifyInfo = 
-                                handler.get().getSpotifyTrackInfo();
-                            if (spotifyInfo != null && spotifyInfo.albumImageUrl != null && !spotifyInfo.albumImageUrl.isEmpty()) {
-                                thumbnailUrl = spotifyInfo.albumImageUrl;
+                            String spotifyTrackId = null;
+                            if (track.getUserData(RequestMetadata.class) != null && 
+                                track.getUserData(RequestMetadata.class).hasSpotifyData()) {
+                                spotifyTrackId = track.getUserData(RequestMetadata.class).getSpotifyTrackId();
+                                
+                                if (spotifyTrackId != null) {
+                                    String albumUrl = dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.albumImageUrls.get(spotifyTrackId);
+                                    if (albumUrl != null && !albumUrl.isEmpty()) {
+                                        thumbnailUrl = albumUrl;
+                                    } else {
+                                        thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
+                                    }
+                                } else {
+                                    thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
+                                }
+                            } else {
+                                dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.SpotifyTrackInfo spotifyInfo = 
+                                    handler.get().getSpotifyTrackInfo(); // This might be null if not the current playing track
+                                if (spotifyInfo != null && spotifyInfo.albumImageUrl != null && !spotifyInfo.albumImageUrl.isEmpty()) {
+                                    thumbnailUrl = spotifyInfo.albumImageUrl;
+                                } else {
+                                    thumbnailUrl = "https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png";
+                                }
                             }
                             break;
                             
                         case RADIO:
                             sourceType = "Radio";
-                            
-                            // For radio streams in queue, only show the logo since content changes
                             String stationName = handler.get().getRadioStationName(track);
                             String logoUrl = handler.get().getRadioLogoUrl(track);
-                            
                             source = stationName != null ? stationName : "Radio Stream";
                             
                             if (logoUrl != null && !logoUrl.isEmpty()) {
@@ -473,7 +678,6 @@ public class MusicService {
                                 thumbnailUrl = "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png";
                             }
                             
-                            // Special case for Gensokyo Radio
                             if (handler.get().isGensokyoRadioTrack(track)) {
                                 sourceType = "Gensokyo Radio";
                                 source = "Gensokyo Radio";
@@ -484,8 +688,6 @@ public class MusicService {
                         case SOUNDCLOUD:
                             sourceType = "SoundCloud";
                             source = "SoundCloud";
-                            
-                            // Use the artwork URL if available
                             if (track.getInfo().artworkUrl != null && !track.getInfo().artworkUrl.isEmpty()) {
                                 thumbnailUrl = track.getInfo().artworkUrl;
                             } else {
@@ -494,11 +696,14 @@ public class MusicService {
                             break;
                             
                         case LOCAL:
-                            sourceType = "Local";
+                            sourceType = "Local File"; // Corrected sourceType to match other places
                             source = "Local File";
-                            
-                            // For local files in queue, use the generic icon
-                            thumbnailUrl = "https://cdn-icons-png.flaticon.com/512/4725/4725478.png";
+                            // Get the artwork path for local files
+                            thumbnailUrl = bot.getLocalArtworkPath(track.getIdentifier()); 
+                            if (thumbnailUrl == null || thumbnailUrl.isEmpty()) {
+                                // Fallback icon if no artwork path is found
+                                thumbnailUrl = "https://cdn-icons-png.flaticon.com/512/4725/4725478.png"; 
+                            }
                             break;
                             
                         default: // OTHER or unknown types
@@ -535,16 +740,53 @@ public class MusicService {
                         requesterAvatar = rm.user.avatar;
                     }
                     
+                    // For Spotify tracks, prepare info map
+                    Map<String, Object> spotifyInfoMap = null;
+                    if (trackType == AudioHandler.TrackType.SPOTIFY) {
+                        // Try to get Spotify track ID from metadata
+                        if (rm != null && rm.hasSpotifyData()) {
+                            spotifyInfoMap = new HashMap<>();
+                            spotifyInfoMap.put("trackId", rm.getSpotifyTrackId());
+                        }
+                    }
+                    
+                    // For Radio tracks, extract radio station URL and path components for proper URLs
+                    String radioStationUrl = null;
+                    String radioCountry = null;
+                    String radioAlias = null;
+                    if (trackType == AudioHandler.TrackType.RADIO) {
+                        // Extract station path
+                        String stationPath = handler.get().getCurrentRadioStationPath(track);
+                        
+                        // Extract country and alias from the path (format: "country/alias")
+                        if (stationPath != null && stationPath.contains("/")) {
+                            String[] parts = stationPath.split("/");
+                            if (parts.length >= 2) {
+                                radioCountry = parts[0];
+                                radioAlias = parts[1];
+                                
+                                // Construct station URL
+                                radioStationUrl = "https://onlineradiobox.com/" + radioCountry + "/" + radioAlias + "/";
+                            }
+                        }
+                    }
+                    
+                    // Create the queue track with all necessary info
                     return new QueueTrack(
+                            handler.get().getQueue().getList().indexOf(queuedTrack), // position
                             track.getInfo().title,
                             track.getInfo().author,
                             track.getInfo().uri,
-                            track.getDuration(),
                             thumbnailUrl,
+                            track.getDuration(),
+                            source,
+                            sourceType,
                             requesterName,
                             requesterAvatar,
-                            source,
-                            sourceType
+                            spotifyInfoMap,
+                            radioStationUrl,
+                            radioCountry,
+                            radioAlias
                     );
                 })
                 .collect(Collectors.toList());
@@ -563,73 +805,155 @@ public class MusicService {
      * @return A CompletableFuture that will be completed with a result message
      */
     public CompletableFuture<String> addTrackByUrl(String url) {
-        CompletableFuture<String> result = new CompletableFuture<>();
+        CompletableFuture<String> future = new CompletableFuture<>();
         
-        Optional<AudioHandler> handler = getAudioHandler();
-        
-        if (handler.isEmpty()) {
-            result.complete("No audio handler found for the selected guild");
-            return result;
+        try {
+            Optional<AudioHandler> handler = getAudioHandler();
+            if (handler.isEmpty()) {
+                future.complete("No audio handler found for the selected guild");
+                return future;
+            }
+            
+            AudioHandler audioHandler = handler.get();
+            
+            getAudioManager().loadItemOrdered(bot.getJDA().getGuildById(selectedGuildId), url, new AudioLoadResultHandler() {
+                @Override
+                public void trackLoaded(AudioTrack track) {
+                    // Always use the bot's self user for metadata instead of null
+                    RequestMetadata rm = new RequestMetadata(bot.getJDA().getSelfUser());
+                    QueuedTrack qtrack = new QueuedTrack(track, rm);
+                    
+                    int position = audioHandler.addTrack(qtrack) + 1;
+                    future.complete("Added track: " + track.getInfo().title + (position == 0 ? " (now playing)" : " at position " + position));
+                }
+                
+                @Override
+                public void playlistLoaded(AudioPlaylist playlist) {
+                    if (playlist.getTracks().isEmpty()) {
+                        future.complete("Playlist is empty");
+                        return;
+                    }
+                    
+                    if (playlist.isSearchResult()) {
+                        AudioTrack track = playlist.getTracks().get(0);
+                        // Always use the bot's self user for metadata instead of null
+                        RequestMetadata rm = new RequestMetadata(bot.getJDA().getSelfUser());
+                        QueuedTrack qtrack = new QueuedTrack(track, rm);
+                        
+                        int position = audioHandler.addTrack(qtrack) + 1;
+                        future.complete("Added track: " + track.getInfo().title + (position == 0 ? " (now playing)" : " at position " + position));
+                    } else {
+                        int count = 0;
+                        int position = -1;
+                        
+                        for (int i = 0; i < playlist.getTracks().size() && i < 10; i++) {
+                            AudioTrack track = playlist.getTracks().get(i);
+                            // Always use the bot's self user for metadata instead of null
+                            RequestMetadata rm = new RequestMetadata(bot.getJDA().getSelfUser());
+                            QueuedTrack qtrack = new QueuedTrack(track, rm);
+                            
+                            if (position == -1) {
+                                position = audioHandler.addTrack(qtrack) + 1;
+                            } else {
+                                audioHandler.addTrack(qtrack);
+                            }
+                            count++;
+                        }
+                        
+                        future.complete("Added " + count + " tracks from playlist: " + playlist.getName());
+                    }
+                }
+                
+                @Override
+                public void noMatches() {
+                    future.complete("No matches found for: " + url);
+                }
+                
+                @Override
+                public void loadFailed(FriendlyException exception) {
+                    future.complete("Failed to load track: " + exception.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            future.complete("Error adding track: " + e.getMessage());
         }
         
-        AudioHandler audioHandler = handler.get();
+        return future;
+    }
+    
+    /**
+     * Adds a track to the front of the queue (play next) by URL
+     * @param url The URL of the track to add
+     * @return A CompletableFuture that will be completed with a result message
+     */
+    public CompletableFuture<String> playNextTrackByUrl(String url) {
+        CompletableFuture<String> future = new CompletableFuture<>();
         
-        getAudioManager().loadItem(url, new AudioLoadResultHandler() {
-            @Override
-            public void trackLoaded(AudioTrack track) {
-                // Use a RequestMetadata object with 0 as the owner ID to indicate it came from the web panel
-                RequestMetadata rm = new RequestMetadata(null);
-                track.setUserData(rm);
-                
-                // Add track to queue
-                audioHandler.addTrack(new QueuedTrack(track, rm));
-                result.complete("Added track: " + track.getInfo().title);
+        try {
+            Optional<AudioHandler> handler = getAudioHandler();
+            if (handler.isEmpty()) {
+                future.complete("No audio handler found for the selected guild");
+                return future;
             }
-
-            @Override
-            public void playlistLoaded(AudioPlaylist playlist) {
-                if (playlist.getTracks().isEmpty()) {
-                    result.complete("Playlist is empty");
-                    return;
-                }
-                
-                int count = 0;
-                
-                // If it's a search result, just add the first track
-                if (playlist.isSearchResult()) {
-                    AudioTrack track = playlist.getTracks().get(0);
-                    RequestMetadata rm = new RequestMetadata(null);
-                    track.setUserData(rm);
+            
+            AudioHandler audioHandler = handler.get();
+            
+            getAudioManager().loadItemOrdered(bot.getJDA().getGuildById(selectedGuildId), url, new AudioLoadResultHandler() {
+                @Override
+                public void trackLoaded(AudioTrack track) {
+                    // Always use the bot's self user for metadata instead of null
+                    RequestMetadata rm = new RequestMetadata(bot.getJDA().getSelfUser());
+                    QueuedTrack qtrack = new QueuedTrack(track, rm);
                     
-                    audioHandler.addTrack(new QueuedTrack(track, rm));
-                    result.complete("Added track: " + track.getInfo().title);
-                    return;
+                    int position = audioHandler.addTrackToFront(qtrack) + 1;
+                    future.complete("Added track to position " + position + ": " + track.getInfo().title);
                 }
                 
-                // Add all tracks from the playlist
-                for (AudioTrack track : playlist.getTracks()) {
-                    RequestMetadata rm = new RequestMetadata(null);
-                    track.setUserData(rm);
+                @Override
+                public void playlistLoaded(AudioPlaylist playlist) {
+                    if (playlist.getTracks().isEmpty()) {
+                        future.complete("Playlist is empty");
+                        return;
+                    }
                     
-                    audioHandler.addTrack(new QueuedTrack(track, rm));
-                    count++;
+                    if (playlist.isSearchResult()) {
+                        AudioTrack track = playlist.getTracks().get(0);
+                        // Always use the bot's self user for metadata instead of null
+                        RequestMetadata rm = new RequestMetadata(bot.getJDA().getSelfUser());
+                        QueuedTrack qtrack = new QueuedTrack(track, rm);
+                        
+                        int position = audioHandler.addTrackToFront(qtrack) + 1;
+                        future.complete("Added track to position " + position + ": " + track.getInfo().title);
+                    } else {
+                        // Only add the first 5 songs from playlists when using playnext
+                        for (int i = Math.min(4, playlist.getTracks().size() - 1); i >= 0; i--) {
+                            AudioTrack track = playlist.getTracks().get(i);
+                            // Always use the bot's self user for metadata instead of null
+                            RequestMetadata rm = new RequestMetadata(bot.getJDA().getSelfUser());
+                            QueuedTrack qtrack = new QueuedTrack(track, rm);
+                            audioHandler.addTrackToFront(qtrack);
+                        }
+                        
+                        future.complete("Added first " + Math.min(5, playlist.getTracks().size()) + 
+                            " tracks from playlist: " + playlist.getName() + " to the front of the queue");
+                    }
                 }
                 
-                result.complete("Added " + count + " tracks from playlist");
-            }
-
-            @Override
-            public void noMatches() {
-                result.complete("No matches found for the URL");
-            }
-
-            @Override
-            public void loadFailed(FriendlyException exception) {
-                result.complete("Failed to load track: " + exception.getMessage());
-            }
-        });
+                @Override
+                public void noMatches() {
+                    future.complete("No matches found for: " + url);
+                }
+                
+                @Override
+                public void loadFailed(FriendlyException exception) {
+                    future.complete("Failed to load track: " + exception.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            future.complete("Error adding track: " + e.getMessage());
+        }
         
-        return result;
+        return future;
     }
     
     /**
@@ -673,7 +997,15 @@ public class MusicService {
                 
         if (handler.isPresent()) {
             AudioHandler audioHandler = handler.get();
-            audioHandler.getPlayer().stopTrack();
+            
+            // Stop playback and clear the queue, similar to how StopCmd works
+            audioHandler.stopAndClear();
+            
+            // Close audio connection to leave the voice channel
+            if (bot.getJDA().getGuildById(selectedGuildId) != null) {
+                bot.getJDA().getGuildById(selectedGuildId).getAudioManager().closeAudioConnection();
+            }
+            
             return true;
         }
         return false;
@@ -693,19 +1025,51 @@ public class MusicService {
             AudioTrack track = audioHandler.getPlayer().getPlayingTrack();
             
             if (track != null && track.isSeekable()) {
-                try {
-                    // Verify the position is within the track's duration
-                    if (position >= 0 && position <= track.getDuration()) {
-                        track.setPosition(position);
-                        return true;
-                    }
-                } catch (Exception e) {
-                    System.out.println("Web Panel: Error seeking track: " + e.getMessage());
-                    e.printStackTrace();
-                }
+                track.setPosition(position);
+                return true;
             }
         }
         return false;
+    }
+    
+    /**
+     * Gets the chapters for the currently playing YouTube track
+     * 
+     * @return List of chapter objects, or empty list if no chapters or not a YouTube track
+     */
+    public List<Map<String, Object>> getCurrentTrackChapters() {
+        Optional<AudioHandler> handler = getAudioHandler();
+        
+        if (handler.isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        AudioHandler audioHandler = handler.get();
+        AudioTrack currentTrack = audioHandler.getPlayer().getPlayingTrack();
+        
+        if (currentTrack == null) {
+            return Collections.emptyList();
+        }
+        
+        // Get YouTube chapter manager from bot
+        YouTubeChapterManager chapterManager = bot.getYoutubeChapterManager();
+        if (chapterManager == null) {
+            return Collections.emptyList();
+        }
+        
+        // Get chapters for the current track
+        List<YouTubeChapterExtractor.Chapter> chapters = chapterManager.getChapters(currentTrack);
+        
+        // Convert chapters to Maps for JSON serialization
+        return chapters.stream().map(chapter -> {
+            Map<String, Object> chapterMap = Map.of(
+                "name", chapter.getName(),
+                "startTimeMs", chapter.getStartTimeMs(),
+                "endTimeMs", chapter.getEndTimeMs(),
+                "durationMs", chapter.getDurationMs()
+            );
+            return chapterMap;
+        }).collect(Collectors.toList());
     }
     
     /**
@@ -760,5 +1124,197 @@ public class MusicService {
             }
         }
         return false;
+    }
+
+    /**
+     * Processes a Spotify track and adds it to the queue
+     * @param trackId The Spotify track ID
+     * @param playNext Whether to play the track next or add it to the end of the queue
+     * @return A message indicating the result of the operation
+     */
+    public String processSpotifyTrack(String trackId, boolean playNext) {
+        try {
+            // Get the access token using reflection
+            Field accessTokenField = dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.class.getDeclaredField("accessToken");
+            accessTokenField.setAccessible(true);
+            String accessToken = (String) accessTokenField.get(null);
+            
+            if (accessToken == null) {
+                return "Failed to authenticate with Spotify";
+            }
+            
+            // Get the Spotify track information
+            String endpoint = "https://api.spotify.com/v1/tracks/" + trackId;
+            HttpClient httpClient = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
+            
+            HttpRequest request = HttpRequest.newBuilder()
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Accept-Language", "en")
+                    .GET()
+                    .uri(URI.create(endpoint))
+                    .build();
+            
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            JSONObject json = new JSONObject(response.body());
+            String trackName = json.getString("name");
+            String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
+            String albumName = json.getJSONObject("album").getString("name");
+            String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
+            
+            // Extract release date information
+            String releaseDate = json.getJSONObject("album").getString("release_date");
+            String releaseDatePrecision = json.getJSONObject("album").getString("release_date_precision");
+            String releaseYear = extractReleaseYear(releaseDate, releaseDatePrecision);
+            
+            // Use the Audio Features endpoint to retrieve track information
+            endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
+            request = HttpRequest.newBuilder()
+                    .header("Authorization", "Bearer " + accessToken)
+                    .GET()
+                    .uri(URI.create(endpoint))
+                    .build();
+            
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            json = new JSONObject(response.body());
+            // Use a default value when valence key does not exist
+            double trackColor = json.has("valence") ? json.getDouble("valence") : 0.5;
+            
+            int hue = (int) (trackColor * 360);
+            Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
+            
+            // Store track information for NowplayingCmd using the static maps
+            String guildId = getSelectedGuildId();
+            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.lastTrackIds.put(guildId, trackId);
+            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.trackNames.put(trackId, trackName);
+            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.albumNames.put(trackId, albumName);
+            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.artistNames.put(trackId, artistName);
+            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.albumImageUrls.put(trackId, albumImageUrl);
+            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.trackColors.put(trackId, color);
+            dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd.releaseYears.put(trackId, releaseYear);
+            
+            // Create an embed with the track information to display
+            EmbedBuilder embed = new EmbedBuilder();
+            embed.setTitle("Track Information :");
+            embed.setDescription(
+                "**Title** : " + trackName + "\n" +
+                "**Album** : " + albumName + "\n" +
+                "**Artist** : " + artistName + "\n" +
+                "**Released** : " + releaseYear
+            );
+            embed.setImage(albumImageUrl);
+            embed.setColor(color);
+            
+            // Send the embed to the music channel if available
+            if (bot.getJDA().getGuildById(guildId) != null) {
+                // Get the settings for the guild
+                net.dv8tion.jda.api.entities.channel.concrete.TextChannel musicChannel = 
+                    bot.getSettingsManager().getSettings(bot.getJDA().getGuildById(guildId))
+                        .getTextChannel(bot.getJDA().getGuildById(guildId));
+                
+                if (musicChannel != null) {
+                    musicChannel.sendMessageEmbeds(embed.build()).queue();
+                }
+            }
+            
+            // Search for the track on YouTube Music and add it to the queue
+            CompletableFuture<String> future = new CompletableFuture<>();
+            String searchQuery = "ytmsearch:" + trackName + " " + artistName;
+            
+            // Get the player manager and load the item
+            Optional<AudioHandler> handler = getAudioHandler();
+            if (handler.isEmpty()) {
+                return "No audio handler found for the selected guild";
+            }
+            
+            AudioHandler audioHandler = handler.get();
+            
+            getAudioManager().loadItemOrdered(bot.getJDA().getGuildById(guildId), searchQuery, new AudioLoadResultHandler() {
+                @Override
+                public void trackLoaded(AudioTrack track) {
+                    // Create RequestMetadata with the Spotify track ID
+                    RequestMetadata rm = new RequestMetadata(bot.getJDA().getSelfUser());
+                    rm.setSpotifyTrackId(trackId);
+                    
+                    QueuedTrack qtrack = new QueuedTrack(track, rm);
+                    
+                    int pos;
+                    if (playNext) {
+                        pos = audioHandler.addTrackToFront(qtrack) + 1;
+                        future.complete("Added track to position " + pos + ": " + track.getInfo().title);
+                    } else {
+                        pos = audioHandler.addTrack(qtrack) + 1;
+                        future.complete("Added track: " + track.getInfo().title + 
+                                (pos == 0 ? " (now playing)" : " at position " + pos));
+                    }
+                }
+                
+                @Override
+                public void playlistLoaded(AudioPlaylist playlist) {
+                    if (playlist.getTracks().isEmpty()) {
+                        future.complete("Playlist is empty");
+                        return;
+                    }
+                    
+                    AudioTrack track = playlist.getTracks().get(0);
+                    RequestMetadata rm = new RequestMetadata(bot.getJDA().getSelfUser());
+                    rm.setSpotifyTrackId(trackId);
+                    
+                    QueuedTrack qtrack = new QueuedTrack(track, rm);
+                    
+                    int pos;
+                    if (playNext) {
+                        pos = audioHandler.addTrackToFront(qtrack) + 1;
+                        future.complete("Added track to position " + pos + ": " + track.getInfo().title);
+                    } else {
+                        pos = audioHandler.addTrack(qtrack) + 1;
+                        future.complete("Added track: " + track.getInfo().title + 
+                                (pos == 0 ? " (now playing)" : " at position " + pos));
+                    }
+                }
+                
+                @Override
+                public void noMatches() {
+                    future.complete("No matches found for: " + trackName + " by " + artistName);
+                }
+                
+                @Override
+                public void loadFailed(FriendlyException exception) {
+                    future.complete("Failed to load track: " + exception.getMessage());
+                }
+            });
+            
+            try {
+                return future.get(15, TimeUnit.SECONDS);
+            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                return "Error adding track: " + e.getMessage();
+            }
+            
+        } catch (Exception e) {
+            return "Error processing Spotify track: " + e.getMessage();
+        }
+    }
+    
+    /**
+     * Helper method to extract release year based on precision
+     */
+    private String extractReleaseYear(String releaseDate, String precision) {
+        if (releaseDate == null || releaseDate.isEmpty()) {
+            return "Unknown";
+        }
+        
+        switch (precision) {
+            case "year":
+                return releaseDate; // Already just the year
+            case "month":
+            case "day":
+                // Extract just the year part (first 4 characters)
+                if (releaseDate.length() >= 4) {
+                    return releaseDate.substring(0, 4);
+                }
+            default:
+                return releaseDate;
+        }
     }
 } 

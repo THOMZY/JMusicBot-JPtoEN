@@ -1,0 +1,471 @@
+/**
+ * Modal styles for JMusicBot Web Panel
+ */
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background-color: var(--darker-bg);
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    position: relative;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-title {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--muted-text);
+    font-size: 24px;
+    cursor: pointer;
+}
+
+.modal-close:hover {
+    color: var(--light-text);
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+/* Bot Profile Modal Styles */
+.bot-profile-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.current-profile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    background-color: var(--darkest-bg);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    position: relative;
+}
+
+.profile-banner-container {
+    width: 100%;
+    height: 120px;
+    overflow: hidden;
+    position: relative;
+    background-color: var(--dark-bg);
+}
+
+.profile-banner {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--primary-color);
+    margin-bottom: 10px;
+    z-index: 10;
+    margin-top: -40px;
+    background-color: var(--darkest-bg);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.profile-name {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+.profile-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-section label {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.input-with-button {
+    display: flex;
+    gap: 10px;
+}
+
+.input-with-button input {
+    flex: 1;
+    padding: 10px 15px;
+    background-color: var(--darkest-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: white;
+    font-size: 16px;
+}
+
+.input-with-button input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.input-with-button button {
+    white-space: nowrap;
+}
+
+.profile-info-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    padding: 0 20px;
+    text-align: center;
+    background-color: var(--darkest-bg);
+}
+
+/**
+ * Console styles for JMusicBot Web Panel
+ */
+
+/* Console Specific */
+.console-container {
+    background-color: var(--darkest-bg);
+    border-radius: 4px;
+    height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+    font-family: monospace;
+    line-height: 1.4;
+    margin-bottom: 15px;
+}
+
+.console-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.console-log-entry {
+    padding: 2px 0;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.console-log-entry.command {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+.console-log-entry.error {
+    color: var(--error-color);
+}
+
+.console-log-entry.info {
+    color: var(--success-color);
+}
+
+.console-input {
+    display: flex;
+    gap: 10px;
+}
+
+.console-input input {
+    flex: 1;
+    padding: 10px;
+    background-color: var(--dark-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: white;
+}
+
+/* Config Specific */
+.config-editor {
+    width: 100%;
+    height: 400px;
+    background-color: var(--darkest-bg);
+    color: white;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 10px;
+    font-family: monospace;
+    resize: vertical;
+    margin-bottom: 15px;
+} 
+
+/**
+* Command styles for JMusicBot Web Panel
+*/
+
+/* Command Modal Styles */
+.command-input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+}
+
+.command-form {
+    width: 100%;
+}
+
+.command-input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.command-input-box {
+    display: flex;
+    gap: 10px;
+}
+
+.command-autocomplete {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: var(--darkest-bg);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    z-index: 10;
+    display: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.command-autocomplete.show {
+    display: block;
+}
+
+.command-suggestion {
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.command-suggestion:hover,
+.command-suggestion.selected {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.command-suggestion-name {
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.command-suggestion-args {
+    color: var(--muted-text);
+    font-style: italic;
+    margin-left: 8px;
+}
+
+.command-suggestion-help {
+    color: var(--muted-text);
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.command-preview {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: var(--darkest-bg);
+    border-radius: 4px;
+    border-left: 3px solid var(--primary-color);
+    display: none;
+}
+
+.command-preview.show {
+    display: block;
+}
+
+.preview-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.preview-title i {
+    font-size: 14px;
+}
+
+.preview-description {
+    color: var(--light-text);
+    margin-bottom: 10px;
+}
+
+.preview-arguments {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 10px;
+}
+
+.preview-argument {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.argument-name {
+    font-weight: bold;
+    color: var(--primary-color);
+    min-width: 100px;
+}
+
+.argument-description {
+    color: var(--muted-text);
+}
+
+.argument-required {
+    color: var(--error-color);
+    font-size: 12px;
+    border: 1px solid var(--error-color);
+    padding: 2px 5px;
+    border-radius: 3px;
+    margin-left: auto;
+}
+
+.argument-optional {
+    color: var(--success-color);
+    font-size: 12px;
+    border: 1px solid var(--success-color);
+    padding: 2px 5px;
+    border-radius: 3px;
+    margin-left: auto;
+}
+
+.command-history {
+    background-color: var(--darkest-bg);
+    border-radius: 4px;
+    padding: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.command-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 10px;
+}
+
+.command-history-title {
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.command-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.command-history-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.command-history-item:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.command-history-command {
+    color: var(--primary-color);
+    font-family: 'Consolas', monospace;
+}
+
+.command-history-response {
+    color: var(--muted-text);
+    font-size: 14px;
+}
+
+#command-input {
+    width: 100%;
+    padding: 10px 15px;
+    background-color: var(--darkest-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--light-text);
+    font-family: 'Consolas', monospace;
+}
+
+#command-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+#execute-command-btn {
+    min-width: 120px;
+    background-color: var(--primary-color);
+    color: white;
+    white-space: nowrap;
+}
+
+#execute-command-btn:hover {
+    background-color: var(--primary-hover);
+}
+
+#clear-history-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+}
+
+#clear-history-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}

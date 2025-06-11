@@ -1,0 +1,56 @@
+<!-- Header Component for JMusicBot Web Panel -->
+<div class="header-container">
+    <div class="logo-area">
+        <a href="javascript:window.location.reload();" class="logo" title="Refresh Current Page">JMusicBot</a>
+        <div class="server-dropdown">
+            <button class="server-select-btn" id="server-dropdown-btn">
+                <img class="server-icon" id="selected-server-icon" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="Server Icon">
+                <span class="server-name" id="selected-server-name">...</span>
+                <i class="fas fa-chevron-down dropdown-arrow"></i>
+            </button>
+            <div class="server-dropdown-content" id="server-dropdown-content">
+                <!-- Server items will be added here dynamically -->
+            </div>
+        </div>
+    </div>
+    <div class="nav-buttons">
+        <button class="bot-profile-btn" id="bot-profile-btn">
+            <div class="bot-avatar-container">
+                <img class="bot-avatar" id="bot-avatar" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="Bot Avatar">
+                <div class="status-indicator" id="bot-status-indicator"></div>
+            </div>
+            <span class="bot-name" id="bot-name">...</span>
+        </button>
+        <button class="nav-btn" id="player-btn">
+            <i class="fas fa-play"></i> Player
+        </button>
+        <button class="nav-btn" id="history-btn">
+            <i class="fas fa-history"></i> History
+        </button>
+        <button class="nav-btn" id="channels-btn">
+            <i class="fas fa-hashtag"></i> Channels
+        </button>  
+        
+        <!-- Advanced Options Dropdown -->
+        <div class="advanced-dropdown">
+            <button class="advanced-dropdown-btn" id="advanced-dropdown-btn">
+                <i class="fas fa-ellipsis-v"></i> -
+                <i class="fas fa-chevron-down dropdown-arrow"></i>
+            </button>
+            <div class="advanced-dropdown-content" id="advanced-dropdown-content">
+                <button class="dropdown-item" id="commands-btn">
+                    <i class="fas fa-pencil"></i> Commands
+                </button>
+                <button class="dropdown-item" id="console-btn">
+                    <i class="fas fa-terminal"></i> Console
+                </button>
+                <button class="dropdown-item" id="config-btn">
+                    <i class="fas fa-cog"></i> Config
+                </button>
+                <button class="dropdown-item" id="reboot-btn">
+                    <i class="fas fa-sync"></i> Reboot
+                </button>
+            </div>
+        </div>
+    </div>
+</div> 

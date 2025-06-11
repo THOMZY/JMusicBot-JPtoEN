@@ -235,6 +235,15 @@ public class IcyMetadataHandler {
     }
     
     /**
+     * Start monitoring a stream for ICY metadata updates
+     * @param track The audio track to monitor
+     * @param guildId The guild ID as a long
+     */
+    public void startMonitoring(AudioTrack track, long guildId) {
+        startMonitoring(String.valueOf(guildId), track);
+    }
+    
+    /**
      * Stop monitoring a stream for ICY metadata updates
      * @param guildId The guild ID
      */
@@ -353,57 +362,44 @@ public class IcyMetadataHandler {
             return;
         }
         
+        // Store previous track title for comparison
+        final String previousTrackTitle = metadata.getCurrentTrack();
+        
         // Start a separate thread for network operations
         new Thread(() -> {
             try {
-                // First try using HTTP request with Icy-MetaData header
-                tryIcyMetadataRequest(trackUrl, metadata);
+                // Try various methods to get metadata
+                boolean success = false;
                 
-                // If that fails, try using the ListenAPI for known radio stations
-                if (metadata.hasFailed()) {
-                    tryListenApiLookup(trackUrl, metadata);
-                }
+                // First try to fetch ICY metadata directly
+                success = fetchIcyMetadata(trackUrl, metadata);
                 
-                // If still no success, try RadioBrowser API as last resort
-                if (metadata.hasFailed() || metadata.getCurrentTrack().isEmpty()) {
+                // If that failed, try looking up in Radio Browser
+                if (!success) {
                     tryRadioBrowserLookup(trackUrl, metadata);
                 }
                 
-                // Update station logo if missing
-                if (metadata.getStationLogo().isEmpty()) {
-                    tryFindStationLogo(metadata.getStationName(), metadata);
+                // If that failed too, try ListenAPI
+                if (metadata.getCurrentTrack().isEmpty()) {
+                    tryListenAPILookup(trackUrl, metadata);
                 }
                 
-                // Update album art if missing but we have artist and title
-                if (metadata.getAlbumArt().isEmpty() && 
-                    !metadata.getArtist().isEmpty() && 
-                    !metadata.getTitle().isEmpty()) {
-                    tryFindAlbumArt(metadata.getArtist(), metadata.getTitle(), metadata);
+                // If all methods failed, try to extract info from track title
+                if (metadata.getCurrentTrack().isEmpty() && trackTitle != null && !trackTitle.isEmpty()) {
+                    metadata.updateFromStreamTitle(trackTitle);
                 }
                 
-                // Get the current track from the player to ensure it's still the same
-                Guild guild = bot.getJDA().getGuildById(guildId);
-                if (guild != null) {
-                    AudioHandler handler = (AudioHandler) guild.getAudioManager().getSendingHandler();
-                    if (handler != null) {
-                        AudioTrack currentTrack = handler.getPlayer().getPlayingTrack();
-                        
-                        // Only update if we're still playing the same track
-                        if (currentTrack != null && currentTrack.getInfo().uri.equals(trackUrl)) {
-                            // Update the track with the new metadata
-                            updateTrackWithMetadata(currentTrack, metadata);
-                            
-                            // Update the nowplaying display with the new metadata
-                            bot.getNowplayingHandler().onTrackUpdate(guild.getIdLong(), currentTrack, handler);
-                            
-                            // Update the channel topic as well
-                            bot.getNowplayingHandler().updateTopic(guild.getIdLong(), handler, false);
-                        }
-                    }
+                // Check if the track has changed
+                String currentTrack = metadata.getCurrentTrack();
+                if (!currentTrack.isEmpty() && !currentTrack.equals(previousTrackTitle)) {
+                    // Track has changed, add it to music history
+                    addChangedTrackToHistory(guildId, track, metadata);
                 }
+                
+                // Update the lastUpdated timestamp
+                metadata.setLastUpdated(System.currentTimeMillis());
                 
             } catch (Exception e) {
-                // Log error but don't crash
                 System.out.println("Error fetching ICY metadata: " + e.getMessage());
                 metadata.setFailed(true);
             }
@@ -415,7 +411,7 @@ public class IcyMetadataHandler {
      * @param streamUrl The stream URL
      * @param metadata The metadata object to update
      */
-    private void tryIcyMetadataRequest(String streamUrl, StreamMetadata metadata) {
+    private boolean fetchIcyMetadata(String streamUrl, StreamMetadata metadata) {
         HttpURLConnection connection = null;
         InputStream in = null;
         
@@ -481,12 +477,14 @@ public class IcyMetadataHandler {
                 String location = connection.getHeaderField("Location");
                 if (location != null && !location.equals(streamUrl)) {
                     // Follow the redirect
-                    tryIcyMetadataRequest(location, metadata);
+                    return false;
                 }
             }
             
+            return true;
         } catch (Exception e) {
             metadata.setFailed(true);
+            return false;
         } finally {
             try {
                 if (in != null) in.close();
@@ -569,7 +567,7 @@ public class IcyMetadataHandler {
      * @param streamUrl The stream URL
      * @param metadata The metadata to update
      */
-    private void tryListenApiLookup(String streamUrl, StreamMetadata metadata) {
+    private void tryListenAPILookup(String streamUrl, StreamMetadata metadata) {
         try {
             // This is a placeholder - a real implementation would use an actual Radio API
             // This is just to illustrate the concept
@@ -757,6 +755,63 @@ public class IcyMetadataHandler {
         }
         
         return track;
+    }
+    
+    /**
+     * Add a changed stream track to the music history
+     * @param guildId The guild ID
+     * @param track The current audio track
+     * @param metadata The stream metadata with new information
+     */
+    private void addChangedTrackToHistory(String guildId, AudioTrack track, StreamMetadata metadata) {
+        // Only add if we have meaningful metadata
+        if (metadata.getCurrentTrack().isEmpty()) {
+            return;
+        }
+        
+        try {
+            // Get the guild from the ID
+            long guildIdLong = Long.parseLong(guildId);
+            net.dv8tion.jda.api.entities.Guild guild = bot.getJDA().getGuildById(guildIdLong);
+            if (guild == null) return;
+            
+            // Get the audio handler
+            AudioHandler handler = (AudioHandler) guild.getAudioManager().getSendingHandler();
+            if (handler == null) return;
+            
+            // Skip Gensokyo Radio tracks as they are handled by their own dedicated handler
+            if (handler.isGensokyoRadioTrack(track)) {
+                return;
+            }
+            
+            // Create a copy of the track to avoid modifying the playing one
+            AudioTrack trackCopy = track.makeClone();
+            
+            // Update the title to include the current song
+            try {
+                java.lang.reflect.Field titleField = trackCopy.getInfo().getClass().getDeclaredField("title");
+                titleField.setAccessible(true);
+                titleField.set(trackCopy.getInfo(), metadata.getCurrentTrack());
+            } catch (Exception e) {
+                System.err.println("Error setting title on track copy: " + e.getMessage());
+            }
+            
+            // Create or update RequestMetadata
+            RequestMetadata rm;
+            if (trackCopy.getUserData() instanceof RequestMetadata) {
+                rm = (RequestMetadata) trackCopy.getUserData();
+            } else {
+                rm = new RequestMetadata(null); // Use null as there's no user
+                trackCopy.setUserData(rm);
+            }
+            
+            // Add the track to history
+            bot.getMusicHistory().addTrack(trackCopy, handler);
+            
+            System.out.println("Added changed stream track to history: " + metadata.getCurrentTrack());
+        } catch (Exception e) {
+            System.err.println("Error adding stream track to history: " + e.getMessage());
+        }
     }
     
     /**

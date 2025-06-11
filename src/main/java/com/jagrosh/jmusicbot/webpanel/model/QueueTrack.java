@@ -4,119 +4,130 @@
 
 package com.jagrosh.jmusicbot.webpanel.model;
 
+import java.util.Map;
+
 /**
- * Represents a track in the queue for the web panel
+ * Data class for a track in the queue
  */
 public class QueueTrack {
-    private String title;
-    private String author;
-    private String uri;
-    private long duration;
-    private String thumbnailUrl;
-    private String requester;
-    private String requesterAvatar;
-    private String source;
-    private String sourceType;
+    private final int position;
+    private final String title;
+    private final String author;
+    private final String uri;
+    private final String thumbnail;
+    private final long duration;
+    private final String source;
+    private final String sourceType;
+    private final String requester;
+    private final String requesterAvatar;
+    private final Map<String, Object> spotifyInfo;
+    private final String radioStationUrl;
+    private final String radioCountry;
+    private final String radioAlias;
 
-    public QueueTrack() {
+    public QueueTrack(
+            int position,
+            String title,
+            String author,
+            String uri,
+            String thumbnail,
+            long duration,
+            String source,
+            String sourceType,
+            String requester,
+            String requesterAvatar,
+            Map<String, Object> spotifyInfo,
+            String radioStationUrl
+    ) {
+        this(position, title, author, uri, thumbnail, duration, source, sourceType, 
+            requester, requesterAvatar, spotifyInfo, radioStationUrl, null, null);
     }
-
-    public QueueTrack(String title, String author, String uri, long duration) {
+    
+    public QueueTrack(
+            int position,
+            String title,
+            String author,
+            String uri,
+            String thumbnail,
+            long duration,
+            String source,
+            String sourceType,
+            String requester,
+            String requesterAvatar,
+            Map<String, Object> spotifyInfo,
+            String radioStationUrl,
+            String radioCountry,
+            String radioAlias
+    ) {
+        this.position = position;
         this.title = title;
         this.author = author;
         this.uri = uri;
+        this.thumbnail = thumbnail;
         this.duration = duration;
-        this.thumbnailUrl = "";
-        this.requester = "";
-        this.requesterAvatar = "";
-        this.source = "";
-        this.sourceType = "";
-    }
-
-    public QueueTrack(String title, String author, String uri, long duration, 
-                    String thumbnailUrl, String requester, String requesterAvatar,
-                    String source, String sourceType) {
-        this.title = title;
-        this.author = author;
-        this.uri = uri;
-        this.duration = duration;
-        this.thumbnailUrl = thumbnailUrl;
-        this.requester = requester;
-        this.requesterAvatar = requesterAvatar;
         this.source = source;
         this.sourceType = sourceType;
+        this.requester = requester;
+        this.requesterAvatar = requesterAvatar;
+        this.spotifyInfo = spotifyInfo;
+        this.radioStationUrl = radioStationUrl;
+        this.radioCountry = radioCountry;
+        this.radioAlias = radioAlias;
     }
 
-    // Getters and setters
+    public int getPosition() {
+        return position;
+    }
+
     public String getTitle() {
         return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
     }
 
     public String getAuthor() {
         return author;
     }
 
-    public void setAuthor(String author) {
-        this.author = author;
-    }
-
     public String getUri() {
         return uri;
     }
 
-    public void setUri(String uri) {
-        this.uri = uri;
+    public String getThumbnail() {
+        return thumbnail;
     }
 
     public long getDuration() {
         return duration;
     }
 
-    public void setDuration(long duration) {
-        this.duration = duration;
-    }
-    
-    public String getThumbnailUrl() {
-        return thumbnailUrl;
-    }
-    
-    public void setThumbnailUrl(String thumbnailUrl) {
-        this.thumbnailUrl = thumbnailUrl;
-    }
-    
-    public String getRequester() {
-        return requester;
-    }
-    
-    public void setRequester(String requester) {
-        this.requester = requester;
-    }
-    
-    public String getRequesterAvatar() {
-        return requesterAvatar;
-    }
-    
-    public void setRequesterAvatar(String requesterAvatar) {
-        this.requesterAvatar = requesterAvatar;
-    }
-    
     public String getSource() {
         return source;
     }
-    
-    public void setSource(String source) {
-        this.source = source;
-    }
-    
+
     public String getSourceType() {
         return sourceType;
     }
+
+    public String getRequester() {
+        return requester;
+    }
+
+    public String getRequesterAvatar() {
+        return requesterAvatar;
+    }
+
+    public Map<String, Object> getSpotifyInfo() {
+        return spotifyInfo;
+    }
+
+    public String getRadioStationUrl() {
+        return radioStationUrl;
+    }
     
-    public void setSourceType(String sourceType) {
-        this.sourceType = sourceType;
+    public String getRadioCountry() {
+        return radioCountry;
+    }
+    
+    public String getRadioAlias() {
+        return radioAlias;
     }
 } 

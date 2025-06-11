@@ -250,6 +250,7 @@ public class JMusicBot {
             add(new SkipToCmd(bot));
             add(new ForceToEnd(bot));
             add(new StopCmd(bot));
+            add(new HistoryCmd(bot));
             //add(new VolumeCmd(bot));
             // Admin
             //add(new ActivateCmd(bot));

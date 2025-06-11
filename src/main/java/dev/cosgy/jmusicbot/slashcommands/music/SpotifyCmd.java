@@ -86,6 +86,7 @@ public class SpotifyCmd extends MusicCommand {
     public static final Map<String, String> artistNames = new ConcurrentHashMap<>(); // trackId -> artistName
     public static final Map<String, String> albumImageUrls = new ConcurrentHashMap<>(); // trackId -> albumImageUrl
     public static final Map<String, Color> trackColors = new ConcurrentHashMap<>(); // trackId -> color
+    public static final Map<String, String> releaseYears = new ConcurrentHashMap<>(); // trackId -> releaseYear
 
     public SpotifyCmd(Bot bot) {
         super(bot);
@@ -168,6 +169,11 @@ public class SpotifyCmd extends MusicCommand {
             String albumName = json.getJSONObject("album").getString("name");
             String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
             String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
+            
+            // Extract release date information
+            String releaseDate = json.getJSONObject("album").getString("release_date");
+            String releaseDatePrecision = json.getJSONObject("album").getString("release_date_precision");
+            String releaseYear = extractReleaseYear(releaseDate, releaseDatePrecision);
 
             // Use the Audio Features endpoint to retrieve track information
             endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
@@ -186,13 +192,16 @@ public class SpotifyCmd extends MusicCommand {
             Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
 
             // Store track information for NowplayingCmd
-            storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color);
+            storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color, releaseYear);
 
             EmbedBuilder embed = new EmbedBuilder();
-            embed.setTitle("Track Information");
-            embed.addField("Title", trackName, true);
-            embed.addField("Album", albumName, true);
-            embed.addField("Artist", artistName, true);
+            embed.setTitle("Track Information :");
+            embed.setDescription(
+                "**Title** : " + trackName + "\n" +
+                "**Album** : " + albumName + "\n" +
+                "**Artist** : " + artistName + "\n" +
+                "**Released** : " + releaseYear
+            );
             embed.setImage(albumImageUrl);
             embed.setColor(color);
 
@@ -250,6 +259,11 @@ public class SpotifyCmd extends MusicCommand {
             String albumName = json.getJSONObject("album").getString("name");
             String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
             String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
+            
+            // Extract release date information
+            String releaseDate = json.getJSONObject("album").getString("release_date");
+            String releaseDatePrecision = json.getJSONObject("album").getString("release_date_precision");
+            String releaseYear = extractReleaseYear(releaseDate, releaseDatePrecision);
 
             // Use the Audio Features endpoint to retrieve track information
             endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
@@ -268,13 +282,16 @@ public class SpotifyCmd extends MusicCommand {
             Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
             
             // Store track information for NowplayingCmd
-            storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color);
+            storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color, releaseYear);
 
             EmbedBuilder embed = new EmbedBuilder();
-            embed.setTitle("Track Information");
-            embed.addField("Title", trackName, true);
-            embed.addField("Album", albumName, true);
-            embed.addField("Artist", artistName, true);
+            embed.setTitle("Track Information :");
+            embed.setDescription(
+                "**Title** : " + trackName + "\n" +
+                "**Album** : " + albumName + "\n" +
+                "**Artist** : " + artistName + "\n" +
+                "**Released** : " + releaseYear
+            );
             embed.setImage(albumImageUrl);
             embed.setColor(color);
 
@@ -287,21 +304,25 @@ public class SpotifyCmd extends MusicCommand {
     }
 
     public static String extractTrackIdFromUrl(String url) {
-        String trackId = null;
-
+        // Clean URL from query parameters
+        String cleanUrl = url.split("\\?")[0];
+        
+        // Pattern to match both standard and international URLs
         Pattern pattern = Pattern.compile("track/(\\w+)");
-        Matcher matcher = pattern.matcher(url);
+        Matcher matcher = pattern.matcher(cleanUrl);
 
         if (matcher.find()) {
-            trackId = matcher.group(1);
+            return matcher.group(1);
         }
 
-        return trackId;
+        return null;
     }
 
     public boolean isSpotifyTrackUrl(String url) {
-        Pattern pattern = Pattern.compile("https://open\\.spotify\\.com/(intl-ja/)?track/\\w+");
-        Matcher matcher = pattern.matcher(url.split("\\?")[0]);
+        // Clean URL to handle query parameters
+        String cleanUrl = url.split("\\?")[0];
+        Pattern pattern = Pattern.compile("https://open\\.spotify\\.com/(intl-[a-z]+/)?track/\\w+");
+        Matcher matcher = pattern.matcher(cleanUrl);
 
         return matcher.matches();
     }
@@ -376,14 +397,16 @@ public class SpotifyCmd extends MusicCommand {
         public final String artistName;
         public final String albumImageUrl;
         public final Color color;
+        public final String releaseYear;
         
-        public SpotifyTrackInfo(String trackId, String trackName, String albumName, String artistName, String albumImageUrl, Color color) {
+        public SpotifyTrackInfo(String trackId, String trackName, String albumName, String artistName, String albumImageUrl, Color color, String releaseYear) {
             this.trackId = trackId;
             this.trackName = trackName;
             this.albumName = albumName;
             this.artistName = artistName;
             this.albumImageUrl = albumImageUrl;
             this.color = color;
+            this.releaseYear = releaseYear;
         }
     }
     
@@ -400,18 +423,20 @@ public class SpotifyCmd extends MusicCommand {
             albumNames.getOrDefault(trackId, "Unknown Album"),
             artistNames.getOrDefault(trackId, "Unknown Artist"),
             albumImageUrls.getOrDefault(trackId, ""),
-            trackColors.getOrDefault(trackId, Color.GREEN)
+            trackColors.getOrDefault(trackId, Color.GREEN),
+            releaseYears.getOrDefault(trackId, "Unknown")
         );
     }
     
     // Store track info in the maps
-    private void storeTrackInfo(String guildId, String trackId, String trackName, String albumName, String artistName, String albumImageUrl, Color color) {
+    private void storeTrackInfo(String guildId, String trackId, String trackName, String albumName, String artistName, String albumImageUrl, Color color, String releaseYear) {
         lastTrackIds.put(guildId, trackId);
         trackNames.put(trackId, trackName);
         albumNames.put(trackId, albumName);
         artistNames.put(trackId, artistName);
         albumImageUrls.put(trackId, albumImageUrl);
         trackColors.put(trackId, color);
+        releaseYears.put(trackId, releaseYear);
     }
 
     private class SlashResultHandler implements AudioLoadResultHandler {
@@ -635,6 +660,11 @@ public class SpotifyCmd extends MusicCommand {
         String albumName = json.getJSONObject("album").getString("name");
         String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
         String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
+        
+        // Extract release date information
+        String releaseDate = json.getJSONObject("album").getString("release_date");
+        String releaseDatePrecision = json.getJSONObject("album").getString("release_date_precision");
+        String releaseYear = extractReleaseYear(releaseDate, releaseDatePrecision);
 
         // Use the Audio Features endpoint to retrieve track information
         endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
@@ -653,13 +683,16 @@ public class SpotifyCmd extends MusicCommand {
         Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
 
         // Store track information for NowplayingCmd
-        storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color);
+        storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color, releaseYear);
 
         EmbedBuilder embed = new EmbedBuilder();
-        embed.setTitle("Track Information");
-        embed.addField("Title", trackName, true);
-        embed.addField("Album", albumName, true);
-        embed.addField("Artist", artistName, true);
+        embed.setTitle("Track Information :");
+        embed.setDescription(
+            "**Title** : " + trackName + "\n" +
+            "**Album** : " + albumName + "\n" +
+            "**Artist** : " + artistName + "\n" +
+            "**Released** : " + releaseYear
+        );
         embed.setImage(albumImageUrl);
         embed.setColor(color);
 
@@ -754,6 +787,11 @@ public class SpotifyCmd extends MusicCommand {
         String albumName = json.getJSONObject("album").getString("name");
         String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
         String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
+        
+        // Extract release date information
+        String releaseDate = json.getJSONObject("album").getString("release_date");
+        String releaseDatePrecision = json.getJSONObject("album").getString("release_date_precision");
+        String releaseYear = extractReleaseYear(releaseDate, releaseDatePrecision);
 
         // Use the Audio Features endpoint to retrieve track information
         endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
@@ -772,13 +810,16 @@ public class SpotifyCmd extends MusicCommand {
         Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
         
         // Store track information for NowplayingCmd
-        storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color);
+        storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color, releaseYear);
 
         EmbedBuilder embed = new EmbedBuilder();
-        embed.setTitle("Track Information");
-        embed.addField("Title", trackName, true);
-        embed.addField("Album", albumName, true);
-        embed.addField("Artist", artistName, true);
+        embed.setTitle("Track Information :");
+        embed.setDescription(
+            "**Title** : " + trackName + "\n" +
+            "**Album** : " + albumName + "\n" +
+            "**Artist** : " + artistName + "\n" +
+            "**Released** : " + releaseYear
+        );
         embed.setImage(albumImageUrl);
         embed.setColor(color);
 
@@ -837,6 +878,31 @@ public class SpotifyCmd extends MusicCommand {
                 message.editMessage(event.getClient().getError() + " Error loading track: " + exception.getMessage()).queue();
             }
         });
+    }
+
+    // Helper method to extract release year based on precision
+    private String extractReleaseYear(String releaseDate, String precision) {
+        if (releaseDate == null || releaseDate.isEmpty()) {
+            return "Unknown";
+        }
+        
+        switch (precision) {
+            case "year":
+                return releaseDate; // Already just the year
+            case "month":
+            case "day":
+                // Extract just the year part (first 4 characters)
+                if (releaseDate.length() >= 4) {
+                    return releaseDate.substring(0, 4);
+                }
+            default:
+                return releaseDate;
+        }
+    }
+    
+    // Store track info in the maps (overloaded method for backward compatibility)
+    private void storeTrackInfo(String guildId, String trackId, String trackName, String albumName, String artistName, String albumImageUrl, Color color) {
+        storeTrackInfo(guildId, trackId, trackName, albumName, artistName, albumImageUrl, color, "Unknown");
     }
 }
 

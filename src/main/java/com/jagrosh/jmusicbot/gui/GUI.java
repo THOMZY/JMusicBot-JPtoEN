@@ -16,6 +16,7 @@
 package com.jagrosh.jmusicbot.gui;
 
 import com.jagrosh.jmusicbot.Bot;
+import com.jagrosh.jmusicbot.BotConfig;
 
 import javax.swing.*;
 import java.awt.event.WindowEvent;
@@ -51,8 +52,28 @@ public class GUI extends JFrame {
             @Override
             public void windowClosing(WindowEvent e) {
                 try {
-                    bot.shutdown();
+                    // First stop any running web panel if it exists
+                    BotConfig config = bot.getConfig();
+                    if (config != null && config.isWebPanelEnabled()) {
+                        // Use a separate thread to avoid blocking GUI thread
+                        new Thread(() -> {
+                            try {
+                                com.jagrosh.jmusicbot.webpanel.WebPanelApplication.stop();
+                                // Small delay to let the web panel stop properly
+                                Thread.sleep(500);
+                                // Now shutdown the bot
+                                bot.shutdown();
+                            } catch (Exception ex) {
+                                System.err.println("Error during shutdown: " + ex.getMessage());
+                                System.exit(0);
+                            }
+                        }).start();
+                    } else {
+                        // Just shutdown the bot if no web panel
+                        bot.shutdown();
+                    }
                 } catch (Exception ex) {
+                    System.err.println("Error during shutdown: " + ex.getMessage());
                     System.exit(0);
                 }
             }

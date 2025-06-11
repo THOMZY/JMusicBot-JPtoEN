@@ -1,0 +1,78 @@
+<!-- Player Component for JMusicBot Web Panel -->
+<div class="player-container">
+    <div class="player-content">
+        <div class="album-art">
+            <img id="track-thumbnail" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="Album Art">
+        </div>
+        <div class="track-info">
+            <div class="track-title" id="track-title">No track playing</div>
+            <div class="track-author" id="track-author"></div>
+            <!-- Spotify information section -->
+            <div class="spotify-info-container" id="spotify-info-container">
+                <div class="spotify-info-btn" id="track-album">
+                    <i class="fas fa-compact-disc"></i> <span id="track-album-text">Album: Unknown</span>
+                </div>
+                <div class="spotify-info-btn" id="track-year">
+                    <i class="fas fa-calendar-alt"></i> <span id="track-year-text">Released: Unknown</span>
+                </div>
+            </div>
+            <!-- Gensokyo Radio information section -->
+            <div class="gensokyo-info-container" id="gensokyo-info-container">
+                <div class="gensokyo-info-btn" id="gensokyo-track-album">
+                    <i class="fas fa-compact-disc"></i> <span id="gensokyo-album-text">Album: Unknown</span>
+                </div>
+                <div class="gensokyo-info-btn" id="gensokyo-track-circle">
+                    <i class="fas fa-users"></i> <span id="gensokyo-circle-text">Circle: Unknown</span>
+                </div>
+                <div class="gensokyo-info-btn" id="gensokyo-track-year">
+                    <i class="fas fa-calendar-alt"></i> <span id="gensokyo-year-text">Released: Unknown</span>
+                </div>
+            </div>
+            <!-- Local File information section -->
+            <div class="localfile-info-container" id="localfile-info-container" style="display: none;">
+                <div class="localfile-info-btn" id="localfile-track-album">
+                    <i class="fas fa-compact-disc"></i> <span id="localfile-album-text">Album: Unknown</span>
+                </div>
+                <div class="localfile-info-btn" id="localfile-track-genre">
+                    <i class="fas fa-tag"></i> <span id="localfile-genre-text">Genre: Unknown</span>
+                </div>
+                <div class="localfile-info-btn" id="localfile-track-year">
+                    <i class="fas fa-calendar-alt"></i> <span id="localfile-year-text">Year: Unknown</span>
+                </div>
+            </div>
+            <div class="track-metadata">
+                <div class="metadata-item" id="track-source">
+                    <i id="track-source-icon" class="fas fa-music"></i> <span id="track-source-text">Source: Unknown</span>
+                </div>
+                <div class="metadata-item">
+                    <i class="fas fa-volume-up"></i> <span id="track-volume">Volume: 100%</span>
+                </div>
+                <div class="metadata-item">
+                    <i class="fas fa-user"></i> <span id="track-requester">Requested by: Unknown</span>
+                </div>
+            </div>
+            <div class="status" id="status-message">
+                Connecting to server...
+            </div>
+        </div>
+        <div class="radio-logo-container" id="radio-logo-container" style="display: none;">
+            <img id="station-logo" class="player-station-logo" src="" alt="Radio Station Logo">
+        </div>
+    </div>
+    <div class="progress-container" id="progress-container">
+        <div class="progress-bar" id="progress-bar"></div>
+        <div class="progress-handle" id="progress-handle"></div>
+        <div class="progress-preview" id="progress-preview">0:00 / 0:00</div>
+    </div>
+    <div class="time-display">
+        <span id="current-time">0:00</span>
+        <span id="total-time">0:00</span>
+        <span id="live-indicator" class="live-indicator" style="display: none;">LIVE</span>
+    </div>
+    <div class="controls">
+        <button id="play-button" disabled><i class="fas fa-play"></i> Play</button>
+        <button id="pause-button" disabled><i class="fas fa-pause"></i> Pause</button>
+        <button id="skip-button" disabled><i class="fas fa-forward"></i> Skip</button>
+        <button id="stop-button" disabled><i class="fas fa-stop"></i> Stop</button>
+    </div>
+</div> 

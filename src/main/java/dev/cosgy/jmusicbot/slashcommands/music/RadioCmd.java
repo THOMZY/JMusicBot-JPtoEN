@@ -1837,6 +1837,7 @@ public class RadioCmd extends MusicCommand {
         private final String stationTitle;
         private final String stationPath;
         private final String logoUrl;
+        private String previousSongTitle; // Store the previous song title for comparison
         
         public TrackUpdateTimerTask(AudioTrack track, String guildId, java.lang.reflect.Field titleField, 
                                     String stationTitle, String stationPath, String logoUrl) {
@@ -1846,6 +1847,7 @@ public class RadioCmd extends MusicCommand {
             this.stationTitle = stationTitle;
             this.stationPath = stationPath;
             this.logoUrl = logoUrl;
+            this.previousSongTitle = track.getInfo().title; // Initialize with current title
         }
         
         @Override
@@ -1896,7 +1898,22 @@ public class RadioCmd extends MusicCommand {
             if (latestInfo != null && !latestInfo.getFormattedTitle().isEmpty() && !latestInfo.getFormattedTitle().equals("Unknown")) {
                 String newTitle = latestInfo.getFormattedTitleWithStation(stationTitle);
                 
-                // Update the title
+                // Check if the song has changed by comparing with previous title
+                // We need to normalize titles for comparison to avoid false positives
+                String normalizedPrevious = normalizeTitle(previousSongTitle);
+                String normalizedNew = normalizeTitle(newTitle);
+                
+                boolean songChanged = !normalizedNew.equals(normalizedPrevious);
+                
+                if (songChanged) {
+                    // The song has changed, add it to history
+                    addTrackToHistory(track, newTitle, latestInfo);
+                    
+                    // Update the previous title
+                    previousSongTitle = newTitle;
+                }
+                
+                // Update the title 
                 titleField.set(track.getInfo(), newTitle);
                 track.setUserData(newTitle);
                 
@@ -1906,6 +1923,48 @@ public class RadioCmd extends MusicCommand {
                     updateIntegrations(guild, newTitle, latestInfo);
                 }
             }
+        }
+        
+        /**
+         * Normalize a title for comparison by removing whitespace and converting to lowercase
+         */
+        private String normalizeTitle(String title) {
+            if (title == null) return "";
+            return title.trim().toLowerCase();
+        }
+        
+        /**
+         * Add the current track to the music history
+         */
+        private void addTrackToHistory(AudioTrack track, String newTitle, TrackInfo latestInfo) {
+            Guild guild = bot.getJDA().getGuildById(guildId);
+            if (guild == null) return;
+            
+            AudioHandler handler = (AudioHandler) guild.getAudioManager().getSendingHandler();
+            if (handler == null) return;
+            
+            // Get a copy of the current track to avoid modifying the playing one
+            AudioTrack trackCopy = track.makeClone();
+            
+            // Force update the title of the clone
+            try {
+                java.lang.reflect.Field titleField = trackCopy.getInfo().getClass().getDeclaredField("title");
+                titleField.setAccessible(true);
+                titleField.set(trackCopy.getInfo(), newTitle);
+            } catch (Exception e) {
+                System.err.println("Error setting title on track copy: " + e.getMessage());
+            }
+            
+            // Create proper RequestMetadata for the track if needed
+            if (!(trackCopy.getUserData() instanceof RequestMetadata)) {
+                RequestMetadata rm = new RequestMetadata(null); // Use null as there's no user
+                rm.setRadioInfo(stationPath, stationTitle, logoUrl);
+                trackCopy.setUserData(rm);
+            }
+            
+            // Add the track to the music history
+            bot.getMusicHistory().addTrack(trackCopy, handler);
+            
         }
         
         /**

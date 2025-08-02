@@ -927,6 +927,9 @@ const HistoryModule = (() => {
      * Add event listeners for pagination buttons
      */
     const setupPaginationEvents = () => {
+        // Calculate total pages for the event handlers
+        const totalPages = Math.ceil(totalRecords / recordsPerPage);
+        
         document.querySelectorAll('.page-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const page = parseInt(this.getAttribute('data-page'));
@@ -935,19 +938,25 @@ const HistoryModule = (() => {
             });
         });
         
-        document.querySelector('.prev-btn').addEventListener('click', function() {
-            if (currentPage > 1) {
-                currentPage--;
-                loadHistory();
-            }
-        });
+        const prevBtn = document.querySelector('.prev-btn');
+        if (prevBtn) {
+            prevBtn.addEventListener('click', function() {
+                if (currentPage > 1) {
+                    currentPage--;
+                    loadHistory();
+                }
+            });
+        }
         
-        document.querySelector('.next-btn').addEventListener('click', function() {
-            if (currentPage < totalPages) {
-                currentPage++;
-                loadHistory();
-            }
-        });
+        const nextBtn = document.querySelector('.next-btn');
+        if (nextBtn) {
+            nextBtn.addEventListener('click', function() {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    loadHistory();
+                }
+            });
+        }
     };
 
     /**

@@ -2,6 +2,18 @@
 
 ---
 
+# 02 July 2025
+
+### ▶️ Youtube playback fixed with **[`youtube-source 1.13.4`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.13.4)**
+
+### 🔧 Changes
+- Web panel update : small visuals fix
+
+### 📦 Dependency Updates
+- **youtube-source**: `1.13.3` → `1.13.4`
+
+---
+
 # 11 June 2025
 
 ### ▶️ Youtube playback fixed with **[`youtube-source 1.13.3`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.13.3)**  

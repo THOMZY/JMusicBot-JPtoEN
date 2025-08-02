@@ -7,7 +7,7 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge/main)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/overview/main)
 [![Build and Test](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)
 </h3>
-<h2 align="center">▶️ Youtube playback fixed ( 11 June 2025 )</h2>
+<h2 align="center">▶️ Youtube playback fixed ( 02 July 2025 )</h2>
 
 
 # JMusicBot

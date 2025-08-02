@@ -1,6 +1,11 @@
 <!-- Player Component for JMusicBot Web Panel -->
 <div class="player-container">
     <div class="player-content">
+        <!-- Status indicator in top-right corner -->
+        <div class="status" id="status-message">
+            Connecting to server...
+        </div>
+        
         <div class="album-art">
             <img id="track-thumbnail" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="Album Art">
         </div>
@@ -50,9 +55,6 @@
                 <div class="metadata-item">
                     <i class="fas fa-user"></i> <span id="track-requester">Requested by: Unknown</span>
                 </div>
-            </div>
-            <div class="status" id="status-message">
-                Connecting to server...
             </div>
         </div>
         <div class="radio-logo-container" id="radio-logo-container" style="display: none;">

@@ -7,7 +7,7 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge/main)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/overview/main)
 [![Build and Test](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)
 </h3>
-<h2 align="center">▶️ Youtube playback fixed ( 02 July 2025 )</h2>
+<h2 align="center">▶️ Youtube playback fixed ( 23 August 2025 )</h2>
 
 
 # JMusicBot
@@ -31,7 +31,7 @@ This fork aims to updates dependencies when YouTube playback breaks and adds min
 * Fixed Youtube livestreams fail at 30sec. 
 * Added the ability to queue multiple local files in a single message.
 
-Check the [CHANGELOG](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/develop/CHANGELOG.md) to view all the updated dependencies.
+Check the [CHANGELOG](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/main/CHANGELOG.md) to view all the updated dependencies.
   
 # Bot Features :
 
@@ -55,7 +55,7 @@ This bot requires Java version 17 or higher.
 If Java is not installed, download it from [here](https://www.oracle.com/jp/java/technologies/downloads/#java17).  
 To start this bot yourself, refer to the [official Jagrosh website](https://jmusicbot.com/setup/).  
 You can check the [Cosgy Dev Official Page](https://www.cosgy.dev/2019/09/06/jmusicbot-setup/) too.  
-You can find the raw 'config.txt' file [here](https://raw.githubusercontent.com/THOMZY/JMusicBot-JPtoEN/refs/heads/develop/src/main/resources/reference.conf) or in release tab.  
+You can find the raw 'config.txt' file [here](https://raw.githubusercontent.com/THOMZY/JMusicBot-JPtoEN/refs/heads/main/src/main/resources/reference.conf) or in release tab.  
 
 # Setup Using Docker :
 

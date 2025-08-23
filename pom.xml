@@ -5,7 +5,7 @@
     <groupId>com.jagrosh</groupId>
     <artifactId>JMusicBot</artifactId>
     <!-- For reference on version qualifiers, see: https://kengotoda.gitbooks.io/what-is-maven/deploy/snapshot-and-stable.html -->
-    <version>2025.08.02</version>
+    <version>2025.08.23</version>
     <packaging>jar</packaging>
 
     <repositories>
@@ -61,7 +61,7 @@
         <dependency>
             <groupId>dev.lavalink.youtube</groupId>
             <artifactId>v2</artifactId>
-            <version>1.13.4</version>
+            <version>1.13.5</version>
         </dependency>
         <dependency>
             <groupId>com.github.Cosgy-Dev</groupId>

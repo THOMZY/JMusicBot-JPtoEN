@@ -61,6 +61,9 @@ public class BotConfig {
     private String ytRefreshToken;
     private String spClientId;
     private String spClientSecret;
+    // Remote cipher server settings for YouTube deciphering
+    private String ytCipherUrl;
+    private String ytCipherPassword;
     // WebPanel settings
     private int webPanelPort;
     // [JMusicBot-JP] added useNicoNico, changeNickName, pauseNoUsers, resumeJoined, stopNoUsers, cosgyDevHost, helpToDm, officialInvite
@@ -140,6 +143,10 @@ public class BotConfig {
             spClientId = config.getString("spclient");
             spClientSecret = config.getString("spsecret");
             enableHistory = config.hasPath("enablehistory") ? config.getBoolean("enablehistory") : true;
+
+            // YouTube remote cipher server settings (optional)
+            ytCipherUrl = config.hasPath("ytcipher.url") ? config.getString("ytcipher.url") : null;
+            ytCipherPassword = config.hasPath("ytcipher.password") ? config.getString("ytcipher.password") : null;
 
 
             cosgyDevHost = false;
@@ -390,6 +397,22 @@ public class BotConfig {
     public String getSpotifyClientSecret(){return spClientSecret;}
 
     // [JMusicBot-JP] End
+
+    /**
+     * Returns the base URL of the remote cipher server compatible with yt-cipher API.
+     * If null or empty, remote cipher is disabled.
+     */
+    public String getYouTubeCipherUrl() {
+        return ytCipherUrl;
+    }
+
+    /**
+     * Returns the password used to authenticate with the remote cipher server.
+     * May be null/empty if server does not require auth.
+     */
+    public String getYouTubeCipherPassword() {
+        return ytCipherPassword;
+    }
 
     public boolean getCosgyDevHost() {
         return cosgyDevHost;

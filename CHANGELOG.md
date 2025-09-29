@@ -2,6 +2,20 @@
 
 ---
 
+# 29 September 2025
+
+## ▶️ Youtube playback fixed with **[`yt-cipher`](https://github.com/kikkia/yt-cipher)**
+
+### 🔧 Changes
+- Web panel update : history fixes ( search pages and time range filter ) + Youtube chapters highlight
+
+### 📦 Dependency Updates
+- **youtube-source**: `1.13.5` → `ff19b6f1751262ecba7b81fcf391b961008962d1-SNAPSHOT`
+- **net.dv8tion-JDA**: `5.5.0` → `5.6.1` 
+- **dev.arbjerg-lavaplayer**: `2.2.3` → `2.2.4`
+
+---
+
 # 23 August 2025
 
 ## ▶️ Youtube playback fixed with **[`youtube-source 1.13.5`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.13.5)**
@@ -11,7 +25,7 @@
 
 ---
 
-# 02 July 2025
+# 02 August 2025
 
 ### ▶️ Youtube playback fixed with **[`youtube-source 1.13.4`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.13.4)**
 

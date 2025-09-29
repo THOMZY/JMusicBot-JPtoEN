@@ -28,6 +28,7 @@ public class HistoryController {
      * @param guildId Optional guild ID to filter by
      * @param type Optional source type to filter by (spotify, youtube, etc.)
      * @param requester Optional requester name to filter by
+     * @param timeRange Optional time range to filter by (today, week, month, all)
      * @return List of play records
      */
     @GetMapping("")
@@ -36,7 +37,8 @@ public class HistoryController {
             @RequestParam(value = "offset", required = false, defaultValue = "0") int offset,
             @RequestParam(value = "guildId", required = false) String guildId,
             @RequestParam(value = "type", required = false) String type,
-            @RequestParam(value = "requester", required = false) String requester) {
+            @RequestParam(value = "requester", required = false) String requester,
+            @RequestParam(value = "timeRange", required = false) String timeRange) {
         
         Map<String, Object> response = new HashMap<>();
         
@@ -79,6 +81,35 @@ public class HistoryController {
                             .collect(Collectors.toList());
                 }
                 
+                // Filter by time range if specified
+                if (timeRange != null && !timeRange.isEmpty() && !timeRange.equals("all")) {
+                    final long currentTime = System.currentTimeMillis();
+                    final long timeFilter;
+                    
+                    switch (timeRange) {
+                        case "today":
+                            // Last 24 hours
+                            timeFilter = currentTime - (24 * 60 * 60 * 1000L);
+                            break;
+                        case "week":
+                            // Last 7 days
+                            timeFilter = currentTime - (7 * 24 * 60 * 60 * 1000L);
+                            break;
+                        case "month":
+                            // Last 30 days
+                            timeFilter = currentTime - (30L * 24 * 60 * 60 * 1000L);
+                            break;
+                        default:
+                            timeFilter = 0; // All time
+                    }
+                    
+                    if (timeFilter > 0) {
+                        filteredHistory = filteredHistory.stream()
+                                .filter(record -> record.getPlayedAt() >= timeFilter)
+                                .collect(Collectors.toList());
+                    }
+                }
+                
                 // Calculate total before pagination for correct counts
                 int totalRecords = filteredHistory.size();
                 
@@ -113,18 +144,22 @@ public class HistoryController {
      * Search within the music history
      * @param query Search query
      * @param limit Optional limit of records to return
+     * @param offset Optional offset for pagination
      * @param guildId Optional guild ID to filter by
      * @param type Optional source type to filter by (spotify, youtube, etc.)
      * @param requester Optional requester name to filter by
+     * @param timeRange Optional time range to filter by (today, week, month, all)
      * @return Filtered list of play records
      */
     @GetMapping("/search")
     public ResponseEntity<Map<String, Object>> searchHistory(
             @RequestParam(value = "query") String query,
             @RequestParam(value = "limit", required = false, defaultValue = "0") int limit,
+            @RequestParam(value = "offset", required = false, defaultValue = "0") int offset,
             @RequestParam(value = "guildId", required = false) String guildId,
             @RequestParam(value = "type", required = false) String type,
-            @RequestParam(value = "requester", required = false) String requester) {
+            @RequestParam(value = "requester", required = false) String requester,
+            @RequestParam(value = "timeRange", required = false) String timeRange) {
         
         Map<String, Object> response = new HashMap<>();
         
@@ -164,6 +199,35 @@ public class HistoryController {
                             .collect(Collectors.toList());
                 }
                 
+                // Filter by time range if specified
+                if (timeRange != null && !timeRange.isEmpty() && !timeRange.equals("all")) {
+                    final long currentTime = System.currentTimeMillis();
+                    final long timeFilter;
+                    
+                    switch (timeRange) {
+                        case "today":
+                            // Last 24 hours
+                            timeFilter = currentTime - (24 * 60 * 60 * 1000L);
+                            break;
+                        case "week":
+                            // Last 7 days
+                            timeFilter = currentTime - (7 * 24 * 60 * 60 * 1000L);
+                            break;
+                        case "month":
+                            // Last 30 days
+                            timeFilter = currentTime - (30L * 24 * 60 * 60 * 1000L);
+                            break;
+                        default:
+                            timeFilter = 0; // All time
+                    }
+                    
+                    if (timeFilter > 0) {
+                        allHistory = allHistory.stream()
+                                .filter(record -> record.getPlayedAt() >= timeFilter)
+                                .collect(Collectors.toList());
+                    }
+                }
+                
                 // Filter history by search query (case insensitive)
                 String lowerQuery = query.toLowerCase();
                 List<MusicHistory.PlayRecord> filteredHistory = allHistory.stream()
@@ -182,9 +246,16 @@ public class HistoryController {
                 // Calculate total records before limiting
                 int totalRecords = filteredHistory.size();
                 
-                // Apply limit after search filtering is done
-                if (limit > 0 && filteredHistory.size() > limit) {
-                    filteredHistory = filteredHistory.subList(0, limit);
+                // Apply pagination after search filtering is done
+                if (limit > 0) {
+                    int startIndex = Math.min(offset, totalRecords);
+                    int endIndex = Math.min(offset + limit, totalRecords);
+                    
+                    if (startIndex < endIndex) {
+                        filteredHistory = filteredHistory.subList(startIndex, endIndex);
+                    } else {
+                        filteredHistory = List.of(); // Empty list if out of bounds
+                    }
                 }
                 
                 response.put("success", true);

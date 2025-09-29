@@ -22,6 +22,7 @@ import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers;
 import com.sedmelluq.discord.lavaplayer.source.nico.NicoAudioSourceManager;
 import dev.lavalink.youtube.YoutubeAudioSourceManager;
+import dev.lavalink.youtube.YoutubeSourceOptions;
 import dev.lavalink.youtube.clients.*;
 import dev.lavalink.youtube.clients.skeleton.Client;
 import net.dv8tion.jda.api.entities.Guild;
@@ -48,7 +49,17 @@ public class PlayerManager extends DefaultAudioPlayerManager {
             );
         }
 
-        registerSourceManager(new YoutubeAudioSourceManager(/*allowSearch:*/ true, new Client[] { new Music(),
+        // Prepare YouTube source options (e.g., remote cipher server)
+        YoutubeSourceOptions ytOptions = new YoutubeSourceOptions();
+        String cipherUrl = bot.getConfig().getYouTubeCipherUrl();
+        String cipherPassword = bot.getConfig().getYouTubeCipherPassword();
+        if (cipherUrl != null && !cipherUrl.isEmpty()) {
+            // Configure remote cipher server compatible with yt-cipher API
+            ytOptions.setRemoteCipherUrl(cipherUrl, cipherPassword);
+            logger.info("Enabled remote cipher server for YouTube at {}", cipherUrl);
+        }
+
+        registerSourceManager(new YoutubeAudioSourceManager(ytOptions, new Client[] { new Music(),
                 new TvHtml5Embedded(),
                 new AndroidMusic(),
                 new Web(),

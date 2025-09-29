@@ -7,7 +7,7 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge/main)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/overview/main)
 [![Build and Test](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)
 </h3>
-<h2 align="center">▶️ Youtube playback fixed ( 23 August 2025 )</h2>
+<h2 align="center">▶️ Youtube playback fixed ( 29 September 2025 )</h2>
 
 
 # JMusicBot
@@ -56,6 +56,13 @@ If Java is not installed, download it from [here](https://www.oracle.com/jp/java
 To start this bot yourself, refer to the [official Jagrosh website](https://jmusicbot.com/setup/).  
 You can check the [Cosgy Dev Official Page](https://www.cosgy.dev/2019/09/06/jmusicbot-setup/) too.  
 You can find the raw 'config.txt' file [here](https://raw.githubusercontent.com/THOMZY/JMusicBot-JPtoEN/refs/heads/main/src/main/resources/reference.conf) or in release tab.  
+
+# Youtube cipher server :
+It becomes harder and harder to keep up with YouTube's cipher changes, as they become more frequent and complex.  
+To help with this, you can use a remote cipher server to handle signature deciphering for you.
+
+Follow instructions to setup a simple Deno server for those pesky Youtube errors :  
+https://github.com/kikkia/yt-cipher ( Thx Kikkia )
 
 # Setup Using Docker :
 

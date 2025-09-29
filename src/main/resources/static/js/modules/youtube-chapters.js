@@ -53,6 +53,9 @@ const YouTubeChapters = (function() {
         
         document.getElementById('chapters-info').textContent = `${chapters.length} chapter${chapters.length !== 1 ? 's' : ''}`;
         
+        // Reset chapter index when displaying new chapters
+        currentChapterIndex = -1;
+        
         chapters.forEach((chapter, index) => {
             const chapterItem = document.createElement('div');
             chapterItem.className = 'chapter-item';

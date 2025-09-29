@@ -346,8 +346,12 @@ const HistoryModule = (() => {
             // Reset all filters
             activeFilters.type = 'all';
             activeFilters.requester = 'all';
+            activeFilters.timeRange = 'all';
             historyElements.requesterSelect.value = '';
             updateFilterUI();
+            
+            // Reset to first page
+            currentPage = 1;
             
             // Reload requester list for the new server selection
             await loadRequesterList();
@@ -372,8 +376,12 @@ const HistoryModule = (() => {
                 // Reset all filters
                 activeFilters.type = 'all';
                 activeFilters.requester = 'all';
+                activeFilters.timeRange = 'all';
                 historyElements.requesterSelect.value = '';
                 updateFilterUI();
+                
+                // Reset to first page
+                currentPage = 1;
                 
                 // Reload requester list for the new server selection
                 await loadRequesterList();
@@ -397,8 +405,12 @@ const HistoryModule = (() => {
                     // Reset all filters
                     activeFilters.type = 'all';
                     activeFilters.requester = 'all';
+                    activeFilters.timeRange = 'all';
                     historyElements.requesterSelect.value = '';
                     updateFilterUI();
+                    
+                    // Reset to first page
+                    currentPage = 1;
                     
                     // Reload requester list for the new server selection
                     await loadRequesterList();
@@ -482,9 +494,14 @@ const HistoryModule = (() => {
             params += `&requester=${encodeURIComponent(activeFilters.requester)}`;
         }
         
+        // Add time range filter if specified
+        if (activeFilters.timeRange !== 'all') {
+            params += `&timeRange=${encodeURIComponent(activeFilters.timeRange)}`;
+        }
+        
         if (searchQuery) {
             endpoint = '/api/history/search';
-            params = `?query=${encodeURIComponent(searchQuery)}&limit=${recordsPerPage}`;
+            params = `?query=${encodeURIComponent(searchQuery)}&limit=${recordsPerPage}&offset=${offset}`;
             
             // Add guild filter to search query if specified
             if (activeFilters.guildId !== 'all' && currentGuildId) {
@@ -499,6 +516,11 @@ const HistoryModule = (() => {
             // Add requester filter if specified
             if (activeFilters.requester !== 'all') {
                 params += `&requester=${encodeURIComponent(activeFilters.requester)}`;
+            }
+            
+            // Add time range filter if specified
+            if (activeFilters.timeRange !== 'all') {
+                params += `&timeRange=${encodeURIComponent(activeFilters.timeRange)}`;
             }
         }
         

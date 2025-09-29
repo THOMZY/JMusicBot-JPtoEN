@@ -77,7 +77,7 @@ const Player = (function() {
             document.getElementById('current-time').textContent = UI.formatTime(window.currentStatus.currentTrackPosition);
             
             // Update current chapter
-            if (window.currentStatus.sourceType === 'YouTube' && window.currentChapters.length > 0) {
+            if (window.currentStatus.sourceType === 'YouTube' && typeof YouTubeChapters !== 'undefined') {
                 YouTubeChapters.updateCurrentChapter();
             }
         }

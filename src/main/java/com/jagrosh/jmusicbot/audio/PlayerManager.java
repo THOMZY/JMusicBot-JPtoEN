@@ -53,10 +53,16 @@ public class PlayerManager extends DefaultAudioPlayerManager {
         YoutubeSourceOptions ytOptions = new YoutubeSourceOptions();
         String cipherUrl = bot.getConfig().getYouTubeCipherUrl();
         String cipherPassword = bot.getConfig().getYouTubeCipherPassword();
+        String cipherUserAgent = bot.getConfig().getYouTubeCipherUserAgent();
         if (cipherUrl != null && !cipherUrl.isEmpty()) {
             // Configure remote cipher server compatible with yt-cipher API
-            ytOptions.setRemoteCipherUrl(cipherUrl, cipherPassword);
-            logger.info("Enabled remote cipher server for YouTube at {}", cipherUrl);
+            String ua = (cipherUserAgent != null && !cipherUserAgent.isBlank()) ? cipherUserAgent : null;
+            ytOptions.setRemoteCipher(cipherUrl, cipherPassword, ua);
+            if (ua == null) {
+                logger.info("Enabled remote cipher server for YouTube at {}", cipherUrl);
+            } else {
+                logger.info("Enabled remote cipher server for YouTube at {} using UA {}", cipherUrl, ua);
+            }
         }
 
         registerSourceManager(new YoutubeAudioSourceManager(ytOptions, new Client[] { new Music(),

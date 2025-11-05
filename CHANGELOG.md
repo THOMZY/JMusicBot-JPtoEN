@@ -2,6 +2,17 @@
 
 ---
 
+# 05 November 2025
+
+## ▶️ Youtube playback fixed with **[`youtube-source 1.16.0`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.16.0)**
+
+Don't forget to update [`yt-cipher`](https://github.com/kikkia/yt-cipher)**
+
+### 📦 Dependency Updates
+- **youtube-source**: `ff19b6f1751262ecba7b81fcf391b961008962d1-SNAPSHOT` → `1.16.0`
+
+---
+
 # 29 September 2025
 
 ## ▶️ Youtube playback fixed with **[`yt-cipher`](https://github.com/kikkia/yt-cipher)**

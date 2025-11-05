@@ -64,6 +64,7 @@ public class BotConfig {
     // Remote cipher server settings for YouTube deciphering
     private String ytCipherUrl;
     private String ytCipherPassword;
+    private String ytCipherUserAgent;
     // WebPanel settings
     private int webPanelPort;
     // [JMusicBot-JP] added useNicoNico, changeNickName, pauseNoUsers, resumeJoined, stopNoUsers, cosgyDevHost, helpToDm, officialInvite
@@ -147,6 +148,7 @@ public class BotConfig {
             // YouTube remote cipher server settings (optional)
             ytCipherUrl = config.hasPath("ytcipher.url") ? config.getString("ytcipher.url") : null;
             ytCipherPassword = config.hasPath("ytcipher.password") ? config.getString("ytcipher.password") : null;
+            ytCipherUserAgent = config.hasPath("ytcipher.user-agent") ? config.getString("ytcipher.user-agent") : null;
 
 
             cosgyDevHost = false;
@@ -412,6 +414,14 @@ public class BotConfig {
      */
     public String getYouTubeCipherPassword() {
         return ytCipherPassword;
+    }
+
+    /**
+     * Returns an optional custom User-Agent header for the remote cipher server.
+     * May be null/empty if the default should be used.
+     */
+    public String getYouTubeCipherUserAgent() {
+        return ytCipherUserAgent;
     }
 
     public boolean getCosgyDevHost() {

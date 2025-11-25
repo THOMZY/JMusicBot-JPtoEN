@@ -526,14 +526,21 @@ const Player = (function() {
                     document.querySelector('.time-display').appendChild(liveIndicator);
                 }
                 
-                // For regular Stream sources, show LIVE indicator
-                if (data.sourceType === 'Stream') {
+                // For regular Stream sources OR if the track is a stream (like YouTube Live), show LIVE indicator
+                // Check for 'stream' property (from isStream() getter) or 'isStream' property (if serialized directly)
+                const isStream = data.sourceType === 'Stream' || data.stream === true || data.isStream === true;
+                
+                if (isStream) {
                     liveIndicator.style.display = 'inline-flex';
                     currentTime.style.display = 'none';
                     totalTime.style.display = 'none';
                     
-                    // Remove special class from time display if it exists
-                    document.querySelector('.time-display').classList.remove('with-live-indicator');
+                    // Add special class to position the indicator correctly when times are hidden
+                    // This adds margin and relative positioning to the indicator
+                    const timeDisplay = document.querySelector('.time-display');
+                    timeDisplay.classList.add('time-display-hidden');
+                    timeDisplay.classList.remove('with-live-indicator');
+                    timeDisplay.style.justifyContent = 'center';
                     
                     // Special handling for Gensokyo Radio streams that are showing as 'Stream' type
                     if (data.currentTrackUri && data.currentTrackUri.includes('stream.gensokyoradio.net')) {
@@ -551,8 +558,11 @@ const Player = (function() {
                     currentTime.style.display = 'inline';
                     totalTime.style.display = 'inline';
                     
-                    // Remove special class from time display
-                    document.querySelector('.time-display').classList.remove('with-live-indicator');
+                    // Remove special classes from time display and reset styles
+                    const timeDisplay = document.querySelector('.time-display');
+                    timeDisplay.classList.remove('with-live-indicator');
+                    timeDisplay.classList.remove('time-display-hidden');
+                    timeDisplay.style.justifyContent = 'space-between';
                 }
             }
             

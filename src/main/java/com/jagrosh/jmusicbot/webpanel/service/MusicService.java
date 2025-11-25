@@ -539,7 +539,8 @@ public class MusicService {
                     radioAlias,
                     localAlbum,
                     localGenre,
-                    localYear
+                    localYear,
+                    track.getInfo().isStream
             );
         }
         
@@ -568,7 +569,8 @@ public class MusicService {
                 null, // radioAlias
                 null, // localAlbum
                 null, // localGenre
-                null  // localYear
+                null, // localYear
+                false // isStream
         );
     }
     

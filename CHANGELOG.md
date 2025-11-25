@@ -2,6 +2,17 @@
 
 ---
 
+# 25 November 2025
+
+## ▶️ Youtube playback fixed by not refreshing "ytRefreshToken". (YouTube OAuth2)
+
+### 🔧 Changes
+- History fixes ( Removed history size limit + Youtube livestream added multiples times )
+- Added "LIVE" indicator under player for Youtube streams.
+- Fixed country flag emoji in radio station search results.
+
+---
+
 # 05 November 2025
 
 ## ▶️ Youtube playback fixed with **[`youtube-source 1.16.0`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.16.0)**

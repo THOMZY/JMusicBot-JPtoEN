@@ -36,6 +36,7 @@ public class MusicStatus {
     private final String localAlbum;
     private final String localGenre;
     private final String localYear;
+    private final boolean isStream;
 
     public MusicStatus(
             String currentTrackTitle,
@@ -73,6 +74,7 @@ public class MusicStatus {
         this.localAlbum = null;
         this.localGenre = null;
         this.localYear = null;
+        this.isStream = false;
     }
 
     public MusicStatus(
@@ -116,6 +118,7 @@ public class MusicStatus {
         this.localAlbum = null;
         this.localGenre = null;
         this.localYear = null;
+        this.isStream = false;
     }
     
     public MusicStatus(
@@ -140,7 +143,7 @@ public class MusicStatus {
         this(currentTrackTitle, currentTrackAuthor, currentTrackUri, currentTrackThumbnail,
              currentTrackPosition, currentTrackDuration, playing, paused, hasNext,
              queueSize, source, requester, requesterAvatar, volume, sourceType,
-             inVoiceChannel, spotifyInfo, null, null, null, null, null, null, null);
+             inVoiceChannel, spotifyInfo, null, null, null, null, null, null, null, false);
     }
 
     public MusicStatus(
@@ -167,7 +170,8 @@ public class MusicStatus {
             String radioAlias,
             String localAlbum,
             String localGenre,
-            String localYear
+            String localYear,
+            boolean isStream
     ) {
         this.currentTrackTitle = currentTrackTitle;
         this.currentTrackAuthor = currentTrackAuthor;
@@ -193,6 +197,7 @@ public class MusicStatus {
         this.localAlbum = localAlbum;
         this.localGenre = localGenre;
         this.localYear = localYear;
+        this.isStream = isStream;
     }
 
     public MusicStatus(
@@ -216,7 +221,7 @@ public class MusicStatus {
         this(currentTrackTitle, currentTrackAuthor, currentTrackUri, currentTrackThumbnail,
              currentTrackPosition, currentTrackDuration, playing, paused, hasNext,
              queueSize, source, requester, requesterAvatar, volume, sourceType,
-             inVoiceChannel, null, null, null, null, null, null, null, null);
+             inVoiceChannel, null, null, null, null, null, null, null, null, false);
     }
 
     // Getters and setters
@@ -316,4 +321,8 @@ public class MusicStatus {
     public String getLocalYear() {
         return localYear;
     }
-} 
+
+    public boolean isStream() {
+        return isStream;
+    }
+}

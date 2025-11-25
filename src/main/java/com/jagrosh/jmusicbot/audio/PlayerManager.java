@@ -83,7 +83,7 @@ public class PlayerManager extends DefaultAudioPlayerManager {
         // YouTube OAuth2 integration with persistent refresh token
         String ytRefreshToken = bot.getConfig().getYouTubeRefreshToken();
         if (ytRefreshToken != null && !ytRefreshToken.isEmpty()) {
-            source(YoutubeAudioSourceManager.class).useOauth2(ytRefreshToken, true);
+            source(YoutubeAudioSourceManager.class).useOauth2(ytRefreshToken, false);
         } else {
             source(YoutubeAudioSourceManager.class).useOauth2(null, false);
         }

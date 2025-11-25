@@ -366,15 +366,26 @@ public class RadioCmd extends MusicCommand {
             
             // Find country and location
             String country = "";
-            int countryStart = html.indexOf("class=\"i-flag ", stationBlockStart);
-            if (countryStart != -1) {
-                countryStart += 14; // Length of "class=\"i-flag "
-                int countryEnd = html.indexOf(" ", countryStart);
-                if (countryEnd == -1) {
-                    countryEnd = html.indexOf("\"", countryStart);
+            // Find the start of the next station to ensure we don't search too far
+            int limitIdx = html.indexOf("<li class=\"stations__station\">", stationBlockStart + 1);
+            if (limitIdx == -1) limitIdx = html.length();
+
+            // Search for "i-flag " which is followed by the country code
+            // The class attribute can be "i-flag cc" or "ajax i-flag cc" etc.
+            int flagStart = html.indexOf("i-flag ", stationBlockStart);
+            
+            if (flagStart != -1 && flagStart < limitIdx) {
+                int countryCodeStart = flagStart + 7; // Length of "i-flag "
+                int countryCodeEnd = html.indexOf(" ", countryCodeStart);
+                int quoteEnd = html.indexOf("\"", countryCodeStart);
+                
+                // Take the nearest delimiter (space or quote)
+                if (countryCodeEnd == -1 || (quoteEnd != -1 && quoteEnd < countryCodeEnd)) {
+                    countryCodeEnd = quoteEnd;
                 }
-                if (countryEnd != -1) {
-                    country = html.substring(countryStart, countryEnd);
+                
+                if (countryCodeEnd != -1) {
+                    country = html.substring(countryCodeStart, countryCodeEnd);
                 }
             }
             

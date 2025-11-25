@@ -42,7 +42,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class MusicHistory {
     private static final String HISTORY_FILENAME = "music_history.json";
-    private static final int MAX_HISTORY_SIZE = 5000; // Limit to 5000 tracks in the history
     private final Bot bot;
     private final Path historyFile;
     private final ObjectMapper objectMapper;
@@ -90,6 +89,28 @@ public class MusicHistory {
         }
         
         try {
+            // Check for duplicates (same URL and Guild)
+            if (!history.isEmpty()) {
+                PlayRecord lastRecord = history.get(0);
+                String currentGuildId = String.valueOf(handler.getGuildId());
+                String currentUrl = track.getInfo().uri;
+                long currentTime = System.currentTimeMillis();
+                
+                if (lastRecord.getGuildId().equals(currentGuildId) && lastRecord.getUrl().equals(currentUrl)) {
+                    // If it's a stream (like YouTube Live), avoid adding duplicates regardless of time
+                    // This handles long streams that might reconnect multiple times
+                    // But exclude Gensokyo Radio and other Radios which have their own duplicate handling
+                    if (track.getInfo().isStream && !handler.isGensokyoRadioTrack(track) && !handler.isRadioTrack(track)) {
+                        return;
+                    }
+                    
+                    // For regular tracks, 60s window to prevent accidental double-adds
+                    if (currentTime - lastRecord.getPlayedAt() < 60000) {
+                        return;
+                    }
+                }
+            }
+
             // Check for Gensokyo Radio duplicates first
             if (handler.isGensokyoRadioTrack(track)) {
                 try {
@@ -301,11 +322,6 @@ public class MusicHistory {
             
             // Add to the beginning of the history list
             history.add(0, record);
-            
-            // Trim history if it's too large
-            if (history.size() > MAX_HISTORY_SIZE) {
-                history.subList(MAX_HISTORY_SIZE, history.size()).clear();
-            }
             
             // Save the updated history
             saveHistory();

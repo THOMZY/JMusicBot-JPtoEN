@@ -21,15 +21,17 @@ This fork aims to updates dependencies when YouTube playback breaks and adds min
 
 ### Changes :
 
+* Youtube fallback with **[`yt-dlp`](https://github.com/yt-dlp/yt-dlp)**.
 * Added a web panel for music / bot management.  
 * Added `/history` command that track played songs.  
 * Added `/radio` command that searches and plays radio stations.  
 * Added `/stats` command to view total play time and songs played.  
+* Added `/settopicstatus` command to toggle text channel playing status.  
 * `/nowplaying` now have more and cleaner informations.  
 * `/lyrics` his now more robust finding lyrics. 
 * `/play` now work with Spotify links instead of returning "Unknown file format." error.   
 * Fixed Youtube livestreams fail at 30sec. 
-* Added the ability to queue multiple local files in a single message.( 10 max, Discord upload limit )
+* Added the ability to queue multiple local files in a single message. ( 10 max, Discord upload limit )
 
 Check the [CHANGELOG](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/main/CHANGELOG.md) to view all the updated dependencies.
   

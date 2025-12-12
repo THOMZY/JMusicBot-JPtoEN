@@ -260,6 +260,7 @@ public class JMusicBot {
             add(new SettcCmd(bot));
             add(new SetvcCmd(bot));
             add(new SetvcStatusCmd(bot));
+            add(new SettopicStatusCmd(bot));
             add(new AutoplaylistCmd(bot));
             add(new ServerListCmd(bot));
             // Owner

@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.jagrosh.jmusicbot.Bot;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
+import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd;
 import dev.cosgy.jmusicbot.slashcommands.music.RadioCmd;
 import dev.cosgy.jmusicbot.util.LocalAudioMetadata;
@@ -89,18 +90,24 @@ public class MusicHistory {
         }
         
         try {
-            // Check for duplicates (same URL and Guild)
+            AudioTrackInfo info = PlayerManager.getDisplayInfo(track);
+            if (info == null) {
+                info = track.getInfo();
+            }
+
+            // Check for duplicates (same URL and Guild) using display info
             if (!history.isEmpty()) {
                 PlayRecord lastRecord = history.get(0);
                 String currentGuildId = String.valueOf(handler.getGuildId());
-                String currentUrl = track.getInfo().uri;
+                String currentUrl = info.uri;
                 long currentTime = System.currentTimeMillis();
                 
                 if (lastRecord.getGuildId().equals(currentGuildId) && lastRecord.getUrl().equals(currentUrl)) {
                     // If it's a stream (like YouTube Live), avoid adding duplicates regardless of time
                     // This handles long streams that might reconnect multiple times
                     // But exclude Gensokyo Radio and other Radios which have their own duplicate handling
-                    if (track.getInfo().isStream && !handler.isGensokyoRadioTrack(track) && !handler.isRadioTrack(track)) {
+                    boolean isStream = info.isStream;
+                    if (isStream && !handler.isGensokyoRadioTrack(track) && !handler.isRadioTrack(track)) {
                         return;
                     }
                     
@@ -114,9 +121,9 @@ public class MusicHistory {
             // Check for Gensokyo Radio duplicates first
             if (handler.isGensokyoRadioTrack(track)) {
                 try {
-                    dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-                    if (info != null && info.getSonginfo() != null) {
-                        String currentSong = info.getSonginfo().getArtist() + " - " + info.getSonginfo().getTitle();
+                    dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+                    if (grInfo != null && grInfo.getSonginfo() != null) {
+                        String currentSong = grInfo.getSonginfo().getArtist() + " - " + grInfo.getSonginfo().getTitle();
                         long currentTime = System.currentTimeMillis();
                         
                         // Check if this exact song was just added (within threshold)
@@ -146,8 +153,8 @@ public class MusicHistory {
             String guildName = bot.getJDA().getGuildById(handler.getGuildId()).getName();
             
             // For Gensokyo Radio, get the current track info directly from the agent
-            String title = track.getInfo().title;
-            String artist = track.getInfo().author;
+            String title = info.title;
+            String artist = info.author;
             
             // Clean radio titles by removing "| RADIO NAME" suffix
             if (handler.isRadioTrack(track)) {
@@ -161,12 +168,12 @@ public class MusicHistory {
                 try {
                     // Force an update to get the very latest info
                     dev.cosgy.agent.GensokyoInfoAgent.forceUpdate();
-                    dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+                    dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
                     
-                    if (info != null && info.getSonginfo() != null) {
+                    if (grInfo != null && grInfo.getSonginfo() != null) {
                         // Always use the info directly from the agent for Gensokyo Radio tracks
-                        title = info.getSonginfo().getTitle();
-                        artist = info.getSonginfo().getArtist();
+                        title = grInfo.getSonginfo().getTitle();
+                        artist = grInfo.getSonginfo().getArtist();
                         
                         // Check for empty values and provide defaults
                         if (title == null || title.isEmpty()) {
@@ -192,7 +199,7 @@ public class MusicHistory {
                 title,  // Use our cleaned detected title
                 artist, // Use our detected artist
                 track.getDuration(),
-                track.getInfo().uri,
+                info.uri,
                 System.currentTimeMillis(),
                 requester != null ? requester.getId() : "unknown",
                 requester != null ? requester.getName() : "Unknown User",
@@ -225,7 +232,7 @@ public class MusicHistory {
                     handler.getRadioLogoUrl(track)
                 );
             } else if (type == AudioHandler.TrackType.YOUTUBE) {
-                String videoId = track.getInfo().uri;
+                String videoId = info.uri;
                 if (videoId.contains("v=")) {
                     videoId = videoId.substring(videoId.indexOf("v=") + 2);
                     if (videoId.contains("&")) {
@@ -265,16 +272,16 @@ public class MusicHistory {
             // Check for Gensokyo Radio tracks
             if (handler.isGensokyoRadioTrack(track)) {
                 try {
-                    dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-                    if (info != null && info.getSonginfo() != null) {
+                    dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+                    if (grInfo != null && grInfo.getSonginfo() != null) {
                         // Set Gensokyo Radio data
                         record.setGensokyoData(
-                            info.getSonginfo().getTitle(),
-                            info.getSonginfo().getArtist(),
-                            info.getSonginfo().getAlbum(),
-                            info.getSonginfo().getCircle(),
-                            info.getSonginfo().getYear(),
-                            info.getMisc() != null ? info.getMisc().getFullAlbumArtUrl() : ""
+                            grInfo.getSonginfo().getTitle(),
+                            grInfo.getSonginfo().getArtist(),
+                            grInfo.getSonginfo().getAlbum(),
+                            grInfo.getSonginfo().getCircle(),
+                            grInfo.getSonginfo().getYear(),
+                            grInfo.getMisc() != null ? grInfo.getMisc().getFullAlbumArtUrl() : ""
                         );
                     }
                 } catch (Exception e) {
@@ -282,7 +289,7 @@ public class MusicHistory {
                 }
             }
             // Handle regular streams if not Gensokyo Radio
-            else if (track.getInfo().isStream) {
+            else if (info.isStream) {
                 // Check for ICY metadata
                 IcyMetadataHandler.StreamMetadata icyMetadata = 
                     bot.getIcyMetadataHandler().getMetadata(String.valueOf(handler.getGuildId()));

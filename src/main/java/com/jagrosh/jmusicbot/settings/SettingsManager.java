@@ -68,7 +68,8 @@ public class SettingsManager implements GuildSettingsManager {
                         o.has("bitrate_warnings_readied") && o.getBoolean("bitrate_warnings_readied"),
                         o.has("announce") ? o.getInt("announce") : 0,
                         o.has("skip_ratio") ? o.getDouble("skip_ratio") : SKIP_RATIO,
-                        o.has("vc_status") && o.getBoolean("vc_status"),
+                        o.has("vc_status") ? o.getBoolean("vc_status") : false,
+                        o.has("topic_status") ? o.getBoolean("topic_status") : false,
                         o.has("force_to_end_que") && o.getBoolean("force_to_end_que"),
                         o.has("songs_played") ? o.getInt("songs_played") : 0,
                         o.has("playtime_millis") ? o.getLong("playtime_millis") : 0));
@@ -104,7 +105,7 @@ public class SettingsManager implements GuildSettingsManager {
     }
 
     private Settings createDefaultSettings() {
-        return new Settings(this, 0, 0, 0, 10, null, RepeatMode.OFF, null, false, 0, SKIP_RATIO, true, false, 0, 0);
+        return new Settings(this, 0, 0, 0, 10, null, RepeatMode.OFF, null, false, 0, SKIP_RATIO, false, false, false, 0, 0);
     }
 
     protected void writeSettings() {
@@ -130,8 +131,8 @@ public class SettingsManager implements GuildSettingsManager {
                 o.put("announce", s.getAnnounce());
             if (s.getSkipRatio() != SKIP_RATIO)
                 o.put("skip_ratio", s.getSkipRatio());
-            if (!s.getVCStatus())
-                o.put("vc_status", s.getVCStatus());
+            o.put("vc_status", s.getVCStatus());
+            o.put("topic_status", s.getTopicStatus());
             if(s.isForceToEndQue())
                 o.put("force_to_end_que", s.isForceToEndQue());
             // Save stats

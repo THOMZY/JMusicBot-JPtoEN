@@ -23,12 +23,13 @@ import com.jagrosh.jmusicbot.playlist.PlaylistLoader.Playlist;
 import com.jagrosh.jmusicbot.queue.FairQueue;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
-import com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor; // Assurez-vous que cet import est correct
+import com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
+import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import com.sedmelluq.discord.lavaplayer.track.playback.AudioFrame;
 import dev.cosgy.jmusicbot.settings.RepeatMode;
 import dev.cosgy.jmusicbot.slashcommands.music.RadioCmd;
@@ -37,6 +38,7 @@ import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.audio.AudioSendHandler;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.GuildVoiceState;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.utils.FileUpload; // Import pour FileUpload
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
@@ -54,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -70,6 +73,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     private final String stringGuildId;
     private AudioFrame lastFrame;
     private long streamStartTime;
+    private final AtomicBoolean suppressAutoLeaveOnce = new AtomicBoolean(false);
     
     // Cache for various content sources
     private static final Map<String, String> sourceIconCache = new ConcurrentHashMap<>();
@@ -86,6 +90,25 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         OTHER       // Any other source
     }
 
+    private AudioTrackInfo displayInfo(AudioTrack track) {
+        return PlayerManager.getDisplayInfo(track);
+    }
+
+    private static RequestMetadata extractRequestMetadata(AudioTrack track) {
+        if (track == null) return RequestMetadata.EMPTY;
+        Object ud = track.getUserData();
+        if (ud instanceof RequestMetadata) {
+            return (RequestMetadata) ud;
+        }
+        if (ud instanceof PlayerManager.TrackContext) {
+            PlayerManager.TrackContext tc = (PlayerManager.TrackContext) ud;
+            if (tc.userData instanceof RequestMetadata) {
+                return (RequestMetadata) tc.userData;
+            }
+        }
+        return RequestMetadata.EMPTY;
+    }
+
     /**
      * Determines the type of the currently playing track
      * @param track The track to check
@@ -94,7 +117,8 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     public TrackType getTrackType(AudioTrack track) {
         if (track == null) return TrackType.OTHER;
         
-        RequestMetadata rm = track.getUserData(RequestMetadata.class);
+        RequestMetadata rm = extractRequestMetadata(track);
+        AudioTrackInfo info = displayInfo(track);
         
         // Check for Spotify first - high priority
         if (isSpotifyTrack(track)) {
@@ -111,9 +135,16 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             return TrackType.RADIO;
         }
         
-        // Check for YouTube
-        if (track.getSourceManager() != null && 
-            track.getSourceManager().getSourceName().equalsIgnoreCase("youtube")) {
+        // Treat yt-dlp replacements as YouTube if original info matches
+        if (info != null && info.uri != null) {
+            String lowerUri = info.uri.toLowerCase();
+            if (lowerUri.contains("youtube.com/") || lowerUri.contains("youtu.be/")) {
+                return TrackType.YOUTUBE;
+            }
+        }
+        // Otherwise use source manager name
+        if (track.getSourceManager() != null &&
+                track.getSourceManager().getSourceName().equalsIgnoreCase("youtube")) {
             return TrackType.YOUTUBE;
         }
         
@@ -136,24 +167,22 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (track == null) return false;
         
         // First check the RequestMetadata for radio info
-        RequestMetadata rm = track.getUserData(RequestMetadata.class);
+        RequestMetadata rm = extractRequestMetadata(track);
         if (rm != null && rm.hasRadioData()) {
             // If we have explicit radio data from the /radio command
             return true;
         }
         
+        // Only treat as radio if the URL matches a known radio station/stream
+        String trackUrl = track.getInfo() != null ? track.getInfo().uri : null;
+        if (!isKnownRadioUrl(trackUrl)) {
+            // Prevent stale radio metadata (ex: lastStationPaths) from mislabeling non-radio tracks
+            return false;
+        }
+
         // Fallback: check RadioCmd's static maps (tracks loaded via /radio)
         String stationPath = getRadioStationPath(track);
-        if (stationPath != null) {
-            return true;
-        }
-        
-        // For tracks coming from a stream source, we now only consider them
-        // radio streams if they EXPLICITLY came from the /radio command
-        
-        // If no explicit radio command identified this as a radio,
-        // it should be treated as a regular stream, even if it's technically a radio stream URL
-        return false;
+        return stationPath != null;
     }
 
     /**
@@ -165,7 +194,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (track == null) return null;
         
         // Check if the RequestMetadata has radio info
-        RequestMetadata rm = track.getUserData(RequestMetadata.class);
+        RequestMetadata rm = extractRequestMetadata(track);
         if (rm != null && rm.hasRadioData()) {
             return rm.getRadioStationPath();
         }
@@ -220,6 +249,16 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         
         return null;
     }
+
+    private boolean isKnownRadioUrl(String trackUrl) {
+        if (trackUrl == null) {
+            return false;
+        }
+        if (trackUrl.contains("onlineradiobox.com")) {
+            return true;
+        }
+        return RadioCmd.getStreamUrlMappings().containsValue(trackUrl);
+    }
     
     /**
      * Gets the radio logo URL for the current track
@@ -230,7 +269,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (track == null) return null;
         
         // Check if the RequestMetadata has radio info
-        RequestMetadata rm = track.getUserData(RequestMetadata.class);
+        RequestMetadata rm = extractRequestMetadata(track);
         if (rm != null && rm.hasRadioData()) {
             return rm.getRadioLogoUrl();
         }
@@ -253,7 +292,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (track == null) return null;
         
         // Check if the RequestMetadata has radio info
-        RequestMetadata rm = track.getUserData(RequestMetadata.class);
+        RequestMetadata rm = extractRequestMetadata(track);
         if (rm != null && rm.hasRadioData()) {
             return rm.getRadioStationName();
         }
@@ -282,7 +321,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (track == null) return false;
         
         // Check RequestMetadata for Spotify track ID
-        RequestMetadata rm = track.getUserData(RequestMetadata.class);
+        RequestMetadata rm = extractRequestMetadata(track);
         if (rm != null && rm.hasSpotifyData()) {
             // This track has Spotify data directly attached to it
             String spotifyTrackId = rm.getSpotifyTrackId();
@@ -332,7 +371,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         }
         
         // If we have Spotify data in RequestMetadata, ensure it's in the SpotifyCmd maps
-        RequestMetadata rm = audioPlayer.getPlayingTrack().getUserData(RequestMetadata.class);
+        RequestMetadata rm = extractRequestMetadata(audioPlayer.getPlayingTrack());
         if (rm != null && rm.hasSpotifyData()) {
             String spotifyTrackId = rm.getSpotifyTrackId();
             SpotifyCmd.lastTrackIds.put(stringGuildId, spotifyTrackId);
@@ -430,6 +469,11 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         this.stringGuildId = guild.getId();
     }
 
+    // Skip the onTrackEnd auto-leave once (used when replacing a track via fallback)
+    public void suppressAutoLeaveOnce() {
+        this.suppressAutoLeaveOnce.set(true);
+    }
+
     /**
      * Adds a track to the front of the queue, or plays it immediately if nothing is playing
      * @param qtrack The track to add
@@ -472,7 +516,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         AudioTrack clonedTrack = track.makeClone();
         
         // Preserve the RequestMetadata
-        RequestMetadata rm = track.getUserData(RequestMetadata.class);
+        RequestMetadata rm = extractRequestMetadata(track);
         clonedTrack.setUserData(rm);
         
         // Add to queue based on settings
@@ -519,7 +563,15 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @return True if music is playing
      */
     public boolean isMusicPlaying(JDA jda) {
-        return guild(jda).getSelfMember().getVoiceState().inAudioChannel() && audioPlayer.getPlayingTrack() != null;
+        Guild g = guild(jda);
+        if (audioPlayer.getPlayingTrack() == null) {
+            return false;
+        }
+        if (g == null) {
+            return true; // Track exists; assume playing even if guild lookup failed
+        }
+        GuildVoiceState vs = g.getSelfMember().getVoiceState();
+        return vs != null && vs.inAudioChannel();
     }
 
     /**
@@ -546,7 +598,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (audioPlayer.getPlayingTrack() == null)
             return RequestMetadata.EMPTY;
         
-        RequestMetadata rm = audioPlayer.getPlayingTrack().getUserData(RequestMetadata.class);
+        RequestMetadata rm = extractRequestMetadata(audioPlayer.getPlayingTrack());
         return rm == null ? RequestMetadata.EMPTY : rm;
     }
 
@@ -608,6 +660,9 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     // Audio Events
     @Override
     public void onTrackEnd(AudioPlayer player, AudioTrack track, AudioTrackEndReason endReason) {
+        if (endReason == AudioTrackEndReason.REPLACED || suppressAutoLeaveOnce.getAndSet(false)) {
+            return;
+        }
         RepeatMode repeatMode = manager.getBot().getSettingsManager().getSettings(guildId).getRepeatMode();
 
         // Track statistics update
@@ -677,7 +732,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      */
     private void handleTrackRepetition(AudioTrack track, RepeatMode repeatMode) {
         // Get the RequestMetadata from the track to preserve important information
-                RequestMetadata rm = track.getUserData(RequestMetadata.class);
+                RequestMetadata rm = extractRequestMetadata(track);
                 
                 // Create a cloned track that will be added back to the queue
                 AudioTrack clonedTrack = track.makeClone();
@@ -802,7 +857,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     private void ensureSpotifyDataIsInitialized(AudioTrack track) {
         if (hasSpotifyData(track)) {
             // Make sure the global map is updated with this track's Spotify ID
-            RequestMetadata rm = track.getUserData(RequestMetadata.class);
+            RequestMetadata rm = extractRequestMetadata(track);
             if (rm != null && rm.hasSpotifyData()) {
                 SpotifyCmd.lastTrackIds.put(stringGuildId, rm.getSpotifyTrackId());
             }
@@ -816,7 +871,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     private void ensureRadioDataIsInitialized(AudioTrack track) {
         if (track == null) return;
         
-        RequestMetadata rm = track.getUserData(RequestMetadata.class);
+        RequestMetadata rm = extractRequestMetadata(track);
         if (rm == null || !rm.hasRadioData()) return;
         
         // Store the radio info in the global maps for compatibility
@@ -840,7 +895,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     private boolean hasSpotifyData(AudioTrack track) {
         if (track == null) return false;
         
-        RequestMetadata rm = track.getUserData(RequestMetadata.class);
+        RequestMetadata rm = extractRequestMetadata(track);
         return rm != null && rm.hasSpotifyData();
     }
 
@@ -848,12 +903,12 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     public MessageCreateData getNowPlaying(JDA jda) throws Exception {
         Guild guild = guild(jda);
         if (guild == null) {
-            return null;
+            return MessageCreateData.fromContent("No music is playing.");
         }
         
         AudioTrack track = audioPlayer.getPlayingTrack();
         if (track == null) {
-            return null;
+            return getNoMusicPlaying(jda);
         }
         
         // Get RequestMetadata
@@ -1046,6 +1101,62 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             buildDefaultEmbed(eb, track, rm);
             eb.setFooter("Source: Spotify", getSourceIconUrl("spotify"));
         }
+    }
+
+    /**
+     * Builds an embed for Gensokyo Radio streams
+     * @param eb The EmbedBuilder to populate
+     * @param track The current track
+     */
+    private void buildGensokyoRadioEmbed(EmbedBuilder eb, AudioTrack track) {
+        eb.setTitle("~ Now playing Gensokyo Radio :");
+
+        StringBuilder description = new StringBuilder();
+
+        try {
+            // Pull rich metadata from the Gensokyo agent when available
+            dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+
+            if (info != null && info.getSonginfo() != null) {
+                String artist = info.getSonginfo().getArtist();
+                String title = info.getSonginfo().getTitle();
+
+                if (artist != null || title != null) {
+                    description.append("**")
+                               .append(artist != null ? artist : "Unknown Artist")
+                               .append(" - ")
+                               .append(title != null ? title : "Unknown Title")
+                               .append("**");
+                }
+
+                if (info.getSonginfo().getAlbum() != null && !info.getSonginfo().getAlbum().isEmpty()) {
+                    description.append("\nAlbum: ").append(info.getSonginfo().getAlbum());
+                }
+                if (info.getSonginfo().getCircle() != null && !info.getSonginfo().getCircle().isEmpty()) {
+                    description.append("\nCircle: ").append(info.getSonginfo().getCircle());
+                }
+
+                // Attach album art if permitted and available
+                if (manager.getBot().getConfig().useNPImages() &&
+                    info.getMisc() != null &&
+                    info.getMisc().getFullAlbumArtUrl() != null &&
+                    !info.getMisc().getFullAlbumArtUrl().isEmpty()) {
+                    eb.setImage(info.getMisc().getFullAlbumArtUrl());
+                }
+            } else {
+                // Fallback text if no detailed metadata is available
+                description.append("Gensokyo Radio");
+            }
+        } catch (Exception e) {
+            // Safe fallback in case the agent fails
+            description.append("Gensokyo Radio");
+        }
+
+        description.append("\n\n");
+        appendProgressBar(description, track);
+
+        eb.setDescription(description.toString());
+        eb.setFooter("Source: Gensokyo Radio", "https://stream.gensokyoradio.net/images/logo.png");
     }
     
     /**
@@ -1251,21 +1362,23 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     private void buildYoutubeEmbed(EmbedBuilder eb, AudioTrack track, RequestMetadata rm) {
         try {
             // Get the track title or filename for display
-            String title = track.getInfo().title;
+            AudioTrackInfo info = displayInfo(track);
+            String title = info.title;
             if (title == null || title.isEmpty() || title.equals("Unknown title")) {
                 // Extract filename from URL for local files
-                String uri = track.getInfo().uri;
+                String uri = info.uri;
                 title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
                 title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
             }
             
-            eb.setTitle(title, track.getInfo().uri);
+            eb.setTitle(title, info.uri);
         } catch (Exception e) {
             // Get the track title or filename for display
-            String title = track.getInfo().title;
+            AudioTrackInfo info = displayInfo(track);
+            String title = info.title;
             if (title == null || title.isEmpty() || title.equals("Unknown title")) {
                 // Extract filename from URL for local files
-                String uri = track.getInfo().uri;
+                String uri = info.uri;
                 title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
                 title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
             }
@@ -1285,8 +1398,9 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         
         // Build description with author and progress bar
         StringBuilder description = new StringBuilder();
-        if (track.getInfo().author != null && !track.getInfo().author.isEmpty()) {
-            description.append("**Channel:** ").append(track.getInfo().author).append("\n\n");
+        AudioTrackInfo info = displayInfo(track);
+        if (info.author != null && !info.author.isEmpty()) {
+            description.append("**Channel:** ").append(info.author).append("\n\n");
         }
         
         // Get current chapter if available
@@ -1377,23 +1491,24 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @param rm The RequestMetadata
      */
     private void buildSoundCloudEmbed(EmbedBuilder eb, AudioTrack track, RequestMetadata rm) {
+        AudioTrackInfo info = displayInfo(track);
         try {
             // Get the track title or filename for display
-            String title = track.getInfo().title;
+            String title = info.title;
             if (title == null || title.isEmpty() || title.equals("Unknown title")) {
                 // Extract filename from URL for local files
-                String uri = track.getInfo().uri;
+                String uri = info.uri;
                 title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
                 title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
             }
             
-            eb.setTitle(title, track.getInfo().uri);
+            eb.setTitle(title, info.uri);
         } catch (Exception e) {
             // Get the track title or filename for display
-            String title = track.getInfo().title;
+            String title = info.title;
             if (title == null || title.isEmpty() || title.equals("Unknown title")) {
                 // Extract filename from URL for local files
-                String uri = track.getInfo().uri;
+                String uri = info.uri;
                 title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
                 title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
             }
@@ -1403,15 +1518,15 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         
         // Add SoundCloud thumbnail
         if (manager.getBot().getConfig().useNPImages() && 
-            track.getInfo().artworkUrl != null && 
-            !track.getInfo().artworkUrl.isEmpty()) {
-            eb.setThumbnail(track.getInfo().artworkUrl);
+            info != null && info.artworkUrl != null && 
+            !info.artworkUrl.isEmpty()) {
+            eb.setThumbnail(info.artworkUrl);
         }
         
         // Build description with author and progress bar
         StringBuilder description = new StringBuilder();
-        if (track.getInfo().author != null && !track.getInfo().author.isEmpty()) {
-            description.append("**Artist:** ").append(track.getInfo().author).append("\n\n");
+        if (info.author != null && !info.author.isEmpty()) {
+            description.append("**Artist:** ").append(info.author).append("\n\n");
         }
         
         appendProgressBar(description, track);
@@ -1451,64 +1566,89 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @param rm The RequestMetadata
      */
     private void buildDefaultEmbed(EmbedBuilder eb, AudioTrack track, RequestMetadata rm) {
-                try {
-                    // Get the track title or filename for display
-                    String title = track.getInfo().title;
-                    if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                        // Extract filename from URL for local files
-                        String uri = track.getInfo().uri;
-                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
-                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
-                    }
-                    
-                    eb.setTitle(title, track.getInfo().uri);
-                } catch (Exception e) {
-                    // Get the track title or filename for display
-                    String title = track.getInfo().title;
-                    if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                        // Extract filename from URL for local files
-                        String uri = track.getInfo().uri;
-                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
-                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
-                    }
-                    
-                    eb.setTitle(title);
-                }
+        AudioTrackInfo info = displayInfo(track);
+        if (info == null) {
+            info = track.getInfo();
+        }
 
-        // Handle thumbnail
-                if (manager.getBot().getConfig().useNPImages()) {
-                    if (track.getInfo().artworkUrl != null && !track.getInfo().artworkUrl.isEmpty()) {
-                        eb.setThumbnail(track.getInfo().artworkUrl);
+        try {
+            String title = info.title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                String uri = info.uri;
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+            }
+
+            eb.setTitle(title, info.uri);
+        } catch (Exception e) {
+            String title = info.title;
+            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+                String uri = info.uri;
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+            }
+
+            eb.setTitle(title);
+        }
+
+        if (manager.getBot().getConfig().useNPImages()) {
+            if (info.artworkUrl != null && !info.artworkUrl.isEmpty()) {
+                eb.setThumbnail(info.artworkUrl);
             }
         }
-        
-        // Determine source platform
-                String sourcePlatform = "Unknown Source";
-        if (track.getSourceManager() != null) {
+
+        TrackType trackType = getTrackType(track);
+        String sourcePlatform = "Unknown Source";
+        String sourceKey = null;
+
+        switch (trackType) {
+            case YOUTUBE:
+                sourcePlatform = "YouTube";
+                sourceKey = "youtube";
+                break;
+            case SPOTIFY:
+                sourcePlatform = "Spotify";
+                sourceKey = "spotify";
+                break;
+            case SOUNDCLOUD:
+                sourcePlatform = "SoundCloud";
+                sourceKey = "soundcloud";
+                break;
+            case RADIO:
+                sourcePlatform = "Radio";
+                sourceKey = "radio";
+                break;
+            case LOCAL:
+                sourcePlatform = "Local File";
+                sourceKey = "local";
+                break;
+            default:
+                break;
+        }
+
+        if (sourceKey == null && track.getSourceManager() != null) {
+            sourceKey = track.getSourceManager().getSourceName().toLowerCase();
             sourcePlatform = track.getSourceManager().getSourceName();
-            
-            // Capitalize first letter and make friendly names
+
             if (sourcePlatform.equalsIgnoreCase("http")) {
-                    sourcePlatform = "HTTP Stream";
+                sourcePlatform = "HTTP Stream";
             } else if (sourcePlatform.equalsIgnoreCase("local")) {
-                    sourcePlatform = "Local File";
-                } else {
-                sourcePlatform = sourcePlatform.substring(0, 1).toUpperCase() + 
-                                sourcePlatform.substring(1).toLowerCase();
+                sourcePlatform = "Local File";
+            } else {
+                sourcePlatform = sourcePlatform.substring(0, 1).toUpperCase() +
+                        sourcePlatform.substring(1).toLowerCase();
             }
         }
-        
-        // Build description with author and progress bar
+
         StringBuilder descBuilder = new StringBuilder();
-        if (track.getInfo().author != null && !track.getInfo().author.isEmpty()) {
-            descBuilder.append("**Artist:** ").append(track.getInfo().author).append("\n\n");
+        if (info.author != null && !info.author.isEmpty()) {
+            descBuilder.append("**Artist:** ").append(info.author).append("\n\n");
         }
-        
+
         appendProgressBar(descBuilder, track);
         eb.setDescription(descBuilder.toString());
 
-                // Set footer to show source platform with favicon
-        eb.setFooter("Source: " + sourcePlatform, getSourceIconUrl(track.getSourceManager().getSourceName().toLowerCase()));
+        eb.setFooter("Source: " + sourcePlatform, getSourceIconUrl(sourceKey != null ? sourceKey : sourcePlatform.toLowerCase()));
     }
     
     /**
@@ -1652,15 +1792,16 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             }
             
             // Default format for all other tracks
-            String title = track.getInfo().title;
+            AudioTrackInfo info = displayInfo(track);
+            String title = info.title;
             if (title == null || title.isEmpty() || title.equals("Unknown title")) {
                 // Extract filename from URL for local files
-                String uri = track.getInfo().uri;
+                String uri = info.uri;
                 title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
                 title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
             }
                 
-            if (track.getInfo().isStream) {
+            if (info.isStream) {
                 return "**" + title + "** [" + (userid == 0 ? "📻" : "<@" + userid + ">") + "]" +
                        "\n" + (audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI) + " " +
                        "[LIVE] " +
@@ -1787,120 +1928,27 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @return True if the track is from Gensokyo Radio
      */
     public boolean isGensokyoRadioTrack(AudioTrack track) {
-        if (track == null || track.getInfo().uri == null) return false;
-        
-        // Check if the URL is from Gensokyo Radio
-        boolean isGensokyoTrack = track.getInfo().uri.startsWith("https://stream.gensokyoradio.net/");
-        
-        // Start the GensokyoInfoAgent if this is a Gensokyo Radio track
-        if (isGensokyoTrack) {
-            // Start the agent only when we detect a Gensokyo Radio stream
-            dev.cosgy.agent.GensokyoInfoAgent.startAgent();
-        }
-        
-        return isGensokyoTrack;
-    }
+        if (track == null || track.getInfo() == null) return false;
 
-    /**
-     * Builds an embed for Gensokyo Radio tracks
-     * @param eb The EmbedBuilder to populate
-     * @param track The current track
-     */
-    private void buildGensokyoRadioEmbed(EmbedBuilder eb, AudioTrack track) {
-        eb.setTitle("~ Now playing :");        
-        eb.setThumbnail("https://stream.gensokyoradio.net/images/logo.png");
-        
-        StringBuilder description = new StringBuilder();
-        String streamUrl = track.getInfo().uri;
-        
-        try {
-            // Make sure the agent is started and get current track info
-            dev.cosgy.agent.GensokyoInfoAgent.startAgent();
-            dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-            
-            // Add description
-            description.append("[Gensokyo Radio](https://gensokyoradio.net/playing/)");
-            
-            if (info != null && info.getSonginfo() != null) {
-                // Add song details
-                description.append("\n\n**Now playing:**");
-                description.append("\n**Title:** ").append(info.getSonginfo().getTitle());
-                description.append("\n**Artist:** ").append(info.getSonginfo().getArtist());
-                description.append("\n**Album:** ").append(info.getSonginfo().getAlbum());
-                description.append("\n**Circle:** ").append(info.getSonginfo().getCircle());
-                description.append("\n**Year:** ").append(info.getSonginfo().getYear());
-                
-                // Add play status for streams with progress bar based on song time
-                description.append("\n\n");
-                
-                // If we have timing information, use it to create a progress bar
-                if (info.getSongtimes() != null && 
-                    info.getSongtimes().getDuration() != null && info.getSongtimes().getDuration() > 0 && 
-                    info.getSongtimes().getPlayed() != null) {
-                    
-                    // Calculate progress percentage
-                    double progress = (double) info.getSongtimes().getPlayed() / info.getSongtimes().getDuration();
-                    
-                    // Format time for display
-                    String timeDisplay = String.format("`[%s/%s]`", 
-                            formatTime(info.getSongtimes().getPlayed()), 
-                            formatTime(info.getSongtimes().getDuration()));
-                    
-                    // Create progress bar using FormatUtil
-                    description.append((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI))
-                              .append(" ")
-                              .append(FormatUtil.progressBar(progress))
-                              .append(" ")
-                              .append(timeDisplay);
-                } else {
-                    // Fallback to infinite stream display if no timing info
-                    description.append((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI))
-                              .append(" ")
-                              .append(FormatUtil.progressBar(-1)) // -1 for infinite streams
-                              .append(" `[LIVE]` ");
-                }
-                
-                // Add album art using the full URL from Misc
-                if (manager.getBot().getConfig().useNPImages() && 
-                    info.getMisc() != null && 
-                    info.getMisc().getAlbumart() != null &&
-                    !info.getMisc().getAlbumart().isEmpty()) {
-                    
-                    String albumArtUrl = info.getMisc().getFullAlbumArtUrl();
-                    if (!albumArtUrl.isEmpty()) {
-                        eb.setImage(albumArtUrl);
-                    }
-                }
-            } else {
-                // If we don't have info yet, show "Loading..." message
-                description.append("\n\n*Loading song information... (Please wait a moment)*");
-                
-                // Add fallback for progress bar
-                description.append("\n\n");
-                description.append((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI))
-                          .append(" ")
-                          .append(FormatUtil.progressBar(-1)) // -1 for infinite streams
-                          .append(" `[LIVE]` ");
-                
-                // Try to force an update for next time
-                dev.cosgy.agent.GensokyoInfoAgent.forceUpdate();
+        RequestMetadata rm = extractRequestMetadata(track);
+        if (rm != null && rm.hasRadioData()) {
+            String stationPath = rm.getRadioStationPath();
+            if (stationPath != null && stationPath.toLowerCase().contains("gensokyo")) {
+                return true;
             }
-        } catch (Exception e) {
-            // If there was an error fetching info, fallback to generic display
-            description.append("\n\n*Unable to retrieve song information: ").append(e.getMessage()).append("*");
-            
-            // Add fallback for progress bar
-            description.append("\n\n");
-            description.append((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI))
-                      .append(" ")
-                      .append(FormatUtil.progressBar(-1)) // -1 for infinite streams
-                      .append(" `[LIVE]` ");
         }
-        
-        eb.setDescription(description.toString());
-        
-        // Set footer with Gensokyo Radio logo
-        eb.setFooter("Gensokyo Radio", "https://stream.gensokyoradio.net/images/logo.png");
+
+        String trackUrl = track.getInfo().uri;
+        if (trackUrl != null && trackUrl.contains("gensokyoradio.net")) {
+            return true;
+        }
+
+        String stationPath = RadioCmd.lastStationPaths.get(stringGuildId);
+        if (stationPath != null && track.equals(audioPlayer.getPlayingTrack())) {
+            return stationPath.toLowerCase().contains("gensokyo");
+        }
+
+        return false;
     }
 
     /**

@@ -19,6 +19,7 @@ import com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
+import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import net.dv8tion.jda.api.entities.GuildVoiceState;
 import org.springframework.stereotype.Service;
 
@@ -203,6 +204,10 @@ public class MusicService {
         if (handler.isPresent() && handler.get().getPlayer().getPlayingTrack() != null) {
             AudioHandler audioHandler = handler.get();
             AudioTrack track = audioHandler.getPlayer().getPlayingTrack();
+            AudioTrackInfo info = PlayerManager.getDisplayInfo(track);
+            if (info == null) {
+                info = track.getInfo();
+            }
             RequestMetadata rm = track.getUserData(RequestMetadata.class);
             
             // Get source type and thumbnail
@@ -226,13 +231,13 @@ public class MusicService {
                     
                     // Extract video ID for thumbnail
                     String videoId = null;
-                    if (track.getInfo().uri.contains("youtu.be/")) {
-                        videoId = track.getInfo().uri.substring(track.getInfo().uri.lastIndexOf("/") + 1);
+                    if (info.uri.contains("youtu.be/")) {
+                        videoId = info.uri.substring(info.uri.lastIndexOf("/") + 1);
                         if (videoId.contains("?")) {
                             videoId = videoId.substring(0, videoId.indexOf("?"));
                         }
-                    } else if (track.getInfo().uri.contains("watch?v=")) {
-                        videoId = track.getInfo().uri.substring(track.getInfo().uri.indexOf("watch?v=") + 8);
+                    } else if (info.uri.contains("watch?v=")) {
+                        videoId = info.uri.substring(info.uri.indexOf("watch?v=") + 8);
                         if (videoId.contains("&")) {
                             videoId = videoId.substring(0, videoId.indexOf("&"));
                         }
@@ -315,11 +320,11 @@ public class MusicService {
                         
                         // Try to get album art from Gensokyo Agent
                         try {
-                            dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-                            if (info != null) {
+                            dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+                            if (grInfo != null) {
                                 // Get album art if available
-                                if (info.getMisc() != null && info.getMisc().getFullAlbumArtUrl() != null) {
-                                    String albumArtUrl = info.getMisc().getFullAlbumArtUrl();
+                                if (grInfo.getMisc() != null && grInfo.getMisc().getFullAlbumArtUrl() != null) {
+                                    String albumArtUrl = grInfo.getMisc().getFullAlbumArtUrl();
                                     if (!albumArtUrl.isEmpty()) {
                                         thumbnailUrl = albumArtUrl;
                                     }
@@ -444,44 +449,44 @@ public class MusicService {
             // Add Gensokyo Radio metadata if applicable
             else if (audioHandler.isGensokyoRadioTrack(track)) {
                 try {
-                    dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-                    if (info != null && info.getSonginfo() != null) {
+                    dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+                    if (grInfo != null && grInfo.getSonginfo() != null) {
                         // Create gensokyoInfo map similar to spotifyInfo
                         spotifyInfoMap = new HashMap<>();
                         
                         // Add album, circle, and year information
-                        if (info.getSonginfo().getAlbum() != null && !info.getSonginfo().getAlbum().isEmpty()) {
-                            spotifyInfoMap.put("albumName", info.getSonginfo().getAlbum());
+                        if (grInfo.getSonginfo().getAlbum() != null && !grInfo.getSonginfo().getAlbum().isEmpty()) {
+                            spotifyInfoMap.put("albumName", grInfo.getSonginfo().getAlbum());
                         }
                         
-                        if (info.getSonginfo().getCircle() != null && !info.getSonginfo().getCircle().isEmpty()) {
-                            spotifyInfoMap.put("circleName", info.getSonginfo().getCircle());
+                        if (grInfo.getSonginfo().getCircle() != null && !grInfo.getSonginfo().getCircle().isEmpty()) {
+                            spotifyInfoMap.put("circleName", grInfo.getSonginfo().getCircle());
                         }
                         
-                        if (info.getSonginfo().getYear() != null && !info.getSonginfo().getYear().isEmpty()) {
-                            spotifyInfoMap.put("releaseYear", info.getSonginfo().getYear());
+                        if (grInfo.getSonginfo().getYear() != null && !grInfo.getSonginfo().getYear().isEmpty()) {
+                            spotifyInfoMap.put("releaseYear", grInfo.getSonginfo().getYear());
                         }
                         
                         // Add album art URL if available
-                        if (info.getMisc() != null && info.getMisc().getFullAlbumArtUrl() != null) {
-                            String albumArtUrl = info.getMisc().getFullAlbumArtUrl();
+                        if (grInfo.getMisc() != null && grInfo.getMisc().getFullAlbumArtUrl() != null) {
+                            String albumArtUrl = grInfo.getMisc().getFullAlbumArtUrl();
                             if (!albumArtUrl.isEmpty()) {
                                 spotifyInfoMap.put("albumImageUrl", albumArtUrl);
                             }
                         }
                         
                         // Add song time information if available
-                        if (info.getSongtimes() != null) {
-                            if (info.getSongtimes().getDuration() != null) {
-                                spotifyInfoMap.put("gensokyoDuration", info.getSongtimes().getDuration() * 1000); // Convert to milliseconds
+                        if (grInfo.getSongtimes() != null) {
+                            if (grInfo.getSongtimes().getDuration() != null) {
+                                spotifyInfoMap.put("gensokyoDuration", grInfo.getSongtimes().getDuration() * 1000); // Convert to milliseconds
                             }
                             
-                            if (info.getSongtimes().getPlayed() != null) {
-                                spotifyInfoMap.put("gensokyoPlayed", info.getSongtimes().getPlayed() * 1000); // Convert to milliseconds
+                            if (grInfo.getSongtimes().getPlayed() != null) {
+                                spotifyInfoMap.put("gensokyoPlayed", grInfo.getSongtimes().getPlayed() * 1000); // Convert to milliseconds
                             }
                             
-                            if (info.getSongtimes().getRemaining() != null) {
-                                spotifyInfoMap.put("gensokyoRemaining", info.getSongtimes().getRemaining() * 1000); // Convert to milliseconds
+                            if (grInfo.getSongtimes().getRemaining() != null) {
+                                spotifyInfoMap.put("gensokyoRemaining", grInfo.getSongtimes().getRemaining() * 1000); // Convert to milliseconds
                             }
                         }
                     }
@@ -515,13 +520,13 @@ public class MusicService {
                 }
             }
             
-            return new MusicStatus(
-                    track.getInfo().title,
-                    track.getInfo().author,
-                    track.getInfo().uri,
+                return new MusicStatus(
+                    info.title,
+                    info.author,
+                    info.uri,
                     thumbnailUrl,
                     track.getPosition(),
-                    track.getDuration(),
+                    info.length,
                     audioHandler.getPlayer().getPlayingTrack() != null,
                     audioHandler.getPlayer().isPaused(),
                     !audioHandler.getQueue().isEmpty(),

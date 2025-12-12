@@ -42,13 +42,14 @@ public class Settings implements GuildSettingsProvider {
     private boolean bitrateWarningReaded;
     private double skipRatio;
     private boolean vcStatus;
+    private boolean topicStatus;
     private boolean ForceToEndQue;
     // Stats tracking
     private int songsPlayed;
     private long playTimeMillis;
 
 
-    public Settings(SettingsManager manager, String textId, String voiceId, String roleId, int volume, String defaultPlaylist, RepeatMode repeatMode, String prefix, boolean bitrateWarningReaded, int announce, double skipRatio, boolean vcStatus, boolean forceToEndQue) {
+    public Settings(SettingsManager manager, String textId, String voiceId, String roleId, int volume, String defaultPlaylist, RepeatMode repeatMode, String prefix, boolean bitrateWarningReaded, int announce, double skipRatio, boolean vcStatus, boolean topicStatus, boolean forceToEndQue) {
         this.manager = manager;
         try {
             this.textId = Long.parseLong(textId);
@@ -65,32 +66,32 @@ public class Settings implements GuildSettingsProvider {
         } catch (NumberFormatException e) {
             this.roleId = 0;
         }
-        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, forceToEndQue, songsPlayed, playTimeMillis);
+        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, topicStatus, forceToEndQue, songsPlayed, playTimeMillis);
     }
 
-    public Settings(SettingsManager manager, long textId, long voiceId, long roleId, int volume, String defaultPlaylist, RepeatMode repeatMode, String prefix, boolean bitrateWarningReaded, int announce, double skipRatio, boolean vcStatus, boolean forceToEndQue) {
+    public Settings(SettingsManager manager, long textId, long voiceId, long roleId, int volume, String defaultPlaylist, RepeatMode repeatMode, String prefix, boolean bitrateWarningReaded, int announce, double skipRatio, boolean vcStatus, boolean topicStatus, boolean forceToEndQue) {
         this.manager = manager;
         this.textId = textId;
         this.voiceId = voiceId;
         this.roleId = roleId;
-        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, forceToEndQue, songsPlayed, playTimeMillis);
+        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, topicStatus, forceToEndQue, songsPlayed, playTimeMillis);
     }
 
     // Constructor with stats parameters
     public Settings(SettingsManager manager, long textId, long voiceId, long roleId, int volume, String defaultPlaylist, 
                     RepeatMode repeatMode, String prefix, boolean bitrateWarningReaded, int announce, double skipRatio, 
-                    boolean vcStatus, boolean forceToEndQue, int songsPlayed, long playTimeMillis) {
+                    boolean vcStatus, boolean topicStatus, boolean forceToEndQue, int songsPlayed, long playTimeMillis) {
         this.manager = manager;
         this.textId = textId;
         this.voiceId = voiceId;
         this.roleId = roleId;
-        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, forceToEndQue, songsPlayed, playTimeMillis);
+        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, topicStatus, forceToEndQue, songsPlayed, playTimeMillis);
     }
 
     // Constructor with stats parameters and String IDs
     public Settings(SettingsManager manager, String textId, String voiceId, String roleId, int volume, String defaultPlaylist, 
                     RepeatMode repeatMode, String prefix, boolean bitrateWarningReaded, int announce, double skipRatio, 
-                    boolean vcStatus, boolean forceToEndQue, int songsPlayed, long playTimeMillis) {
+                    boolean vcStatus, boolean topicStatus, boolean forceToEndQue, int songsPlayed, long playTimeMillis) {
         this.manager = manager;
         try {
             this.textId = Long.parseLong(textId);
@@ -107,7 +108,7 @@ public class Settings implements GuildSettingsProvider {
         } catch (NumberFormatException e) {
             this.roleId = 0;
         }
-        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, forceToEndQue, songsPlayed, playTimeMillis);
+        initializeSettings(volume, defaultPlaylist, repeatMode, prefix, bitrateWarningReaded, announce, skipRatio, vcStatus, topicStatus, forceToEndQue, songsPlayed, playTimeMillis);
     }
     
     /**
@@ -115,7 +116,7 @@ public class Settings implements GuildSettingsProvider {
      */
     private void initializeSettings(int volume, String defaultPlaylist, RepeatMode repeatMode, String prefix, 
                                    boolean bitrateWarningReaded, int announce, double skipRatio, boolean vcStatus, 
-                                   boolean forceToEndQue, int songsPlayed, long playTimeMillis) {
+                                   boolean topicStatus, boolean forceToEndQue, int songsPlayed, long playTimeMillis) {
         this.volume = volume;
         this.defaultPlaylist = defaultPlaylist;
         this.repeatMode = repeatMode;
@@ -124,6 +125,7 @@ public class Settings implements GuildSettingsProvider {
         this.announce = announce;
         this.skipRatio = skipRatio;
         this.vcStatus = vcStatus;
+        this.topicStatus = topicStatus;
         this.ForceToEndQue = forceToEndQue;
         this.songsPlayed = songsPlayed;
         this.playTimeMillis = playTimeMillis;
@@ -202,6 +204,15 @@ public class Settings implements GuildSettingsProvider {
 
     public void setVCStatus(boolean vcStatus) {
         this.vcStatus = vcStatus;
+        this.manager.writeSettings();
+    }
+
+    public boolean getTopicStatus() {
+        return topicStatus;
+    }
+
+    public void setTopicStatus(boolean topicStatus) {
+        this.topicStatus = topicStatus;
         this.manager.writeSettings();
     }
 

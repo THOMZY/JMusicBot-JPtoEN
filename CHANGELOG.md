@@ -4,9 +4,16 @@
 
 # 12 December 2025
 
+## ▶️ Added Youtube fallback if youtube-source fail with **[`yt-dlp`](https://github.com/yt-dlp/yt-dlp)**
+
+### 🚀 New Features
+- Added yt-dlp fallback.
+
 ### 🔧 Changes
 - Switched Web panel to SPA, interface now more responsive.
 - Fixed minors bugs and visuals in web panel.
+- Added `/SetTopicStatus` command. ( to use with `/SetTC` )
+- Fixed `/SetVCStatus` not saving in "serversettings.json".
 
 ### 📦 Dependency Updates
 - **spring-boot-starter-web**: `3.3.0` → `4.0.0`

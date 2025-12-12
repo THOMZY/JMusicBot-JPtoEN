@@ -20,6 +20,7 @@ import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.entities.Pair;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
+import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import com.jagrosh.jmusicbot.audio.IcyMetadataHandler;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Activity;
@@ -107,7 +108,7 @@ public class NowplayingHandler {
             return;
         Settings settings = bot.getSettingsManager().getSettings(guildId);
         TextChannel tchan = settings.getTextChannel(guild);
-        if (tchan != null && guild.getSelfMember().hasPermission(tchan, Permission.MANAGE_CHANNEL)) {
+        if (settings.getTopicStatus() && tchan != null && guild.getSelfMember().hasPermission(tchan, Permission.MANAGE_CHANNEL)) {
             String otherText;
             String topic = tchan.getTopic();
             if (topic == null || topic.isEmpty())
@@ -192,7 +193,8 @@ public class NowplayingHandler {
                 }
                 
                 // Check if title is empty or null, provide a default if needed
-                String title = track.getInfo().title;
+                AudioTrackInfo info = PlayerManager.getDisplayInfo(track);
+                String title = info != null ? info.title : track.getInfo().title;
                 if (title == null || title.trim().isEmpty() || title.equals("Unknown title")) {
                     // Try to get a better title from different sources
                     if (handler instanceof AudioHandler) {
@@ -216,14 +218,15 @@ public class NowplayingHandler {
                     
                     // If still empty, try to extract filename from URL for local files
                     if (title == null || title.trim().isEmpty() || title.equals("Unknown title")) {
-                        String uri = track.getInfo().uri;
+                        String uri = info != null && info.uri != null ? info.uri : track.getInfo().uri;
                         title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
                         title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
                     }
                     
                     // If still empty after all attempts, use a generic title
                     if (title == null || title.trim().isEmpty()) {
-                        title = track.getInfo().isStream ? "Live Stream" : "Music";
+                        boolean isStream = info != null ? info.isStream : track.getInfo().isStream;
+                        title = isStream ? "Live Stream" : "Music";
                     }
                 }
                 

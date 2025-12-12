@@ -3,18 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music History - JMusicBot Web Panel</title>
+    <title>JMusicBot Web Panel</title>
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/header.css">
     <link rel="stylesheet" href="css/modals.css">
+    <link rel="stylesheet" href="css/player.css">
+    <link rel="stylesheet" href="css/queue.css">
+    <link rel="stylesheet" href="css/add-track.css">
+    <link rel="stylesheet" href="css/youtube-chapters.css">
     <link rel="stylesheet" href="css/history.css">
+    <link rel="stylesheet" href="css/channels.css">
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" href="https://img.icons8.com/pulsar-gradient/48/aipods-pro-max.png" id="favicon">
 
+    <!-- Highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+
     <!-- Main scripts -->
     <script src="js/components.js"></script>
-    
-    <!-- History specific script -->
+    <script src="js/router.js"></script>
+    <script src="js/script.js"></script>
     <script src="js/history.js"></script>
 </head>
 <body>
@@ -23,17 +33,10 @@
         <!-- Header will be loaded here by components.js -->
     </header>
 
-    <!-- Main Content -->
+    <!-- Main Content View Container -->
     <div class="main-content">
-        <!-- Content with Chapters Structure -->
-        <div class="content-with-chapters">
-            <!-- Main Column -->
-            <div class="main-column">
-                <!-- History Container -->
-                <div id="history-content-component">
-                    <!-- History content will be loaded here by components.js -->
-                </div>
-            </div>
+        <div id="main-view">
+            <!-- Views will be loaded here by router.js -->
         </div>
     </div>
 
@@ -49,95 +52,48 @@
         // Flag to indicate we're using the modular system
         window.usingModularSystem = true;
         
-        // Function to initialize core services
-        async function initializeCoreServices() {
-            console.log('Initializing core services...');
-            
-            // Initialize Server Manager
-            if (typeof ServerManager !== 'undefined') {
-                console.log('Initializing Server Manager...');
-                ServerManager.initialize();
-                
-                // Load servers and get selected guild
-                try {
-                    await ServerManager.loadServers();
-                    const guildId = await ServerManager.getSelectedGuild();
-                    if (guildId) {
-                        window.currentGuildId = guildId;
-                        ServerManager.updateServerDisplay();
-                        console.log('Selected guild updated:', guildId);
-                    }
-                } catch (error) {
-                    console.error('Error initializing ServerManager:', error);
-                }
-            }
-            
-            // Load bot profile information
-            if (typeof BotProfile !== 'undefined') {
-                console.log('Loading bot profile information...');
-                await BotProfile.fetchBotInfo();
-            } else {
-                console.error('BotProfile module not found');
-            }
-            
-            console.log('Core services initialized');
-        }
-        
         // Initialize page when DOM content is loaded
         document.addEventListener('DOMContentLoaded', async function() {
             try {
-                console.log('Starting history page initialization...');
-                
-                // Load components
+                // Load common components
                 await loadComponent('header', '#header-container');
-                await loadComponent('history-content', '#history-content-component');
                 await loadComponent('modals', '#modals-container');
                 
-                // Set active nav button
-                const historyBtn = document.getElementById('history-btn');
-                if (historyBtn) historyBtn.setAttribute('disabled', 'true');
-                
-                // Load modules in the exact same order as in index.html
+                // Load all modules
                 await Promise.all([
                     loadScript('js/modules/server-manager.js'),
+                    loadScript('js/modules/player.js'),
                     loadScript('js/modules/ui.js'),
+                    loadScript('js/modules/youtube-chapters.js'),
                     loadScript('js/modules/bot-profile.js'),
-                    loadScript('js/modules/channels-manager.js'),
                     loadScript('js/modules/config-manager.js'),
-                    loadScript('js/modules/console-manager.js')
+                    loadScript('js/modules/console-manager.js'),
+                    loadScript('js/modules/channels-manager.js'),
+                    loadScript('js/modules/commands.js')
                 ]);
                 
-                // Initialize core services first
-                await initializeCoreServices();
-                
-                // Initialize UI module 
-                if (typeof UI !== 'undefined') {
-                    console.log('Initializing UI module...');
-                    UI.initializeUI();
+                // Initialize app core
+                if (typeof initializeApp === 'function') {
+                    // We need to separate app initialization from view initialization
+                    // initializeApp in script.js currently does both.
+                    // For now, let's call it, but we might need to refactor script.js
+                    // actually, initializeApp sets up UI, ServerManager, BotProfile, Player.
+                    // These are global.
                     
-                    // Make sure server dropdown is properly initialized
-                    if (typeof UI.initializeServerDropdown === 'function') {
-                        console.log('Re-initializing server dropdown explicitly...');
-                        UI.initializeServerDropdown();
-                    }
+                    // Wait a bit for scripts to parse
+                    setTimeout(() => {
+                        initializeApp();
+                        
+                        // Initialize Router
+                        Router.init();
+                    }, 100);
                 } else {
-                    console.error('UI module not found or not properly loaded');
+                    console.error('initializeApp function not found');
                 }
-                
-                // Initialize history page last
-                if (typeof initializeHistoryPage === 'function') {
-                    console.log('Initializing history page...');
-                    setTimeout(initializeHistoryPage, 100); // Small delay to ensure all modules are fully loaded
-                } else {
-                    console.error('initializeHistoryPage function not found - make sure history.js is properly loaded');
-                }
-                
-                console.log('History page initialization complete');
             } catch (error) {
                 console.error('Failed to initialize page:', error);
-                alert('Failed to initialize history page. See console for details.');
             }
         });
     </script>
 </body>
-</html> 
+</html>

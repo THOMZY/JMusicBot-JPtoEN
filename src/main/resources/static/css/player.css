@@ -4,11 +4,52 @@
 
 /* Player Section */
 .player-container {
-    background-color: var(--darker-bg);
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    overflow: hidden;
+    /* Inherits from .view-card */
+    overflow: visible;
     width: 100%;
+    position: relative;
+}
+
+.chapters-toggle {
+    position: absolute;
+    top: 50%;
+    right: -14px;
+    border: none;
+    background: transparent;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transform: translateY(-50%);
+    padding: 4px;
+    z-index: 12;
+}
+
+.chapters-toggle .toggle-icon {
+    border: solid var(--primary-color);
+    border-width: 0 3px 3px 0;
+    display: inline-block;
+    padding: 8px;
+    transform: rotate(-45deg);
+    transition: transform 0.3s ease;
+    background: transparent;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+}
+
+body.chapters-available .chapters-toggle {
+    display: flex;
+}
+
+body.chapters-open .chapters-toggle .toggle-icon {
+    transform: rotate(135deg);
+}
+
+@media (max-width: 768px) {
+    .chapters-toggle {
+        right: 10px;
+        top: 15px;
+        transform: none;
+    }
 }
 
 .player-content {
@@ -173,10 +214,43 @@
     align-items: center;
     font-size: 14px;
     color: var(--muted-text);
+    padding: 3px 8px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.metadata-item:hover {
+    background-color: rgba(0, 0, 0, 0.3);
 }
 
 .metadata-item i {
     margin-right: 5px;
+}
+
+/* Source icon colors */
+.source-icon-youtube {
+    color: #FF0000 !important; /* Red - YouTube */
+}
+
+.source-icon-spotify {
+    color: #1DB954 !important; /* Green - Spotify */
+}
+
+.source-icon-soundcloud {
+    color: #FF7700 !important; /* Orange - SoundCloud */
+}
+
+.source-icon-gensokyoradio {
+    color: #9370DB !important; /* Purple - Gensokyo Radio */
+}
+
+.source-icon-radio {
+    color: #1E90FF !important; /* Blue - Radio */
+}
+
+.source-icon-local {
+    color: #FFD700 !important; /* Yellow - Local Files */
 }
 
 /* Status message styling */

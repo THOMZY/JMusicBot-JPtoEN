@@ -216,14 +216,14 @@ public class MusicHistory {
                 }
             } else if (type == AudioHandler.TrackType.RADIO) {
                 RadioCmd.TrackInfo radioInfo = handler.getRadioTrackInfo(track);
-                if (radioInfo != null) {
-                    // For radio tracks, store the actual station name but use only the formatted title for display
-                    record.setRadioData(
-                        handler.getRadioStationName(track),  // We still store the real station name
-                        radioInfo.imageUrl,
-                        handler.getRadioLogoUrl(track)
-                    );
-                }
+                String songImageUrl = (radioInfo != null) ? radioInfo.imageUrl : null;
+                
+                // For radio tracks, store the actual station name but use only the formatted title for display
+                record.setRadioData(
+                    handler.getRadioStationName(track),  // We still store the real station name
+                    songImageUrl,
+                    handler.getRadioLogoUrl(track)
+                );
             } else if (type == AudioHandler.TrackType.YOUTUBE) {
                 String videoId = track.getInfo().uri;
                 if (videoId.contains("v=")) {
@@ -392,52 +392,52 @@ public class MusicHistory {
                         if (recordNode.has("spotifyData")) {
                             ObjectNode spotifyData = (ObjectNode) recordNode.get("spotifyData");
                             record.setSpotifyData(
-                                spotifyData.get("trackId").asText(),
-                                spotifyData.get("albumName").asText(),
-                                spotifyData.get("albumImageUrl").asText(),
-                                spotifyData.get("artistName").asText(),
-                                spotifyData.get("releaseYear").asText()
+                                spotifyData.path("trackId").asText(null),
+                                spotifyData.path("albumName").asText(null),
+                                spotifyData.path("albumImageUrl").asText(null),
+                                spotifyData.path("artistName").asText(null),
+                                spotifyData.path("releaseYear").asText(null)
                             );
                         } else if (recordNode.has("radioData")) {
                             ObjectNode radioData = (ObjectNode) recordNode.get("radioData");
                             record.setRadioData(
-                                radioData.get("stationName").asText(),
-                                radioData.get("songImageUrl").asText(),
-                                radioData.get("logoUrl").asText()
+                                radioData.path("stationName").asText(null),
+                                radioData.path("songImageUrl").asText(null),
+                                radioData.path("logoUrl").asText(null)
                             );
                         } else if (recordNode.has("soundcloudData")) {
                             ObjectNode soundcloudData = (ObjectNode) recordNode.get("soundcloudData");
                             record.setSoundCloudData(
-                                soundcloudData.get("artworkUrl").asText()
+                                soundcloudData.path("artworkUrl").asText(null)
                             );
                         } else if (recordNode.has("youtubeData")) {
                             ObjectNode ytData = (ObjectNode) recordNode.get("youtubeData");
-                            record.setYoutubeData(ytData.get("videoId").asText());
+                            record.setYoutubeData(ytData.path("videoId").asText(null));
                         } else if (recordNode.has("localData")) {
                             ObjectNode localData = (ObjectNode) recordNode.get("localData");
                             record.setLocalData(
-                                localData.has("album") ? localData.get("album").asText() : "",
-                                localData.has("genre") ? localData.get("genre").asText() : "",
-                                localData.has("year") ? localData.get("year").asText() : "",
-                                localData.has("artworkHash") ? localData.get("artworkHash").asText() : ""
+                                localData.path("album").asText(""),
+                                localData.path("genre").asText(""),
+                                localData.path("year").asText(""),
+                                localData.path("artworkHash").asText("")
                             );
                         } else if (recordNode.has("gensokyoData")) {
                             ObjectNode gensokyoData = (ObjectNode) recordNode.get("gensokyoData");
                             record.setGensokyoData(
-                                gensokyoData.get("title").asText(),
-                                gensokyoData.get("artist").asText(),
-                                gensokyoData.get("album").asText(),
-                                gensokyoData.get("circle").asText(),
-                                gensokyoData.get("year").asText(),
-                                gensokyoData.get("albumArtUrl").asText()
+                                gensokyoData.path("title").asText(null),
+                                gensokyoData.path("artist").asText(null),
+                                gensokyoData.path("album").asText(null),
+                                gensokyoData.path("circle").asText(null),
+                                gensokyoData.path("year").asText(null),
+                                gensokyoData.path("albumArtUrl").asText(null)
                             );
                         } else if (recordNode.has("streamData")) {
                             ObjectNode streamData = (ObjectNode) recordNode.get("streamData");
                             record.setStreamData(
-                                streamData.get("streamName").asText(),
-                                streamData.get("streamGenre").asText(),
-                                streamData.get("streamLogo").asText(),
-                                streamData.get("isLive").asBoolean()
+                                streamData.path("streamName").asText(null),
+                                streamData.path("streamGenre").asText(null),
+                                streamData.path("streamLogo").asText(null),
+                                streamData.path("isLive").asBoolean(false)
                             );
                         }
                         

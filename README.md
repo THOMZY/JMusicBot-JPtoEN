@@ -7,7 +7,7 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge/main)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/overview/main)
 [![Build and Test](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)
 </h3>
-<h2 align="center">▶️ Youtube playback fixed ( 25 November 2025 )</h2>
+<h2 align="center">▶️ Youtube playback fixed ( 12 December 2025 )</h2>
 
 
 # JMusicBot
@@ -29,7 +29,7 @@ This fork aims to updates dependencies when YouTube playback breaks and adds min
 * `/lyrics` his now more robust finding lyrics. 
 * `/play` now work with Spotify links instead of returning "Unknown file format." error.   
 * Fixed Youtube livestreams fail at 30sec. 
-* Added the ability to queue multiple local files in a single message.
+* Added the ability to queue multiple local files in a single message.( 10 max, Discord upload limit )
 
 Check the [CHANGELOG](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/main/CHANGELOG.md) to view all the updated dependencies.
   

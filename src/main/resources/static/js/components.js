@@ -144,7 +144,10 @@ document.addEventListener('component:loaded', function(e) {
             break;
         case 'player':
             if (typeof Player !== 'undefined') {
-                Player.updateUI();
+                Player.fetchStatus();
+                Player.fetchQueue();
+                Player.setupProgressBarInteraction();
+                Player.setupPlayerControls();
             }
             break;
         // Add other component-specific initializations as needed
@@ -153,27 +156,56 @@ document.addEventListener('component:loaded', function(e) {
 
 // Setup events for header navigation buttons
 function setupHeaderEvents() {
+    console.log('Setting up header events...');
+    
+    // Helper to handle navigation
+    const handleNav = (e, route) => {
+        console.log(`Navigation requested to: ${route}`);
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (typeof Router !== 'undefined') {
+            Router.navigateTo(route);
+        } else {
+            console.error('Router is undefined! Fallback to reload.');
+            window.location.href = route === 'player' ? 'index.html' : `${route}.html`;
+        }
+    };
+
     // Player button
     const playerBtn = document.getElementById('player-btn');
-    if (playerBtn && !playerBtn.hasAttribute('disabled')) {
-        playerBtn.addEventListener('click', function() {
-            window.location.href = 'index.html';
+    if (playerBtn) {
+        // Remove old listeners by cloning
+        const newBtn = playerBtn.cloneNode(true);
+        playerBtn.parentNode.replaceChild(newBtn, playerBtn);
+        
+        newBtn.addEventListener('click', function(e) {
+            if (this.hasAttribute('disabled')) return;
+            handleNav(e, 'player');
         });
     }
     
     // Channels button
     const channelsBtn = document.getElementById('channels-btn');
-    if (channelsBtn && !channelsBtn.hasAttribute('disabled')) {
-        channelsBtn.addEventListener('click', function() {
-            window.location.href = 'channels.html';
+    if (channelsBtn) {
+        const newBtn = channelsBtn.cloneNode(true);
+        channelsBtn.parentNode.replaceChild(newBtn, channelsBtn);
+        
+        newBtn.addEventListener('click', function(e) {
+            if (this.hasAttribute('disabled')) return;
+            handleNav(e, 'channels');
         });
     }
     
     // History button
     const historyBtn = document.getElementById('history-btn');
-    if (historyBtn && !historyBtn.hasAttribute('disabled')) {
-        historyBtn.addEventListener('click', function() {
-            window.location.href = 'history.html';
+    if (historyBtn) {
+        const newBtn = historyBtn.cloneNode(true);
+        historyBtn.parentNode.replaceChild(newBtn, historyBtn);
+        
+        newBtn.addEventListener('click', function(e) {
+            if (this.hasAttribute('disabled')) return;
+            handleNav(e, 'history');
         });
     }
     
@@ -181,20 +213,25 @@ function setupHeaderEvents() {
     const advancedDropdownBtn = document.getElementById('advanced-dropdown-btn');
     const advancedDropdownContent = document.getElementById('advanced-dropdown-content');
     if (advancedDropdownBtn && advancedDropdownContent) {
-        advancedDropdownBtn.addEventListener('click', function(e) {
+        // Clone to remove existing listeners
+        const newBtn = advancedDropdownBtn.cloneNode(true);
+        advancedDropdownBtn.parentNode.replaceChild(newBtn, advancedDropdownBtn);
+        
+        newBtn.addEventListener('click', function(e) {
             e.stopPropagation();
             advancedDropdownContent.classList.toggle('show');
         });
         
         // Close the dropdown when clicking outside of it
         document.addEventListener('click', function(e) {
-            if (!advancedDropdownBtn.contains(e.target)) {
+            if (!newBtn.contains(e.target)) {
                 advancedDropdownContent.classList.remove('show');
             }
         });
     }
     
-    // Commands button
+    // Commands button - Handled by UI.js
+    /*
     const commandsBtn = document.getElementById('commands-btn');
     const commandsModal = document.getElementById('commands-modal');
     if (commandsBtn && commandsModal) {
@@ -203,8 +240,10 @@ function setupHeaderEvents() {
             advancedDropdownContent.classList.remove('show'); // Hide dropdown after click
         });
     }
+    */
     
-    // Console button
+    // Console button - Handled by UI.js
+    /*
     const consoleBtn = document.getElementById('console-btn');
     const consoleModal = document.getElementById('console-modal');
     if (consoleBtn && consoleModal) {
@@ -216,8 +255,10 @@ function setupHeaderEvents() {
             }
         });
     }
+    */
     
-    // Config button
+    // Config button - Handled by UI.js
+    /*
     const configBtn = document.getElementById('config-btn');
     const configModal = document.getElementById('config-modal');
     if (configBtn && configModal) {
@@ -229,38 +270,23 @@ function setupHeaderEvents() {
             }
         });
     }
+    */
     
-    // Reboot button
+    // Reboot button - Handled by UI.js
+    /*
     const rebootBtn = document.getElementById('reboot-btn');
     if (rebootBtn) {
         rebootBtn.addEventListener('click', function() {
             advancedDropdownContent.classList.remove('show'); // Hide dropdown after click
             if (confirm('Are you sure you want to reboot the bot?')) {
-                fetch('/api/reboot', { method: 'POST' })
-                    .then(response => {
-                        if (response.ok) {
-                            if (typeof UI !== 'undefined') {
-                                UI.showToast('Bot is rebooting...', 'info');
-                            } else {
-                                alert('Bot is rebooting...');
-                            }
-                        } else {
-                            throw new Error('Failed to reboot the bot');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Reboot error:', error);
-                        if (typeof UI !== 'undefined') {
-                            UI.showToast('Failed to reboot the bot', 'error');
-                        } else {
-                            alert('Failed to reboot the bot');
-                        }
-                    });
+                // ...
             }
         });
     }
+    */
     
-    // Bot profile button
+    // Bot profile button - Handled by UI.js
+    /*
     const botProfileBtn = document.getElementById('bot-profile-btn');
     const botProfileModal = document.getElementById('bot-profile-modal');
     if (botProfileBtn && botProfileModal) {
@@ -268,17 +294,22 @@ function setupHeaderEvents() {
             botProfileModal.style.display = 'flex';
         });
     }
+    */
     
     // Initialize server dropdown via UI module if available
     if (typeof UI !== 'undefined' && typeof UI.initializeServerDropdown === 'function') {
         // Let the UI module handle the server dropdown
-        UI.initializeServerDropdown();
-        console.log('Server dropdown initialization delegated to UI module');
+        // UI.initializeServerDropdown(); 
+        // Commented out to avoid double initialization as UI.initializeUI() calls this too
     }
 }
 
 // Setup events for modal close buttons and other modal functionality
 function setupModalEvents() {
+    // This function is called when 'modals' component is loaded
+    // We can leave the close button setup here as it's specific to the modals component
+    // But opening buttons should be handled by UI.js to ensure they work globally
+    
     // Console modal close
     const consoleModalClose = document.getElementById('console-modal-close');
     const consoleModal = document.getElementById('console-modal');

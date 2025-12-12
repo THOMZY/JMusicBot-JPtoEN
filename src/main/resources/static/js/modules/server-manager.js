@@ -16,6 +16,17 @@ const ServerManager = (function() {
     async function loadServers() {
         try {
             console.log('Loading servers...');
+            
+            // Check if DOM elements exist
+            const serverDropdownContent = document.getElementById('server-dropdown-content');
+            const selectedServerName = document.getElementById('selected-server-name');
+            
+            if (!serverDropdownContent || !selectedServerName) {
+                console.warn('ServerManager: DOM elements not found, retrying in 200ms');
+                setTimeout(loadServers, 200);
+                return;
+            }
+            
             const response = await fetch('/api/guilds');
             servers = await response.json();
             console.log('Servers loaded:', servers.length);
@@ -23,12 +34,11 @@ const ServerManager = (function() {
             // Make servers available globally
             window.servers = servers;
             
-            const serverDropdownContent = document.getElementById('server-dropdown-content');
             serverDropdownContent.innerHTML = '';
             
             if (servers.length === 0) {
                 serverDropdownContent.innerHTML = '<div class="server-item">No servers available</div>';
-                document.getElementById('selected-server-name').textContent = 'No servers available';
+                selectedServerName.textContent = 'No servers available';
                 return;
             }
             
@@ -58,8 +68,12 @@ const ServerManager = (function() {
         } catch (error) {
             console.error('Error loading servers:', error);
             UI.showToast('Error loading servers', false);
-            document.getElementById('server-dropdown-content').innerHTML = '<div class="server-item">Error loading servers</div>';
-            document.getElementById('selected-server-name').textContent = 'Error loading servers';
+            
+            const serverDropdownContent = document.getElementById('server-dropdown-content');
+            const selectedServerName = document.getElementById('selected-server-name');
+            
+            if (serverDropdownContent) serverDropdownContent.innerHTML = '<div class="server-item">Error loading servers</div>';
+            if (selectedServerName) selectedServerName.textContent = 'Error loading servers';
         }
     }
 
@@ -69,9 +83,12 @@ const ServerManager = (function() {
             const response = await fetch('/api/guild/selected');
             const data = await response.json();
             // Update global currentGuildId
-            currentGuildId = data.guildId;
-            window.currentGuildId = currentGuildId;
-            return data.guildId;
+            if (data && data.guildId) {
+                currentGuildId = data.guildId;
+                window.currentGuildId = currentGuildId;
+                return data.guildId;
+            }
+            return null;
         } catch (error) {
             console.error('Error getting selected guild:', error);
             return null;

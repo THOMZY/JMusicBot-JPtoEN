@@ -11,13 +11,21 @@
     <link rel="stylesheet" href="css/queue.css">
     <link rel="stylesheet" href="css/add-track.css">
     <link rel="stylesheet" href="css/youtube-chapters.css">
+    <link rel="stylesheet" href="css/history.css">
+    <link rel="stylesheet" href="css/channels.css">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" type="image/png" href="https://img.icons8.com/pulsar-gradient/48/aipods-pro-max.png" id="favicon">
 
+    <!-- Highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+
     <!-- Main scripts -->
     <script src="js/components.js"></script>
+    <script src="js/router.js"></script>
     <script src="js/script.js"></script>
+    <script src="js/history.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -25,39 +33,25 @@
         <!-- Header will be loaded here by components.js -->
     </header>
 
-    <!-- Main Content -->
+    <!-- Main content -->
     <div class="main-content">
-        <!-- Main content and chapters container -->
-        <div class="content-with-chapters">
-            <!-- Left column: Player, Queue, Add Track -->
-            <div class="main-column">
-                <!-- Player Section -->
-                <div id="player-component">
-                    <!-- Player will be loaded here by components.js -->
-                </div>
-
-                <!-- Queue Section -->
-                <div id="queue-component">
-                    <!-- Queue will be loaded here by components.js -->
-                </div>
-
-                <!-- Add Track Section -->
-                <div id="add-track-component">
-                    <!-- Add Track will be loaded here by components.js -->
-                </div>
-            </div>
-            
-            <!-- Right column: YouTube Chapters -->
-            <div id="chapters-component">
-                <!-- YouTube Chapters will be loaded here by components.js -->
-            </div>
+        <div id="main-view">
+            <!-- Views will be loaded here by router.js -->
         </div>
     </div>
+
+    <!-- Dedicated sidebar for YouTube chapters so it no longer shrinks the main layout -->
+    <aside id="chapters-sidebar" class="chapters-sidebar" aria-hidden="true">
+        <div id="chapters-component" style="display: none;"></div>
+    </aside>
 
     <!-- Modals Container -->
     <div id="modals-container">
         <!-- Modals will be loaded here by components.js -->
     </div>
+    
+    <!-- Toast container for notifications -->
+    <div id="toast-container" class="toast-container"></div>
 
     <script>
         // Flag to indicate we're using the modular system
@@ -66,19 +60,11 @@
         // Initialize page when DOM content is loaded
         document.addEventListener('DOMContentLoaded', async function() {
             try {
-                // Load components
+                // Load common components
                 await loadComponent('header', '#header-container');
-                await loadComponent('player', '#player-component');
-                await loadComponent('queue', '#queue-component');
-                await loadComponent('add-track', '#add-track-component');
-                await loadComponent('youtube-chapters', '#chapters-component');
                 await loadComponent('modals', '#modals-container');
                 
-                // Set active nav button
-                const playerBtn = document.getElementById('player-btn');
-                if (playerBtn) playerBtn.setAttribute('disabled', 'true');
-                
-                // Load modules
+                // Load all modules
                 await Promise.all([
                     loadScript('js/modules/server-manager.js'),
                     loadScript('js/modules/player.js'),
@@ -86,21 +72,31 @@
                     loadScript('js/modules/youtube-chapters.js'),
                     loadScript('js/modules/bot-profile.js'),
                     loadScript('js/modules/config-manager.js'),
-                    loadScript('js/modules/console-manager.js')
+                    loadScript('js/modules/console-manager.js'),
+                    loadScript('js/modules/channels-manager.js'),
+                    loadScript('js/modules/commands.js')
                 ]);
                 
-                // Initialize app after all components and modules are loaded
+                // Initialize app core
                 if (typeof initializeApp === 'function') {
-                    setTimeout(initializeApp, 100); // Small delay to ensure all modules are fully loaded
+                    // We need to separate app initialization from view initialization
+                    // initializeApp in script.js currently does both.
+                    // For now, let's call it, but we might need to refactor script.js
+                    // actually, initializeApp sets up UI, ServerManager, BotProfile, Player.
+                    // These are global.
+                    
+                    // Wait a bit for scripts to parse
+                    setTimeout(() => {
+                        initializeApp();
+                        
+                        // Initialize Router
+                        Router.init();
+                    }, 100);
                 } else {
-                    console.error('initializeApp function not found - make sure script.js is properly loaded');
+                    console.error('initializeApp function not found');
                 }
             } catch (error) {
                 console.error('Failed to initialize page:', error);
-                const statusElement = document.getElementById('status-message');
-                if (statusElement) {
-                    statusElement.textContent = 'Failed to initialize page. Check console for details.';
-                }
             }
         });
     </script>

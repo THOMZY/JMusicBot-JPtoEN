@@ -3,8 +3,10 @@
  * This file loads all required modules and initializes the web panel functionality.
  */
 
-// Make initializeApp accessible globally 
+// Make functions accessible globally
 window.initializeApp = initializeApp;
+window.setupTrackInputForm = setupTrackInputForm;
+window.setupModalButtons = setupModalButtons;
 
 // Initialize the application after all modules are loaded
 function initializeApp() {
@@ -15,11 +17,9 @@ function initializeApp() {
         if (typeof UI !== 'undefined') {
             console.log('Initializing UI module...');
             UI.initializeUI();
-        } else {
-            console.error('UI module not found');
         }
         
-        // Initialize server manager and load servers - with error handling
+        // Initialize server manager and load servers
         if (typeof ServerManager !== 'undefined') {
             console.log('Initializing Server Manager...');
             ServerManager.initialize();
@@ -33,76 +33,38 @@ function initializeApp() {
                     if (guildId) {
                         window.currentGuildId = guildId;
                         ServerManager.updateServerDisplay();
-                        console.log('Selected guild updated:', guildId);
-                    } else {
-                        console.warn('No guild selected');
                     }
                 })
-                .catch(error => {
-                    console.error('Error in server initialization:', error);
-                });
-        } else {
-            console.error('ServerManager module not found');
+                .catch(console.error);
         }
         
         // Load bot profile information
         if (typeof BotProfile !== 'undefined') {
-            console.log('Initializing Bot Profile...');
             BotProfile.fetchBotInfo();
-        } else {
-            console.error('BotProfile module not found');
         }
         
-        // Set up socket connections and event handlers
+        // Set up socket connections
         if (typeof Player !== 'undefined') {
             console.log('Initializing Player...');
             Player.initialize();
-            
-            // Make sure we check for YouTube chapters after player is initialized
-            setTimeout(() => {
-                if (typeof YouTubeChapters !== 'undefined' && window.currentStatus && 
-                    window.currentStatus.playing && window.currentStatus.sourceType === 'YouTube') {
-                    console.log('Checking for YouTube chapters...');
-                    YouTubeChapters.fetchYouTubeChapters();
-                }
-            }, 1000); // Small delay to ensure player status is fetched
-        } else {
-            console.error('Player module not found');
         }
         
-        // Update status message
-        const statusElement = document.getElementById('status-message');
-        if (statusElement) {
-            statusElement.textContent = 'Connected to server';
-        }
-        
-        // Setup event handlers for buttons and forms
-        setupEventHandlers();
+        // Setup global event handlers (modals, etc)
+        setupModalButtons();
         
         console.log('Application initialized successfully!');
     } catch (error) {
         console.error('Error initializing the app:', error);
-        const statusElement = document.getElementById('status-message');
-        if (statusElement) {
-            statusElement.textContent = 'Error initializing the application. Check console for details.';
-        }
     }
 }
 
-// Set up error handling for the entire application
-window.onerror = function(message, source, lineno, colno, error) {
-    console.error('Global error:', message, 'at', source, ':', lineno, ':', colno);
-    const statusElement = document.getElementById('status-message');
-    if (statusElement) {
-        statusElement.textContent = 'Application error. Check console for details.';
-    }
-    return false;
-};
+// ... existing code ...
 
 // Setup all event handlers for buttons and forms
 function setupEventHandlers() {
-    setupTrackInputForm();
-    setupNavigation();
+    // This is now handled by Router and View initialization
+    // setupTrackInputForm();
+    // setupNavigation();
     setupModalButtons();
 }
 
@@ -113,20 +75,30 @@ function setupTrackInputForm() {
     const addNextButton = document.getElementById('add-next-button');
     
     if (addUrlForm) {
-        addUrlForm.addEventListener('submit', function(e) {
+        // Remove old listeners to avoid duplicates if called multiple times
+        const newForm = addUrlForm.cloneNode(true);
+        addUrlForm.parentNode.replaceChild(newForm, addUrlForm);
+        
+        newForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            if (urlInput && urlInput.value.trim() && typeof Player !== 'undefined') {
-                Player.addToQueue(urlInput.value.trim());
-                urlInput.value = '';
+            // Re-get input as we cloned the form
+            const input = document.getElementById('url-input');
+            if (input && input.value.trim() && typeof Player !== 'undefined') {
+                Player.addToQueue(input.value.trim());
+                input.value = '';
             }
         });
     }
     
     if (addNextButton && urlInput) {
-        addNextButton.addEventListener('click', function() {
-            if (urlInput.value.trim() && typeof Player !== 'undefined') {
-                Player.addToQueue(urlInput.value.trim(), true); // true = add next
-                urlInput.value = '';
+        const newBtn = addNextButton.cloneNode(true);
+        addNextButton.parentNode.replaceChild(newBtn, addNextButton);
+        
+        newBtn.addEventListener('click', function() {
+            const input = document.getElementById('url-input');
+            if (input && input.value.trim() && typeof Player !== 'undefined') {
+                Player.addToQueue(input.value.trim(), true); // true = add next
+                input.value = '';
             }
         });
     }
@@ -134,24 +106,9 @@ function setupTrackInputForm() {
 
 // Set up navigation buttons
 function setupNavigation() {
-    // player button is handled by header link
-    
-    // History button
-    const historyBtn = document.getElementById('history-btn');
-    if (historyBtn && !historyBtn.hasAttribute('disabled')) {
-        historyBtn.addEventListener('click', function() {
-            window.location.href = 'history.html';
-        });
-    }
-    
-    // Setup player button if on a different page
-    const playerBtn = document.getElementById('player-btn');
-    if (playerBtn && !playerBtn.hasAttribute('disabled')) {
-        playerBtn.addEventListener('click', function() {
-            window.location.href = 'index.html';
-        });
-    }
+    // Handled by Router and components.js
 }
+
 
 // Set up buttons to open modals
 function setupModalButtons() {
@@ -262,3 +219,29 @@ function setupModalButtons() {
 // Initialize global variables
 window.currentGuildId = null;
 window.servers = [];
+
+// Re-attach the chapters toggle button whenever the player component loads
+document.addEventListener('component:loaded', (event) => {
+    if (event.detail?.name === 'player') {
+        setupChaptersToggleButton();
+    }
+});
+
+function setupChaptersToggleButton() {
+    const toggleBtn = document.getElementById('chapters-toggle');
+    if (!toggleBtn) {
+        return;
+    }
+
+    const newBtn = toggleBtn.cloneNode(true);
+    toggleBtn.parentNode.replaceChild(newBtn, toggleBtn);
+
+    newBtn.addEventListener('click', () => {
+        const isOpen = document.body.classList.toggle('chapters-open');
+        newBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        document.body.classList.toggle('chapters-user-closed', !isOpen);
+        if (typeof YouTubeChapters !== 'undefined' && typeof YouTubeChapters.repositionDrawer === 'function') {
+            YouTubeChapters.repositionDrawer();
+        }
+    });
+}

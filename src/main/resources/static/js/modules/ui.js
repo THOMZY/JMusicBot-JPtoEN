@@ -61,23 +61,8 @@ const UI = (function() {
     function initializeUI() {
         console.log('UI: Initializing UI components...');
         
-        // Initialize navigation buttons
-        const playerBtn = document.getElementById('player-btn');
-        if (playerBtn && !playerBtn.hasAttribute('disabled')) {
-            console.log('UI: Set up player button');
-            playerBtn.addEventListener('click', function() {
-                window.location.href = 'index.html';
-            });
-        }
-        
-        // History button
-        const historyBtn = document.getElementById('history-btn');
-        if (historyBtn && !historyBtn.hasAttribute('disabled')) {
-            console.log('UI: Set up history button');
-            historyBtn.addEventListener('click', function() {
-                window.location.href = 'history.html';
-            });
-        }
+        // Navigation buttons are now handled by components.js and router.js
+        // We don't attach listeners here to avoid conflicts and double-loading
         
         // Initialize modals
         const consoleBtn = document.getElementById('console-btn');
@@ -249,10 +234,10 @@ const UI = (function() {
             const stopButton = document.getElementById('stop-button');
             if (stopButton) stopButton.addEventListener('click', Player.stopTrack);
             
-            // Initialize progress bar
-            if (typeof Player.setupProgressBarInteraction === 'function') {
-                Player.setupProgressBarInteraction();
-            }
+            // Initialize progress bar - handled by Router/View init
+            // if (typeof Player.setupProgressBarInteraction === 'function') {
+            //    Player.setupProgressBarInteraction();
+            // }
         }
         
         // Initialize server dropdown

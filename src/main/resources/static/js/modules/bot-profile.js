@@ -4,25 +4,29 @@
 
 const BotProfile = (function() {
     // Fetch bot information
-    async function fetchBotInfo() {
+    async function fetchBotInfo(retryCount = 0) {
         try {
             console.log('BotProfile: Fetching bot information...');
+            
+            // Check DOM elements first
+            const botNameElement = document.getElementById('bot-name');
+            const botAvatarElement = document.getElementById('bot-avatar');
+            const botProfileBtn = document.getElementById('bot-profile-btn');
+            
+            if (!botNameElement || !botAvatarElement || !botProfileBtn) {
+                if (retryCount < 10) {
+                    console.warn(`BotProfile: DOM elements not found, retrying in 200ms (attempt ${retryCount + 1})`);
+                    setTimeout(() => fetchBotInfo(retryCount + 1), 200);
+                } else {
+                    console.error('BotProfile: DOM elements not found after maximum retries');
+                }
+                return;
+            }
+
             const response = await fetch('/api/bot/info');
             const data = await response.json();
             
             if (data.success) {
-                // Make sure the DOM elements exist before trying to update them
-                const botNameElement = document.getElementById('bot-name');
-                const botAvatarElement = document.getElementById('bot-avatar');
-                const botProfileBtn = document.getElementById('bot-profile-btn');
-                
-                if (!botNameElement || !botAvatarElement || !botProfileBtn) {
-                    console.warn('BotProfile: DOM elements not found, retrying in 100ms');
-                    // Retry after short delay as DOM might not be fully loaded
-                    setTimeout(fetchBotInfo, 100);
-                    return;
-                }
-                
                 // Update bot name and avatar in the header
                 botNameElement.textContent = data.name || 'JMusicBot';
                 

@@ -142,6 +142,10 @@ const Player = (function() {
         const progressHandle = document.getElementById('progress-handle');
         const progressPreview = document.getElementById('progress-preview');
         
+        if (!progressContainer || !progressHandle || !progressPreview) {
+            return;
+        }
+        
         // Initialize preview with default values when page loads
         if (window.currentStatus && window.currentStatus.currentTrackDuration) {
             progressPreview.textContent = `0:00 / ${UI.formatTime(window.currentStatus.currentTrackDuration)}`;
@@ -180,6 +184,39 @@ const Player = (function() {
         progressContainer.addEventListener('click', (e) => {
             seekTrack(e);
         });
+    }
+
+    // Set up player control buttons
+    function setupPlayerControls() {
+        const playBtn = document.getElementById('play-button');
+        const pauseBtn = document.getElementById('pause-button');
+        const skipBtn = document.getElementById('skip-button');
+        const stopBtn = document.getElementById('stop-button');
+        
+        if (playBtn) {
+            // Remove existing listeners to avoid duplicates
+            const newPlayBtn = playBtn.cloneNode(true);
+            playBtn.parentNode.replaceChild(newPlayBtn, playBtn);
+            newPlayBtn.addEventListener('click', playTrack);
+        }
+        
+        if (pauseBtn) {
+            const newPauseBtn = pauseBtn.cloneNode(true);
+            pauseBtn.parentNode.replaceChild(newPauseBtn, pauseBtn);
+            newPauseBtn.addEventListener('click', pauseTrack);
+        }
+        
+        if (skipBtn) {
+            const newSkipBtn = skipBtn.cloneNode(true);
+            skipBtn.parentNode.replaceChild(newSkipBtn, skipBtn);
+            newSkipBtn.addEventListener('click', skipTrack);
+        }
+        
+        if (stopBtn) {
+            const newStopBtn = stopBtn.cloneNode(true);
+            stopBtn.parentNode.replaceChild(newStopBtn, stopBtn);
+            newStopBtn.addEventListener('click', stopTrack);
+        }
     }
     
     // Fetch current status from the API
@@ -291,6 +328,22 @@ const Player = (function() {
                 // Set the appropriate icon based on source type
                 const sourceIcon = UI.getSourceIcon(data.sourceType);
                 sourceIconElement.className = sourceIcon;
+                
+                // Add color class based on source type
+                const sourceType = data.sourceType;
+                if (sourceType === 'YouTube') {
+                    sourceIconElement.classList.add('source-icon-youtube');
+                } else if (sourceType === 'Spotify') {
+                    sourceIconElement.classList.add('source-icon-spotify');
+                } else if (sourceType === 'SoundCloud') {
+                    sourceIconElement.classList.add('source-icon-soundcloud');
+                } else if (sourceType === 'Gensokyo Radio' || (sourceType === 'Stream' && data.currentTrackUri && data.currentTrackUri.includes('stream.gensokyoradio.net'))) {
+                    sourceIconElement.classList.add('source-icon-gensokyoradio');
+                } else if (sourceType === 'Radio') {
+                    sourceIconElement.classList.add('source-icon-radio');
+                } else if (sourceType === 'Local File' || sourceType === 'Local') {
+                    sourceIconElement.classList.add('source-icon-local');
+                }
             }
             
             // Update requester from API data
@@ -1130,6 +1183,7 @@ const Player = (function() {
         updateProgress,
         seekTrack,
         setupProgressBarInteraction,
+        setupPlayerControls,
         fetchStatus,
         fetchQueue,
         setupDragAndDrop,
@@ -1141,4 +1195,4 @@ const Player = (function() {
         removeFromQueue,
         addToQueue
     };
-})(); 
+})();

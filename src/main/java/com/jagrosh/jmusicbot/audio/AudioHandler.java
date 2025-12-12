@@ -183,8 +183,9 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (track == null || track.getInfo().uri == null) return null;
         
         // First check if this guild has an active radio station in the RadioCmd map
+        // Only use the global station path if the track is the currently playing one
         String stationPath = RadioCmd.lastStationPaths.get(stringGuildId);
-        if (stationPath != null) {
+        if (stationPath != null && track.equals(audioPlayer.getPlayingTrack())) {
             return stationPath;
         }
         

@@ -2,10 +2,35 @@
  * YouTube chapters styles for JMusicBot Web Panel
  */
 
+/* Chapters drawer that aligns to the player's right edge (desktop) */
+.chapters-sidebar {
+    width: 320px;
+    max-height: calc(100vh - 140px);
+    position: fixed;
+    top: var(--chapters-top, 120px);
+    left: var(--chapters-left, calc(50% + 620px));
+    display: none;
+    transform: translateX(20px);
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    pointer-events: none;
+    z-index: 405;
+}
+
+body.has-chapters .chapters-sidebar {
+    display: block;
+}
+
+body.chapters-open .chapters-sidebar {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
 /* YouTube Chapters Section */
 .chapters-container {
-    width: 300px;
-    min-width: 300px;
+    width: 100%;
+    min-width: 280px;
     background-color: var(--darker-bg);
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
@@ -87,19 +112,31 @@
 }
 
 @media (max-width: 1200px) {
-    .content-with-chapters {
-        flex-direction: column;
+    .chapters-sidebar {
+        position: static;
+        width: 100%;
+        max-width: 600px;
+        transform: none !important;
+        opacity: 1;
+        pointer-events: auto;
+        margin: 0 auto 20px;
+    }
+    
+    body.has-chapters .chapters-sidebar {
+        display: none;
+    }
+    
+    body.chapters-open.has-chapters .chapters-sidebar {
+        display: block;
     }
     
     .chapters-container {
-        width: 100%;
-        min-width: 100%;
+        max-height: 400px;
         position: relative;
         top: 0;
-        max-height: 400px;
     }
     
     .chapters-list {
         max-height: 350px;
     }
-} 
+}

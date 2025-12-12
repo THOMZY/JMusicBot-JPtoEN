@@ -4,18 +4,12 @@
 
 /* History Page Styles */
 .history-container {
-    background-color: var(--darker-bg);
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    /* Inherits from .view-card */
     margin: 0;
-    padding: 20px;
-    color: var(--light-text);
-    width: 100%;
-    max-width: 1200px;
-    height: calc(100vh - 120px);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    height: calc(100vh - 110px); /* Fixed height to fit in viewport (100vh - header - padding - margins) */
+    overflow: hidden; /* Prevent container from scrolling */
 }
 
 .history-header {
@@ -26,6 +20,35 @@
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 15px;
     flex-shrink: 0;
+}
+
+.history-content-wrapper {
+    flex: 1;
+    padding-right: 5px;
+    overflow-y: auto; /* Enable internal scrolling */
+    min-height: 0; /* Crucial for flex child scrolling */
+    
+    /* Scrollbar styling */
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) var(--darkest-bg);
+}
+
+.history-content-wrapper::-webkit-scrollbar {
+    width: 8px;
+}
+
+.history-content-wrapper::-webkit-scrollbar-track {
+    background: var(--darkest-bg);
+    border-radius: 4px;
+}
+
+.history-content-wrapper::-webkit-scrollbar-thumb {
+    background-color: var(--primary-color);
+    border-radius: 4px;
+}
+
+.history-content-wrapper::-webkit-scrollbar-thumb:hover {
+    background-color: var(--primary-hover);
 }
 
 .history-title {
@@ -140,15 +163,6 @@
 .history-page-info {
     font-size: 14px;
     color: var(--muted-text);
-}
-
-.history-content-wrapper {
-    flex: 1;
-    overflow-y: auto;
-    padding-right: 5px;
-    scroll-behavior: smooth;
-    scrollbar-width: thin;
-    scrollbar-color: var(--primary-color) var(--darkest-bg);
 }
 
 .history-list {
@@ -412,22 +426,4 @@
     gap: 5px;
 }
 
-/* Scrollbar styling for Webkit browsers (Chrome, Safari, etc.) */
-.history-content-wrapper::-webkit-scrollbar {
-    width: 8px;
-}
-
-.history-content-wrapper::-webkit-scrollbar-track {
-    background: var(--darkest-bg);
-    border-radius: 10px;
-}
-
-.history-content-wrapper::-webkit-scrollbar-thumb {
-    background-color: var(--primary-color);
-    border-radius: 10px;
-    border: 2px solid var(--darkest-bg);
-}
-
-.history-content-wrapper::-webkit-scrollbar-thumb:hover {
-    background-color: var(--hover-color, #5f73bd);
-} 
+/* Scrollbar styling moved to base.css for main-content */ 

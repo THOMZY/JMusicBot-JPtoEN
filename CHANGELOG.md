@@ -2,6 +2,18 @@
 
 ---
 
+# 12 December 2025
+
+### 🔧 Changes
+- Switched Web panel to SPA, interface now more responsive.
+- Fixed minors bugs and visuals in web panel.
+
+### 📦 Dependency Updates
+- **spring-boot-starter-web**: `3.3.0` → `4.0.0`
+- **spring-boot-starter-websocket**: `3.3.0` → `4.0.0`
+
+---
+
 # 25 November 2025
 
 ## ▶️ Youtube playback fixed by not refreshing "ytRefreshToken". (YouTube OAuth2)

@@ -6,24 +6,25 @@
 /* Main Channels Container */
 .channels-container {
     display: flex;
-    height: calc(100vh - 80px); /* Adjusted height to account for header and margins */
+    height: calc(100vh - 110px); /* Match history page height */
     overflow: hidden;
-    background-color: #2f3136;
+    background-color: var(--darker-bg);
     border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-    margin: 10px 15px; /* Reduced top/bottom margin */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    margin: 0;
+    width: 100%;
 }
 
 /* Channel Categories */
 .channel-categories {
     width: 280px;
-    background-color: #2f3136; /* Discord sidebar color */
-    border-right: 1px solid #202225; /* Discord border color */
+    background-color: var(--darker-bg);
+    border-right: 1px solid var(--border-color);
     flex: 0 0 280px;
     overflow-y: auto;
     padding: 15px;
-    height: 100%; /* Ensure full height */
-    max-height: 100%; /* Ensure it doesn't overflow */
+    height: 100%;
+    max-height: 100%;
 }
 
 .category {
@@ -132,12 +133,12 @@
 /* Channel Details Panel */
 .channel-details {
     flex: 1;
-    overflow-y: auto;
-    padding: 15px;
+    overflow: hidden;
+    padding: 0;
     border-left: 1px solid #202225;
     background-color: #36393f; /* Discord main content area */
     height: 100%; /* Ensure full height */
-    max-height: 100%; /* Prevent overflow */
+    min-height: 0; /* Critical for nested flex scrolling */
     display: flex;
     flex-direction: column;
 }
@@ -146,10 +147,11 @@
 .channel-info {
     padding: 15px;
     background-color: #2f3136; /* Discord embed background */
-    border-radius: 4px;
-    margin-bottom: 15px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    border: 1px solid #202225;
+    border-radius: 0;
+    margin-bottom: 0;
+    box-shadow: none;
+    border: none;
+    border-bottom: 1px solid #202225;
     flex-shrink: 0; /* Prevent shrinking */
 }
 
@@ -216,15 +218,16 @@
 /* Channel Messages */
 .channel-messages {
     background-color: #36393f; /* Discord main content */
-    border-radius: 4px;
-    padding: 15px;
-    margin-bottom: 15px;
-    border: 1px solid #202225;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    flex: 1; /* Allow it to expand */
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 0;
+    border: none;
+    box-shadow: none;
+    flex: 1 1 0; /* Allow it to expand and shrink properly */
     display: flex;
     flex-direction: column;
     overflow: hidden; /* Hide overflow */
+    min-height: 0; /* Critical for nested flex scrolling */
 }
 
 .messages-header {
@@ -240,11 +243,12 @@
 .messages-container {
     max-height: none; /* Remove max-height constraint */
     overflow-y: auto;
-    margin-bottom: 15px;
+    margin-bottom: 0;
     display: flex;
     flex-direction: column;
-    padding-bottom: 20px;
-    flex: 1; /* Allow it to expand */
+    padding: 15px 15px 20px 15px;
+    flex: 1 1 0; /* Allow it to expand and shrink properly */
+    min-height: 0; /* Critical for nested flex scrolling */
     position: relative; /* For absolute positioning of elements inside */
 }
 
@@ -1018,10 +1022,11 @@ pre {
 /* Message Input Box */
 .message-input-container {
     margin-top: auto;
-    padding: 10px 16px;
-    background-color: #40444b;
-    border-radius: 0 0 4px 4px;
-    border-top: 1px solid #2c2f33;
+    padding: 20px;
+    background-color: #36393f;
+    border-radius: 0;
+    border-top: none;
+    flex-shrink: 0;
 }
 
 .message-input-wrapper {
@@ -1088,7 +1093,7 @@ pre {
 /* Adjustments to messages container to make room for input box */
 .messages-container {
     max-height: none;
-    height: calc(100% - 120px);
+    /* height removed to allow flex to work */
 }
 
 /* Command Autocomplete for Message Input */

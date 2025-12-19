@@ -115,12 +115,15 @@ const BotProfile = (function() {
         }
         
         try {
-            const formData = new FormData();
-            formData.append('name', newName);
+            const params = new URLSearchParams();
+            params.append('name', newName);
             
             const response = await fetch('/api/bot/setname', {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+                },
+                body: params
             });
             
             const data = await response.json();
@@ -161,12 +164,15 @@ const BotProfile = (function() {
         }
         
         try {
-            const formData = new FormData();
-            formData.append('url', newAvatarUrl);
+            const params = new URLSearchParams();
+            params.append('url', newAvatarUrl);
             
             const response = await fetch('/api/bot/setavatar', {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+                },
+                body: params
             });
             
             const data = await response.json();
@@ -207,12 +213,15 @@ const BotProfile = (function() {
         }
         
         try {
-            const formData = new FormData();
-            formData.append('url', newBannerUrl);
+            const params = new URLSearchParams();
+            params.append('url', newBannerUrl);
             
             const response = await fetch('/api/bot/setbanner', {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+                },
+                body: params
             });
             
             const data = await response.json();

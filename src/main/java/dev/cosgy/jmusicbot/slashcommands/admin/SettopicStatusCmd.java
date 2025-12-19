@@ -42,7 +42,7 @@ public class SettopicStatusCmd extends AdminCommand {
         StringBuilder response = new StringBuilder(event.getClient().getSuccess())
                 .append("Automatic text channel topic updates are now `").append(status).append("`.");
         if (s.getTextChannel(event.getGuild()) == null) {
-            response.append(" You haven't set a text channel yet; use /settc to choose where the status is shown.");
+            response.append(" You haven't set a text channel yet; use '/settc set' to choose where the status is shown.");
         }
         event.reply(response.toString()).queue();
     }
@@ -61,14 +61,14 @@ public class SettopicStatusCmd extends AdminCommand {
             s.setTopicStatus(false);
             String msg = event.getClient().getSuccess() + "Automatic topic updates are disabled.";
             if (s.getTextChannel(event.getGuild()) == null) {
-                msg += " You haven't set a text channel yet; use /settc to choose where the status is shown.";
+                msg += " You haven't set a text channel yet; use '/settc set' to choose where the status is shown.";
             }
             event.reply(msg);
         } else if (args.matches("(true|enabled)")) {
             s.setTopicStatus(true);
             String msg = event.getClient().getSuccess() + "Automatic topic updates are enabled.";
             if (s.getTextChannel(event.getGuild()) == null) {
-                msg += " You haven't set a text channel yet; use /settc to choose where the status is shown.";
+                msg += " You haven't set a text channel yet; use '/settc set' to choose where the status is shown.";
             }
             event.reply(msg);
         } else {

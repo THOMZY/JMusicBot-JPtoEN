@@ -11,7 +11,7 @@ const HistoryModule = (() => {
     let recordsPerPage = 20;
     let searchQuery = '';
     let activeFilters = {
-        type: 'all', // all, spotify, youtube, radio, local, stream
+        type: 'all', // all, spotify, youtube, soundcloud, radio, gensokyo, local, instagram, tiktok, twitter
         timeRange: 'all', // all, today, week, month
         requester: 'all', // all, or specific requester name
         guildId: 'all' // all, or specific guild ID
@@ -19,6 +19,57 @@ const HistoryModule = (() => {
     let currentGuildId = null;
     let servers = [];
     let uniqueRequesters = []; // Store unique requester names
+    let isLoadingHistory = false;
+    let hasMorePages = true;
+    let infiniteScrollObserver = null;
+    let historyFetchController = null;
+    let requestersFetchController = null;
+    let guildsFetchController = null;
+    let currentInitToken = null;
+    const infiniteScrollSentinelId = 'history-infinite-sentinel';
+
+    const isHistoryViewActive = () => {
+        const container = document.getElementById('history-container');
+        return !!container && document.body.contains(container);
+    };
+
+    /**
+     * Reset pagination and data state (used when entering view fresh)
+     */
+    const resetHistoryState = () => {
+        currentInitToken = Symbol('history-init');
+        disconnectInfiniteScrollObserver();
+        if (historyFetchController) {
+            historyFetchController.abort();
+            historyFetchController = null;
+        }
+        if (requestersFetchController) {
+            requestersFetchController.abort();
+            requestersFetchController = null;
+        }
+        if (guildsFetchController) {
+            guildsFetchController.abort();
+            guildsFetchController = null;
+        }
+        historyData = [];
+        totalRecords = 0;
+        currentPage = 1;
+        hasMorePages = true;
+        isLoadingHistory = false;
+    };
+
+    // Proxy Instagram thumbnails to bypass referrer blocking while leaving local/static assets untouched
+    const safeThumbnail = (url) => {
+        if (!url) return url;
+        const lower = url.toLowerCase();
+        const isLocalAsset = lower.startsWith('/') || lower.startsWith('local_artwork/') || lower.startsWith('data:');
+        if (isLocalAsset) return url;
+        const isInstagram = lower.includes('instagram.com') || lower.includes('cdninstagram.com');
+        if (isInstagram) {
+            return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=640&h=640&fit=inside`;
+        }
+        return url;
+    };
 
     // DOM Elements
     const historyElements = {
@@ -28,6 +79,7 @@ const HistoryModule = (() => {
         pagination: null,
         searchInput: null,
         filterButtons: null,
+        contentWrapper: null,
         serverDropdownBtn: null,
         serverDropdownContent: null,
         selectedServerIcon: null,
@@ -40,6 +92,9 @@ const HistoryModule = (() => {
      */
     const init = () => {
         console.log('Initializing history module...');
+
+        // Fresh state each time we enter the view to avoid stale page counters
+        resetHistoryState();
         
         // Initialize Bot Profile to update the header
         if (typeof BotProfile !== 'undefined') {
@@ -51,6 +106,7 @@ const HistoryModule = (() => {
         
         // Cache DOM elements - Use a short delay to ensure the component is fully loaded
         setTimeout(() => {
+            const initToken = currentInitToken;
             cacheElements();
             
             // Set up event listeners
@@ -70,9 +126,10 @@ const HistoryModule = (() => {
                 }
                 
                 // Load servers first, then load history
-                loadServerList().then(() => {
+                loadServerList(initToken).then(() => {
                     // Try to get the selected guild from the server
-                    getSelectedGuild().then(guildId => {
+                    getSelectedGuild(initToken).then(guildId => {
+                        if (initToken !== currentInitToken || !isHistoryViewActive()) return;
                         if (guildId) {
                             currentGuildId = guildId;
                             activeFilters.guildId = guildId;
@@ -86,7 +143,8 @@ const HistoryModule = (() => {
                         }
                         
                         // Load requester list for the filter first
-                        loadRequesterList().then(() => {
+                        loadRequesterList(initToken).then(() => {
+                            if (initToken !== currentInitToken || !isHistoryViewActive()) return;
                             // Load history with the selected guild
                             loadHistory();
                         });
@@ -95,7 +153,8 @@ const HistoryModule = (() => {
             } else {
                 console.error('ServerManager module not loaded');
                 // Load requester list for the filter first
-                loadRequesterList().then(() => {
+                loadRequesterList(currentInitToken).then(() => {
+                    if (initToken !== currentInitToken || !isHistoryViewActive()) return;
                     // Then load history
                     loadHistory();
                 });
@@ -118,6 +177,7 @@ const HistoryModule = (() => {
         historyElements.pagination = document.getElementById('history-pagination');
         historyElements.searchInput = document.getElementById('history-search-input');
         historyElements.filterButtons = document.querySelectorAll('.history-filter-btn');
+        historyElements.contentWrapper = document.querySelector('.history-content-wrapper');
         historyElements.requesterSelect = document.getElementById('requester-filter-select');
         
         // Server selection elements
@@ -132,6 +192,7 @@ const HistoryModule = (() => {
         if (!historyElements.pagination) console.error('Pagination element not found!');
         if (!historyElements.searchInput) console.error('Search input element not found!');
         if (!historyElements.requesterSelect) console.error('Requester select element not found!');
+        if (!historyElements.contentWrapper) console.error('History content wrapper not found!');
         
         return true;
     };
@@ -207,13 +268,24 @@ const HistoryModule = (() => {
         // Pagination events will be added dynamically
     };
 
+    const disconnectInfiniteScrollObserver = () => {
+        if (infiniteScrollObserver) {
+            infiniteScrollObserver.disconnect();
+            infiniteScrollObserver = null;
+        }
+    };
+
     /**
      * Load the server list from the API
      */
-    const loadServerList = async () => {
+    const loadServerList = async (token = currentInitToken) => {
+        if (!isHistoryViewActive()) return [];
         try {
-            const response = await fetch('/api/guilds');
+            if (guildsFetchController) guildsFetchController.abort();
+            guildsFetchController = new AbortController();
+            const response = await fetch('/api/guilds', { signal: guildsFetchController.signal });
             const data = await response.json();
+            if (!isHistoryViewActive() || token !== currentInitToken) return [];
             
             if (data && Array.isArray(data)) {
                 servers = data;
@@ -255,10 +327,11 @@ const HistoryModule = (() => {
     /**
      * Get the currently selected guild from the server
      */
-    const getSelectedGuild = async () => {
+    const getSelectedGuild = async (token = currentInitToken) => {
         try {
             const response = await fetch('/api/guild/selected');
             const data = await response.json();
+            if (!isHistoryViewActive() || token !== currentInitToken) return null;
             
             if (data && data.guildId) {
                 return data.guildId;
@@ -273,10 +346,13 @@ const HistoryModule = (() => {
     /**
      * Load the list of all unique requesters from the API
      */
-    const loadRequesterList = async () => {
+    const loadRequesterList = async (token = currentInitToken) => {
         try {
-            const response = await fetch('/api/history/requesters');
+            if (requestersFetchController) requestersFetchController.abort();
+            requestersFetchController = new AbortController();
+            const response = await fetch('/api/history/requesters', { signal: requestersFetchController.signal });
             const data = await response.json();
+            if (!isHistoryViewActive() || token !== currentInitToken) return true;
             
             if (data.success && Array.isArray(data.requesters)) {
                 // Update the dropdown with all available requesters
@@ -466,11 +542,146 @@ const HistoryModule = (() => {
     };
 
     /**
+     * Ensure a sentinel exists at the bottom of the list for intersection-based infinite scroll
+     */
+    const ensureInfiniteScrollSentinel = () => {
+        if (!historyElements.historyList || !isHistoryViewActive()) return null;
+
+        let sentinel = document.getElementById(infiniteScrollSentinelId);
+        if (!sentinel) {
+            sentinel = document.createElement('div');
+            sentinel.id = infiniteScrollSentinelId;
+            sentinel.className = 'history-sentinel';
+            sentinel.textContent = 'Scroll to load more';
+            historyElements.historyList.appendChild(sentinel);
+        } else {
+            // Move sentinel to the end to ensure proper observation order
+            historyElements.historyList.appendChild(sentinel);
+        }
+        return sentinel;
+    };
+
+    /**
+     * Update sentinel label based on loading state
+     */
+    const updateInfiniteScrollSentinelLabel = () => {
+        if (!isHistoryViewActive()) return;
+        const sentinel = document.getElementById(infiniteScrollSentinelId);
+        if (!sentinel) return;
+
+        if (isLoadingHistory) {
+            sentinel.textContent = 'Loading more...';
+            return;
+        }
+
+        if (hasMorePages) {
+            sentinel.textContent = 'Scroll to load more';
+        } else {
+            sentinel.textContent = historyData.length ? 'All records loaded' : '';
+        }
+    };
+
+    /**
+     * Configure intersection observer to auto-load pages near the bottom
+     */
+    const setupInfiniteScrollObserver = () => {
+        if (!historyElements.contentWrapper || !historyElements.historyList) return;
+
+        const sentinel = ensureInfiniteScrollSentinel();
+        if (!sentinel) return;
+
+        if (infiniteScrollObserver) {
+            infiniteScrollObserver.disconnect();
+        }
+
+        infiniteScrollObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && hasMorePages && !isLoadingHistory) {
+                    loadNextPage();
+                }
+            });
+        }, {
+            root: historyElements.contentWrapper,
+            rootMargin: '200px',
+            threshold: 0
+        });
+
+        infiniteScrollObserver.observe(sentinel);
+    };
+
+    /**
+     * Load the next page when the sentinel is reached
+     */
+    const loadNextPage = () => {
+        if (!isHistoryViewActive()) {
+            return;
+        }
+
+        if (isLoadingHistory || !hasMorePages) {
+            updateInfiniteScrollSentinelLabel();
+            renderPagination();
+            updatePageInfo();
+            return;
+        }
+
+        const totalPages = Math.max(1, Math.ceil(totalRecords / recordsPerPage));
+        if (currentPage >= totalPages) {
+            hasMorePages = false;
+            updateInfiniteScrollSentinelLabel();
+            renderPagination();
+            updatePageInfo();
+            return;
+        }
+
+        currentPage += 1;
+        loadHistory(true);
+    };
+
+    /**
+     * Update the page info label to reflect loaded counts
+     */
+    const updatePageInfo = () => {
+        if (!historyElements.pageInfo || !isHistoryViewActive()) return;
+        const loadedCount = historyData.length;
+        const total = totalRecords || loadedCount;
+
+        historyElements.pageInfo.textContent = hasMorePages
+            ? `Loaded ${loadedCount} of ${total} • scroll to load more`
+            : `Loaded ${loadedCount} of ${total}`;
+    };
+
+    /**
      * Load history data from the API
      */
-    const loadHistory = () => {
-        // Show loading state
-        historyElements.historyList.innerHTML = '<div class="history-loading">Loading history...</div>';
+    const loadHistory = (append = false) => {
+        if (!isHistoryViewActive()) {
+            return;
+        }
+
+        if (isLoadingHistory) return;
+
+        // Reset state when not appending
+        if (!append) {
+            historyData = [];
+            hasMorePages = true;
+            historyElements.historyList.innerHTML = '<div class="history-loading">Loading history...</div>';
+        } else {
+            const sentinel = ensureInfiniteScrollSentinel();
+            if (sentinel) {
+                sentinel.textContent = 'Loading more...';
+            }
+        }
+
+        // Abort any previous history request to avoid racing with a stale DOM
+        if (historyFetchController) {
+            historyFetchController.abort();
+        }
+
+        const controller = new AbortController();
+        historyFetchController = controller;
+        const { signal } = controller;
+
+        isLoadingHistory = true;
         
         // Calculate offset
         const offset = (currentPage - 1) * recordsPerPage;
@@ -525,22 +736,48 @@ const HistoryModule = (() => {
         }
         
         // Fetch history data
-        fetch(endpoint + params)
+        fetch(endpoint + params, { signal })
             .then(response => response.json())
             .then(data => {
+                if (!isHistoryViewActive() || controller !== historyFetchController) return;
+
                 if (data.success) {
-                    historyData = data.history;
-                    totalRecords = data.total;
+                    const incomingRecords = data.history || [];
+                    totalRecords = data.total || incomingRecords.length;
+
+                    if (append) {
+                        historyData = historyData.concat(incomingRecords);
+                    } else {
+                        historyData = incomingRecords;
+                    }
+
+                    hasMorePages = historyData.length < totalRecords;
                     
-                    renderHistory();
+                    renderHistory(append, incomingRecords);
                     renderPagination();
                 } else {
                     historyElements.historyList.innerHTML = `<div class="history-error">${data.message || 'Error loading history'}</div>`;
+                    hasMorePages = false;
                 }
             })
             .catch(error => {
+                if (error && error.name === 'AbortError') {
+                    return; // navigation away or refreshed request
+                }
                 console.error('Error fetching history:', error);
-                historyElements.historyList.innerHTML = '<div class="history-error">Failed to load history. Please try again later.</div>';
+                if (isHistoryViewActive() && controller === historyFetchController) {
+                    historyElements.historyList.innerHTML = '<div class="history-error">Failed to load history. Please try again later.</div>';
+                }
+                hasMorePages = false;
+            })
+            .finally(() => {
+                if (historyFetchController === controller) {
+                    historyFetchController = null;
+                }
+                // Ensure we clear loading flag even if aborted
+                isLoadingHistory = false;
+                if (!isHistoryViewActive()) return;
+                updateInfiniteScrollSentinelLabel();
             });
     };
 
@@ -556,28 +793,32 @@ const HistoryModule = (() => {
     /**
      * Render history items in the list
      */
-    const renderHistory = () => {
-        if (!historyData || historyData.length === 0) {
-            historyElements.historyList.innerHTML = '<div class="history-empty">No history records found</div>';
+    const renderHistory = (append = false, newRecords = []) => {
+        if (!historyElements.historyList || !isHistoryViewActive()) return;
+
+        const recordsToRender = append ? newRecords : historyData;
+
+        if (!append) {
+            if (!recordsToRender || recordsToRender.length === 0) {
+                if (isHistoryViewActive()) {
+                    historyElements.historyList.innerHTML = '<div class="history-empty">No history records found</div>';
+                    updatePageInfo();
+                    updateInfiniteScrollSentinelLabel();
+                }
+                return;
+            }
+            // Clear the list for a fresh render
+            historyElements.historyList.innerHTML = '';
+        } else if (!recordsToRender || recordsToRender.length === 0) {
+            updateInfiniteScrollSentinelLabel();
             return;
         }
-        
-        // No need to filter data client-side anymore as filters are applied server-side
-        let filteredData = historyData;
-        
-        // Clear the list
-        historyElements.historyList.innerHTML = '';
-        
-        // Update page info
-        const start = (currentPage - 1) * recordsPerPage + 1;
-        const end = Math.min(start + filteredData.length - 1, totalRecords);
-        historyElements.pageInfo.textContent = `Showing ${start}-${end} of ${totalRecords} records`;
-        
+
         // Create a document fragment for better performance
         const fragment = document.createDocumentFragment();
         
         // Add history items
-        filteredData.forEach(record => {
+        recordsToRender.forEach(record => {
             const historyItem = document.createElement('div');
             historyItem.className = 'history-item';
             
@@ -621,6 +862,47 @@ const HistoryModule = (() => {
                         icon: 'fas fa-calendar-alt',
                         text: record.gensokyoYear
                     });
+                }
+            }
+            // Check for YtDlp metadata
+            else if (record.ytDlpData?.sourceType || record.ytDlpSourceType) {
+                if (record.ytDlpData?.thumbnailUrl) {
+                    thumbnailSrc = record.ytDlpData.thumbnailUrl;
+                } else if (record.ytDlpThumbnailUrl) {
+                    thumbnailSrc = record.ytDlpThumbnailUrl;
+                }
+                
+                sourceType = record.ytDlpData?.sourceType || record.ytDlpSourceType || 'Unknown';
+                
+                // Set icon based on source type
+                switch(sourceType.toLowerCase()) {
+                    case 'instagram':
+                        sourceIcon = '<i class="fab fa-instagram source-icon-instagram"></i>';
+                        break;
+                    case 'tiktok':
+                        sourceIcon = '<i class="fab fa-tiktok source-icon-tiktok"></i>';
+                        break;
+                    case 'twitter':
+                    case 'x':
+                        sourceIcon = '<i class="fab fa-twitter source-icon-twitter"></i>';
+                        break;
+                    case 'bilibili':
+                        sourceIcon = '<i class="fas fa-tv source-icon-bilibili"></i>';
+                        break;
+                    case 'vimeo':
+                        sourceIcon = '<i class="fab fa-vimeo source-icon-vimeo"></i>';
+                        break;
+                    case 'twitch':
+                        sourceIcon = '<i class="fab fa-twitch source-icon-twitch"></i>';
+                        break;
+                    case 'soundcloud':
+                        sourceIcon = '<i class="fab fa-soundcloud source-icon-soundcloud"></i>';
+                        break;
+                    case 'youtube':
+                        sourceIcon = '<i class="fab fa-youtube source-icon-youtube"></i>';
+                        break;
+                    default:
+                        sourceIcon = '<i class="fas fa-globe source-icon-web"></i>';
                 }
             }
             // Check for Spotify
@@ -671,6 +953,30 @@ const HistoryModule = (() => {
                 hasStationLogo = true;
                 stationLogoUrl = record.radioLogoUrl;
             } 
+            // Check for TikTok
+            else if (record.url && record.url.includes('tiktok.com')) {
+                sourceType = 'TikTok';
+                sourceIcon = '<i class="fab fa-tiktok source-icon-tiktok"></i>';
+                if (record.thumbnailUrl) {
+                    thumbnailSrc = record.thumbnailUrl;
+                }
+            }
+            // Check for Instagram
+            else if (record.url && record.url.includes('instagram.com')) {
+                sourceType = 'Instagram';
+                sourceIcon = '<i class="fab fa-instagram source-icon-instagram"></i>';
+                if (record.thumbnailUrl) {
+                    thumbnailSrc = record.thumbnailUrl;
+                }
+            }
+            // Check for Twitter/X
+            else if (record.url && (record.url.includes('twitter.com') || record.url.includes('x.com'))) {
+                sourceType = 'Twitter';
+                sourceIcon = '<i class="fab fa-twitter source-icon-twitter"></i>';
+                if (record.thumbnailUrl) {
+                    thumbnailSrc = record.thumbnailUrl;
+                }
+            }
             // Check for SoundCloud
             else if (record.url && record.url.includes('soundcloud.com') || record.soundCloudArtworkUrl) {
                 if (record.soundCloudArtworkUrl) {
@@ -737,10 +1043,12 @@ const HistoryModule = (() => {
                 </div>
             ` : '';
             
+            thumbnailSrc = safeThumbnail(thumbnailSrc);
+
             // Build HTML
             historyItem.innerHTML = `
                 <div class="history-item-thumbnail">
-                    <img src="${thumbnailSrc}" alt="${record.title}" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                    <img src="${thumbnailSrc}" alt="${record.title}" referrerpolicy="no-referrer" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
                 </div>
                 <div class="history-item-info">
                     <div class="history-item-title">${record.title || 'Unknown Title'}</div>
@@ -827,9 +1135,17 @@ const HistoryModule = (() => {
         
         // Append all at once
         historyElements.historyList.appendChild(fragment);
-        
-        // Scroll to top of the content wrapper after rendering
-        scrollToTop();
+
+        // Keep sentinel at the end for infinite scroll and refresh observer
+        ensureInfiniteScrollSentinel();
+        updateInfiniteScrollSentinelLabel();
+        setupInfiniteScrollObserver();
+        updatePageInfo();
+
+        // Only reset scroll on a fresh render
+        if (!append) {
+            scrollToTop();
+        }
     };
 
     /**
@@ -837,7 +1153,7 @@ const HistoryModule = (() => {
      */
     const scrollToTop = () => {
         const contentWrapper = document.querySelector('.history-content-wrapper');
-        if (contentWrapper) {
+        if (contentWrapper && isHistoryViewActive()) {
             contentWrapper.scrollTop = 0;
         }
     };
@@ -985,75 +1301,16 @@ const HistoryModule = (() => {
      * Render pagination controls
      */
     const renderPagination = () => {
-        // Calculate total pages
-        const totalPages = Math.ceil(totalRecords / recordsPerPage);
-        
-        if (totalPages <= 1) {
-            historyElements.pagination.innerHTML = '';
-            return;
-        }
-        
-        // Create pagination HTML
-        let paginationHTML = '';
-        
-        // Previous button
-        paginationHTML += `
-            <button class="pagination-btn prev-btn" ${currentPage === 1 ? 'disabled' : ''}>
-                <i class="fas fa-chevron-left"></i> Previous
-            </button>
-        `;
-        
-        // Page numbers
-        paginationHTML += '<div class="pagination-pages">';
-        
-        // Calculate which page numbers to show
-        let startPage = Math.max(1, currentPage - 2);
-        let endPage = Math.min(totalPages, startPage + 4);
-        
-        // Adjust startPage if we're at the end
-        if (endPage - startPage < 4) {
-            startPage = Math.max(1, endPage - 4);
-        }
-        
-        // First page button
-        if (startPage > 1) {
-            paginationHTML += `<button class="pagination-btn page-btn" data-page="1">1</button>`;
-            if (startPage > 2) {
-                paginationHTML += `<span class="pagination-ellipsis">...</span>`;
-            }
-        }
-        
-        // Page number buttons
-        for (let i = startPage; i <= endPage; i++) {
-            paginationHTML += `
-                <button class="pagination-btn page-btn ${i === currentPage ? 'active' : ''}" data-page="${i}">
-                    ${i}
-                </button>
-            `;
-        }
-        
-        // Last page button
-        if (endPage < totalPages) {
-            if (endPage < totalPages - 1) {
-                paginationHTML += `<span class="pagination-ellipsis">...</span>`;
-            }
-            paginationHTML += `<button class="pagination-btn page-btn" data-page="${totalPages}">${totalPages}</button>`;
-        }
-        
-        paginationHTML += '</div>';
-        
-        // Next button
-        paginationHTML += `
-            <button class="pagination-btn next-btn" ${currentPage === totalPages ? 'disabled' : ''}>
-                Next <i class="fas fa-chevron-right"></i>
-            </button>
-        `;
-        
-        // Set HTML
-        historyElements.pagination.innerHTML = paginationHTML;
-        
-        // Add event listeners
-        setupPaginationEvents();
+        if (!historyElements.pagination || !isHistoryViewActive()) return;
+
+        const loadedCount = historyData.length;
+        const total = totalRecords || loadedCount || 0;
+
+        const message = hasMorePages
+            ? `Scroll to load more • ${loadedCount}/${total || loadedCount} loaded`
+            : (total ? `All ${total} records loaded` : 'No records found');
+
+        historyElements.pagination.innerHTML = `<div class="pagination-info">${message}</div>`;
     };
 
     // Public API

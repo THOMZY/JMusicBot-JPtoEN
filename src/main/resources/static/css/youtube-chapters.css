@@ -5,10 +5,12 @@
 /* Chapters drawer that aligns to the player's right edge (desktop) */
 .chapters-sidebar {
     width: 320px;
+    max-width: min(360px, 92vw);
     max-height: calc(100vh - 140px);
     position: fixed;
     top: var(--chapters-top, 120px);
-    left: var(--chapters-left, calc(50% + 620px));
+    left: var(--chapters-left, auto);
+    right: 16px;
     display: none;
     transform: translateX(20px);
     opacity: 0;
@@ -115,11 +117,13 @@ body.chapters-open .chapters-sidebar {
     .chapters-sidebar {
         position: static;
         width: 100%;
-        max-width: 600px;
+        max-width: none;
         transform: none !important;
         opacity: 1;
         pointer-events: auto;
         margin: 0 auto 20px;
+        right: auto;
+        left: 0;
     }
     
     body.has-chapters .chapters-sidebar {

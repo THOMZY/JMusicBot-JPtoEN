@@ -10,12 +10,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,6 +31,7 @@ public class YouTubeChapterExtractor {
     private static final Logger log = LoggerFactory.getLogger(YouTubeChapterExtractor.class);
     private static final ObjectMapper mapper = new ObjectMapper();
     private static final Pattern CHAPTER_PATTERN = Pattern.compile("\"chapterRenderer\":\\{\"title\":\\{\"simpleText\":\"([^\"]+)\"\\}[^}]*\"timeRangeStartMillis\":([0-9]+)");
+    private static final int YT_DLP_TIMEOUT_SECONDS = 30;
 
     /**
      * Represents a chapter in a YouTube video
@@ -114,6 +120,104 @@ public class YouTubeChapterExtractor {
             return chapters;
         } catch (Exception e) {
             log.error("Error extracting YouTube chapters", e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Extract chapters using yt-dlp's JSON output (works for yt-dlp-resolved YouTube sources).
+     * @param youtubeUrl The canonical YouTube URL for the video.
+     * @return List of chapters or empty list on failure.
+     */
+    public static List<Chapter> extractChaptersWithYtDlp(String youtubeUrl) {
+        if (youtubeUrl == null || youtubeUrl.isBlank()) {
+            return Collections.emptyList();
+        }
+        try {
+            // Locate the bundled yt-dlp binary (downloaded via YtDlpManager)
+            Path ytDlpBinary = Paths.get("yt-dlp", "bin");
+            if (!Files.isDirectory(ytDlpBinary)) {
+                log.debug("yt-dlp binary directory missing: {}", ytDlpBinary);
+                return Collections.emptyList();
+            }
+
+            Path exe = Files.list(ytDlpBinary)
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().startsWith("yt-dlp"))
+                    .findFirst()
+                    .orElse(null);
+
+            if (exe == null || !Files.isExecutable(exe)) {
+                log.debug("yt-dlp binary not found or not executable; skipping yt-dlp chapter extraction");
+                return Collections.emptyList();
+            }
+
+            ProcessBuilder pb = new ProcessBuilder(exe.toString(), "--dump-json", "--no-warnings", "--encoding", "utf-8", youtubeUrl);
+            pb.redirectErrorStream(true);
+            pb.environment().put("PYTHONIOENCODING", "utf-8");
+            // Ensure console encoding for Windows compatibility
+            if (System.getProperty("os.name").toLowerCase().contains("win")) {
+                pb.environment().put("PYTHONUTF8", "1");
+            }
+
+            Process proc = pb.start();
+            boolean finished = proc.waitFor(YT_DLP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (!finished) {
+                proc.destroyForcibly();
+                log.debug("yt-dlp chapter extraction timed out");
+                return Collections.emptyList();
+            }
+
+            if (proc.exitValue() != 0) {
+                log.debug("yt-dlp chapter extraction failed with code {}", proc.exitValue());
+                return Collections.emptyList();
+            }
+
+            String json;
+            try (InputStream in = proc.getInputStream()) {
+                json = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            }
+
+            JsonNode node = mapper.readTree(json);
+            JsonNode chapters = node.path("chapters");
+            if (!chapters.isArray()) {
+                return Collections.emptyList();
+            }
+
+            List<Chapter> parsed = new ArrayList<>();
+            for (JsonNode c : chapters) {
+                String name = c.path("title").asText(null);
+                long start = (long) (c.path("start_time").asDouble(-1) * 1000);
+                long end = (long) (c.path("end_time").asDouble(-1) * 1000);
+                if (name == null || start < 0) {
+                    continue;
+                }
+                Chapter chapter = new Chapter(name, start);
+                if (end > 0) {
+                    chapter.setEndTimeMs(end);
+                }
+                parsed.add(chapter);
+            }
+
+            // Ensure end times are filled if missing
+            if (!parsed.isEmpty()) {
+                for (int i = 0; i < parsed.size() - 1; i++) {
+                    Chapter current = parsed.get(i);
+                    if (current.getEndTimeMs() <= 0) {
+                        current.setEndTimeMs(parsed.get(i + 1).getStartTimeMs());
+                    }
+                }
+                if (parsed.get(parsed.size() - 1).getEndTimeMs() <= 0) {
+                    long durationMs = node.path("duration").isNumber()
+                            ? (long) (node.path("duration").asDouble() * 1000)
+                            : Long.MAX_VALUE;
+                    parsed.get(parsed.size() - 1).setEndTimeMs(durationMs);
+                }
+            }
+
+            return parsed;
+        } catch (Exception e) {
+            log.debug("yt-dlp chapter extraction failed: {}", e.toString());
             return Collections.emptyList();
         }
     }

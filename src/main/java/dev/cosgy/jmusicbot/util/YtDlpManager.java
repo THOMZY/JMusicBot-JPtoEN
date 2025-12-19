@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -27,7 +28,12 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -50,15 +56,34 @@ public final class YtDlpManager {
     });
 
     private static final String ROOT_DIR = "yt-dlp";
+    private final Path botRoot;
     private final Path binDir;
     private final Path exePath;
     private final String assetName;
+    private volatile Path preparedExe;
+    private final Map<FallbackPlatform, List<String>> extractorArgs = new HashMap<>();
+    private final Map<FallbackPlatform, String> formatOverrides = new HashMap<>();
 
     public YtDlpManager(Path botDir) {
-        Path baseDir = Objects.requireNonNull(botDir, "botDir").resolve(ROOT_DIR);
+        this.botRoot = Objects.requireNonNull(botDir, "botDir").toAbsolutePath().normalize();
+        Path baseDir = botRoot.resolve(ROOT_DIR);
         this.binDir = baseDir.resolve("bin");
         this.assetName = pickAssetForCurrentPlatform();
         this.exePath = binDir.resolve(assetNameForLocal(assetName));
+
+        // Minimal sensible defaults; can be extended later or sourced from config
+        extractorArgs.put(FallbackPlatform.TIKTOK, List.of("--extractor-args", "tiktok:player_client=web,download=h264-yes"));
+        extractorArgs.put(FallbackPlatform.TWITTER, List.of("--extractor-args", "twitter:player=desktop"));
+        extractorArgs.put(FallbackPlatform.BILIBILI, List.of("--extractor-args", "bilibili:lang=zh-Hans"));
+        extractorArgs.put(FallbackPlatform.INSTAGRAM, List.of("--extractor-args", "instagram:retry_download_errors=3"));
+
+        // Formats: prefer audio-only when available; otherwise fall back to best
+        formatOverrides.put(FallbackPlatform.TIKTOK, "bestaudio/best");
+        formatOverrides.put(FallbackPlatform.TWITTER, "bestaudio/best");
+        formatOverrides.put(FallbackPlatform.INSTAGRAM, "bestaudio/best");
+        formatOverrides.put(FallbackPlatform.BILIBILI, "bestaudio/best");
+        formatOverrides.put(FallbackPlatform.VIMEO, "bestaudio/best");
+        formatOverrides.put(FallbackPlatform.TWITCH, "bestaudio/best");
     }
 
     /**
@@ -83,8 +108,162 @@ public final class YtDlpManager {
         }
 
         String version = runAndCapture(exePath.toString(), "--version").trim();
+        this.preparedExe = exePath;
         log.info("yt-dlp ready: {} (version {})", exePath, version);
         return exePath;
+    }
+
+    public boolean isReady() {
+        Path p = preparedExe;
+        return p != null && Files.isRegularFile(p);
+    }
+
+    public YtDlpResult download(String input) throws Exception {
+        FallbackPlatform platform = detectPlatform(input);
+        if (platform == FallbackPlatform.NONE) {
+            throw new IllegalArgumentException("Unsupported fallback platform for: " + input);
+        }
+        Path cacheDir = getCacheDir();
+        Files.createDirectories(cacheDir);
+
+        String url = toFallbackUrl(input, platform);
+        log.info("Downloading via yt-dlp ({}): {}", platform, url);
+
+        List<String> cmd = new ArrayList<>();
+        cmd.add(exePath.toString());
+
+        String format = formatOverrides.getOrDefault(platform, "bestaudio[ext=webm][acodec=opus]/bestaudio[ext=m4a]/bestaudio");
+        Collections.addAll(cmd,
+            "--no-playlist",
+            "--ignore-config",
+            "--no-progress",
+            "--newline",
+            "--restrict-filenames",
+            "--force-overwrites",
+            "-f", format,
+            "--no-post-overwrites",
+            "--encoding", "utf-8",
+            "--output", cacheDir.resolve("%(id)s.%(ext)s").toString(),
+            "--print", "after_move:filepath",
+            "--print", "meta:%(title)s\t%(uploader)s\t%(webpage_url)s\t%(duration)s\t%(thumbnail)s\t%(description)s",
+            "--add-header", "User-Agent: Mozilla/5.0");
+
+        List<String> extra = extractorArgs.getOrDefault(platform, List.of());
+        cmd.addAll(extra);
+        cmd.add(url);
+
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.directory(botRoot.toFile());
+        pb.redirectErrorStream(true);
+        pb.environment().put("PYTHONIOENCODING", "utf-8");
+        // Ensure console encoding for Windows compatibility
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            pb.environment().put("PYTHONUTF8", "1");
+        }
+
+        Process proc = pb.start();
+        String lastNonEmpty = null;
+        YtDlpMetadata metadata = null;
+        List<String> combinedOutput = new ArrayList<>();
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = r.readLine()) != null) {
+                if (!line.isBlank()) {
+                    lastNonEmpty = line.trim();
+                }
+                if (line.startsWith("meta:")) {
+                    metadata = parseMetadataLine(line.substring("meta:".length()), platform);
+                }
+                combinedOutput.add(line);
+                log.debug("[yt-dlp] {}", line);
+            }
+        }
+
+        if (!proc.waitFor(600, TimeUnit.SECONDS)) {
+            proc.destroyForcibly();
+            throw new RuntimeException("yt-dlp timeout (600s)");
+        }
+        if (proc.exitValue() != 0) {
+            String tail = combinedOutput.size() > 10
+                    ? String.join("\n", combinedOutput.subList(Math.max(0, combinedOutput.size() - 10), combinedOutput.size()))
+                    : String.join("\n", combinedOutput);
+            throw new RuntimeException("yt-dlp exit code=" + proc.exitValue() + " tail=" + tail);
+        }
+
+        if (lastNonEmpty == null) {
+            if (platform == FallbackPlatform.YOUTUBE) {
+                String id = tryExtractYoutubeId(url);
+                if (id != null) {
+                    Path guessWebm = cacheDir.resolve(id + ".webm");
+                    if (Files.isRegularFile(guessWebm)) {
+                        return new YtDlpResult(guessWebm, metadata != null ? metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
+                    }
+                    Path guessM4a = cacheDir.resolve(id + ".m4a");
+                    if (Files.isRegularFile(guessM4a)) {
+                        return new YtDlpResult(guessM4a, metadata != null ? metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
+                    }
+                }
+            }
+            throw new FileNotFoundException("yt-dlp output is unknown");
+        }
+
+        Path out = Paths.get(lastNonEmpty);
+        if (!out.isAbsolute()) {
+            out = botRoot.resolve(out).normalize();
+        }
+        if (!Files.isRegularFile(out)) {
+            throw new FileNotFoundException("yt-dlp output missing: " + out);
+        }
+        log.info("yt-dlp finished: {}", out);
+        return new YtDlpResult(out, metadata != null ? metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
+    }
+
+    public FallbackPlatform detectPlatform(String identifier) {
+        if (!isReady() || identifier == null) {
+            return FallbackPlatform.NONE;
+        }
+        String id = identifier.toLowerCase(Locale.ROOT);
+        if (id.startsWith("ytsearch:") || id.startsWith("scsearch:")) {
+            return FallbackPlatform.NONE;
+        }
+
+        boolean isHttp = id.startsWith("http://") || id.startsWith("https://");
+        if (isHttp) {
+            if (id.contains("soundcloud.com/") || id.contains("sndcdn.com/") || id.contains("on.soundcloud.com/")) {
+                return FallbackPlatform.SOUNDCLOUD;
+            }
+            if (id.contains("youtube.com/") || id.contains("youtu.be/")) {
+                return FallbackPlatform.YOUTUBE;
+            }
+            if (id.contains("instagram.com/") || id.contains("instagr.am/")) {
+                return FallbackPlatform.INSTAGRAM;
+            }
+            if (id.contains("tiktok.com/")) {
+                return FallbackPlatform.TIKTOK;
+            }
+            if (id.contains("twitter.com/") || id.contains("x.com/")) {
+                return FallbackPlatform.TWITTER;
+            }
+            if (id.contains("twitch.tv/")) {
+                return FallbackPlatform.TWITCH;
+            }
+            if (id.contains("bilibili.com/") || id.contains("b23.tv/")) {
+                return FallbackPlatform.BILIBILI;
+            }
+            if (id.contains("vimeo.com/") || id.contains("player.vimeo.com/")) {
+                return FallbackPlatform.VIMEO;
+            }
+        }
+
+        if (id.matches("^[a-zA-Z0-9_-]{10,}$")) {
+            return FallbackPlatform.YOUTUBE;
+        }
+
+        return FallbackPlatform.NONE;
+    }
+
+    public Path getCacheDir() {
+        return botRoot.resolve(ROOT_DIR).resolve("cache");
     }
 
     /**
@@ -205,5 +384,99 @@ public final class YtDlpManager {
             throw new RuntimeException("Process timeout: " + String.join(" ", cmd));
         }
         return sb.toString();
+    }
+
+    private String toFallbackUrl(String input, FallbackPlatform platform) {
+        String s = input == null ? "" : input.trim();
+        if (platform == FallbackPlatform.YOUTUBE) {
+            if (s.startsWith("http://") || s.startsWith("https://")) {
+                return s;
+            }
+            return "https://www.youtube.com/watch?v=" + s;
+        }
+
+        if (s.startsWith("http://") || s.startsWith("https://")) {
+            return s;
+        }
+
+        throw new IllegalArgumentException(platform + " fallback requires a valid URL: " + input);
+    }
+
+    private String tryExtractYoutubeId(String url) {
+        if (url == null) {
+            return null;
+        }
+        try {
+            int vIndex = url.indexOf("v=");
+            if (vIndex >= 0) {
+                String v = url.substring(vIndex + 2);
+                int amp = v.indexOf('&');
+                return amp > 0 ? v.substring(0, amp) : v;
+            }
+            int idx = url.indexOf("youtu.be/");
+            if (idx >= 0) {
+                String v = url.substring(idx + "youtu.be/".length());
+                int q = v.indexOf('?');
+                return q > 0 ? v.substring(0, q) : v;
+            }
+            idx = url.indexOf("/shorts/");
+            if (idx >= 0) {
+                String v = url.substring(idx + "/shorts/".length());
+                int q = v.indexOf('?');
+                return q > 0 ? v.substring(0, q) : v;
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    public enum FallbackPlatform {
+        NONE,
+        YOUTUBE,
+        SOUNDCLOUD,
+        INSTAGRAM,
+        TIKTOK,
+        TWITTER,
+        TWITCH,
+        BILIBILI,
+        VIMEO
+    }
+
+    public record YtDlpMetadata(String title,
+                                 String author,
+                                 String webpageUrl,
+                                 String thumbnailUrl,
+                                 String description,
+                                 long durationMs,
+                                 FallbackPlatform platform) { }
+
+    public record YtDlpResult(Path file, YtDlpMetadata metadata) { }
+
+    private YtDlpMetadata parseMetadataLine(String raw, FallbackPlatform platform) {
+        try {
+            String[] parts = raw.split("\t", -1);
+            String title = parts.length > 0 ? nullIfBlank(parts[0]) : null;
+            String author = parts.length > 1 ? nullIfBlank(parts[1]) : null;
+            String webpage = parts.length > 2 ? nullIfBlank(parts[2]) : null;
+            String durationStr = parts.length > 3 ? parts[3] : null;
+            String thumb = parts.length > 4 ? nullIfBlank(parts[4]) : null;
+            String desc = parts.length > 5 ? nullIfBlank(parts[5]) : null;
+            long durationMs = -1;
+            if (durationStr != null && !durationStr.isBlank()) {
+                try {
+                    durationMs = (long) (Double.parseDouble(durationStr) * 1000);
+                } catch (NumberFormatException ignored) {
+                    durationMs = -1;
+                }
+            }
+            return new YtDlpMetadata(title, author, webpage, thumb, desc, durationMs, platform);
+        } catch (Exception e) {
+            log.debug("Failed to parse yt-dlp metadata line: {}", e.toString());
+            return new YtDlpMetadata(null, null, null, null, null, -1, platform);
+        }
+    }
+
+    private static String nullIfBlank(String s) {
+        return (s == null || s.isBlank()) ? null : s;
     }
 }

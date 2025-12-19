@@ -5,7 +5,9 @@
 package com.jagrosh.jmusicbot.audio;
 
 import com.jagrosh.jmusicbot.Bot;
+import com.jagrosh.jmusicbot.audio.PlayerManager;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
+import dev.cosgy.jmusicbot.util.YtDlpManager.FallbackPlatform;
 import net.dv8tion.jda.api.entities.Guild;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -201,6 +203,12 @@ public class IcyMetadataHandler {
         
         // Don't process tracks that aren't streams
         if (!track.getInfo().isStream) {
+            return;
+        }
+
+        // Skip YT-DLP fallback sources (e.g., Twitter/TikTok downloads) to avoid duplicate history entries
+        FallbackPlatform ytPlatform = PlayerManager.getYtDlpPlatform(track);
+        if (ytPlatform != null && ytPlatform != FallbackPlatform.NONE) {
             return;
         }
         
@@ -768,6 +776,12 @@ public class IcyMetadataHandler {
         if (metadata.getCurrentTrack().isEmpty()) {
             return;
         }
+
+        // Ignore YT-DLP fallback sources (e.g., Twitter clips) to avoid duplicate history rows
+        FallbackPlatform ytPlatform = PlayerManager.getYtDlpPlatform(track);
+        if (ytPlatform != null && ytPlatform != FallbackPlatform.NONE) {
+            return;
+        }
         
         try {
             // Get the guild from the ID
@@ -786,6 +800,7 @@ public class IcyMetadataHandler {
             
             // Create a copy of the track to avoid modifying the playing one
             AudioTrack trackCopy = track.makeClone();
+            trackCopy.setUserData(track.getUserData()); // keep requester/YT-DLP metadata on clone
             
             // Update the title to include the current song
             try {

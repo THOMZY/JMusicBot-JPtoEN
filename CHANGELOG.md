@@ -2,6 +2,19 @@
 
 ---
 
+# 16 December 2025
+
+## ▶️ Added yt-dlp support for 3 new sources : Instagram, Tiktok, X / Twitter.
+
+### 🚀 New Features
+- yt-dlp support for Instagram, Tiktok, Twitter.
+
+### 🔧 Changes
+- Clear yt-dlp cache when bot leave VC.
+- Web panel, playing status and history support for the new sources.
+
+---
+
 # 12 December 2025
 
 ## ▶️ Added Youtube fallback if youtube-source fail with **[`yt-dlp`](https://github.com/yt-dlp/yt-dlp)**
@@ -12,12 +25,8 @@
 ### 🔧 Changes
 - Switched Web panel to SPA, interface now more responsive.
 - Fixed minors bugs and visuals in web panel.
-- Added `/SetTopicStatus` command. ( to use with `/SetTC` )
+- Added `/SetTopicStatus` command. ( to use with `/SetTC set` )
 - Fixed `/SetVCStatus` not saving in "serversettings.json".
-
-### 📦 Dependency Updates
-- **spring-boot-starter-web**: `3.3.0` → `4.0.0`
-- **spring-boot-starter-websocket**: `3.3.0` → `4.0.0`
 
 ---
 

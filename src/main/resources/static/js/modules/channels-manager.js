@@ -1075,12 +1075,15 @@ const ChannelsManager = (function() {
         }
         
         try {
-            const formData = new FormData();
-            formData.append('content', content);
+            const params = new URLSearchParams();
+            params.append('content', content);
             
             const response = await fetch(`/api/channels/${channelId}/messages`, {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+                },
+                body: params
             });
             
             if (!response.ok) {

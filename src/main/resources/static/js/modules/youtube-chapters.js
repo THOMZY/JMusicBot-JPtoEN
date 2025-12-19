@@ -48,10 +48,19 @@ const YouTubeChapters = (function() {
         }
 
         const rect = playerCard.getBoundingClientRect();
-        const left = rect.right + 24;
-        const top = Math.max(80, rect.top);
-        sidebar.style.setProperty('--chapters-left', `${left}px`);
-        sidebar.style.setProperty('--chapters-top', `${top}px`);
+        const sidebarRect = sidebar.getBoundingClientRect();
+
+        // Keep the drawer anchored near the player but clamp it inside the viewport
+        const desiredLeft = rect.right + 24;
+        const sidebarWidth = sidebarRect.width || sidebar.offsetWidth || 320;
+        const maxLeft = window.innerWidth - sidebarWidth - 12;
+        const clampedLeft = Math.max(12, Math.min(desiredLeft, maxLeft));
+
+        const headerOffset = document.querySelector('.main-header')?.offsetHeight ?? 70;
+        const desiredTop = Math.max(headerOffset + 10, rect.top);
+
+        sidebar.style.setProperty('--chapters-left', `${clampedLeft}px`);
+        sidebar.style.setProperty('--chapters-top', `${desiredTop}px`);
     }
 
     function scheduleDrawerPosition() {

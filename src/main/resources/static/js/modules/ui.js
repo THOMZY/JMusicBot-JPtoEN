@@ -45,16 +45,26 @@ const UI = (function() {
 
     // Get appropriate icon based on source type
     function getSourceIcon(sourceType) {
+        if (!sourceType) return 'fas fa-music';
+
+        const key = sourceType.toLowerCase();
         const icons = {
-            'YouTube': 'fab fa-youtube',
-            'SoundCloud': 'fab fa-soundcloud',
-            'Spotify': 'fab fa-spotify',
-            'Local': 'fas fa-file-audio',
-            'Radio': 'fas fa-broadcast-tower',
-            'Stream': 'fas fa-signal'
+            'youtube': 'fab fa-youtube',
+            'soundcloud': 'fab fa-soundcloud',
+            'spotify': 'fab fa-spotify',
+            'local': 'fas fa-file-audio',
+            'local file': 'fas fa-file-audio',
+            'radio': 'fas fa-broadcast-tower',
+            'stream': 'fas fa-signal',
+            'tiktok': 'fab fa-tiktok',
+            'instagram': 'fab fa-instagram',
+            'twitter': 'fab fa-twitter',
+            'twitch': 'fab fa-twitch',
+            'vimeo': 'fab fa-vimeo',
+            'bilibili': 'fas fa-tv'
         };
-        
-        return icons[sourceType] || 'fas fa-music';
+
+        return icons[key] || 'fas fa-music';
     }
 
     // Initialize all UI components

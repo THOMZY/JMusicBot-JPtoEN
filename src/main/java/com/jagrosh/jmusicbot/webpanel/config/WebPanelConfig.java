@@ -7,9 +7,17 @@ package com.jagrosh.jmusicbot.webpanel.config;
 import com.jagrosh.jmusicbot.Bot;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.IOException;
 
 @Configuration
 public class WebPanelConfig implements WebMvcConfigurer {
@@ -18,6 +26,21 @@ public class WebPanelConfig implements WebMvcConfigurer {
 
     public WebPanelConfig(Bot bot) {
         this.bot = bot;
+    }
+
+    @Bean
+    public OncePerRequestFilter blockPropfindFilter() {
+        return new OncePerRequestFilter() {
+            @Override
+            protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+                    throws ServletException, IOException {
+                if ("PROPFIND".equalsIgnoreCase(request.getMethod())) {
+                    response.setStatus(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
+                    return;
+                }
+                filterChain.doFilter(request, response);
+            }
+        };
     }
 
     @Override

@@ -85,6 +85,14 @@ public class Listener extends ListenerAdapter {
     @Override
     public void onGuildVoiceUpdate(@NotNull GuildVoiceUpdateEvent event) {
         Logger log = LoggerFactory.getLogger("onGuildVoiceUpdate");
+
+        Member self = event.getGuild().getSelfMember();
+        if (event.getMember().equals(self)
+                && event.getChannelLeft() != null
+                && event.getChannelJoined() == null) {
+            bot.getPlayerManager().clearYtDlpCache();
+        }
+
         bot.getAloneInVoiceHandler().onVoiceUpdate(event);
 
         // Event on exit

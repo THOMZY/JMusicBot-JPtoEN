@@ -68,6 +68,9 @@ public class HistoryController {
                                     case "gensokyo": return record.hasGensokyoData();
                                     case "local": return record.hasLocalData();
                                     case "soundcloud": return record.hasSoundCloudData();
+                                    case "instagram": return record.hasYtDlpData() && "Instagram".equalsIgnoreCase(record.getYtDlpSourceType());
+                                    case "tiktok": return record.hasYtDlpData() && "TikTok".equalsIgnoreCase(record.getYtDlpSourceType());
+                                    case "twitter": return record.hasYtDlpData() && ("Twitter".equalsIgnoreCase(record.getYtDlpSourceType()) || "X".equalsIgnoreCase(record.getYtDlpSourceType()));
                                     default: return true;
                                 }
                             })
@@ -186,6 +189,9 @@ public class HistoryController {
                                     case "gensokyo": return record.hasGensokyoData();
                                     case "local": return record.hasLocalData();
                                     case "soundcloud": return record.hasSoundCloudData();
+                                    case "instagram": return record.hasYtDlpData() && "Instagram".equalsIgnoreCase(record.getYtDlpSourceType());
+                                    case "tiktok": return record.hasYtDlpData() && "TikTok".equalsIgnoreCase(record.getYtDlpSourceType());
+                                    case "twitter": return record.hasYtDlpData() && ("Twitter".equalsIgnoreCase(record.getYtDlpSourceType()) || "X".equalsIgnoreCase(record.getYtDlpSourceType()));
                                     default: return true;
                                 }
                             })

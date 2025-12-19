@@ -18,10 +18,59 @@ const Player = (function() {
     
     window.currentChapters = [];
     let progressInterval;
+
+    const isPlayerViewActive = () => {
+        const container = document.getElementById('player-component');
+        return !!container && document.body.contains(container);
+    };
+
+    const getPlayerEls = () => ({
+        progressBar: document.getElementById('progress-bar'),
+        currentTime: document.getElementById('current-time'),
+        totalTime: document.getElementById('total-time')
+    });
+
+    // Instagram CDN blocks hotlinks with referrers; wrap those URLs through a proxy while leaving local/static paths untouched
+    function makeSafeThumbnail(url) {
+        if (!url) return url;
+
+        const lower = url.toLowerCase();
+        const isLocalAsset = lower.startsWith('/') || lower.startsWith('local_artwork/') || lower.startsWith('data:');
+        if (isLocalAsset) return url;
+
+        const isInstagram = lower.includes('instagram.com') || lower.includes('cdninstagram.com');
+        if (isInstagram) {
+            return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=640&h=640&fit=inside`;
+        }
+
+        return url;
+    }
+
+    // Centralized default thumbnails per source.
+    function getDefaultThumbnail(sourceType) {
+        const defaults = {
+            'YouTube': 'https://www.gstatic.com/youtube/img/branding/youtubelogo/svg/youtubelogo.svg',
+            'SoundCloud': 'https://developers.soundcloud.com/assets/logo_big_white-65c2b096da68dd533db18b5a2bcfbcce.png',
+            'Spotify': 'https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png',
+            'TikTok': 'https://cdn-icons-png.flaticon.com/512/3046/3046121.png',
+            'Local': 'https://cdn-icons-png.flaticon.com/512/4725/4725478.png',
+            'Local File': 'https://cdn-icons-png.flaticon.com/512/4725/4725478.png',
+            'Radio': 'https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png',
+            'Stream': 'https://cdn-icons-png.flaticon.com/128/11796/11796884.png',
+            'Gensokyo Radio': 'https://stream.gensokyoradio.net/images/logo.png'
+        };
+        return defaults[sourceType] || 'https://cdn.discordapp.com/embed/avatars/0.png';
+    }
     
     // Update the progress bar
     function updateProgress() {
         if (!window.currentStatus || !window.currentStatus.playing || window.currentStatus.paused) return;
+
+        // Bail if player view is gone (SPA navigation)
+        if (!isPlayerViewActive()) return;
+
+        const { progressBar, currentTime, totalTime } = getPlayerEls();
+        if (!progressBar || !currentTime) return;
         
         // Handle Gensokyo Radio tracks separately since they have their own timing
         if ((window.currentStatus.sourceType === 'Gensokyo Radio' || 
@@ -50,15 +99,15 @@ const Player = (function() {
                                     window.currentStatus.spotifyInfo.localOffset;
                 
                 // Update the display with the calculated time
-                document.getElementById('current-time').textContent = UI.formatTime(displayTime);
+                currentTime.textContent = UI.formatTime(displayTime);
                 
                 // Calculate progress percentage based on the display time
                 const progressPercentage = 
                     (displayTime / window.currentStatus.spotifyInfo.gensokyoDuration) * 100;
                 
                 // Update progress bar
-                if (progressPercentage <= 100) {
-                    document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
+                if (progressPercentage <= 100 && progressBar) {
+                    progressBar.style.width = `${progressPercentage}%`;
                 }
             }
             
@@ -73,8 +122,8 @@ const Player = (function() {
         // Calculate percentage
         const progressPercentage = (window.currentStatus.currentTrackPosition / window.currentStatus.currentTrackDuration) * 100;
         if (progressPercentage <= 100) {
-            document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
-            document.getElementById('current-time').textContent = UI.formatTime(window.currentStatus.currentTrackPosition);
+            progressBar.style.width = `${progressPercentage}%`;
+            currentTime.textContent = UI.formatTime(window.currentStatus.currentTrackPosition);
             
             // Update current chapter
             if (window.currentStatus.sourceType === 'YouTube' && typeof YouTubeChapters !== 'undefined') {
@@ -222,9 +271,34 @@ const Player = (function() {
     // Fetch current status from the API
     async function fetchStatus() {
         try {
+            // Skip work when the player view is not mounted (SPA navigation)
+            if (!isPlayerViewActive()) {
+                if (progressInterval) {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                }
+                return;
+            }
+
             const response = await fetch('/api/status');
             const data = await response.json();
             console.log('[fetchStatus] Data received from /api/status:', JSON.parse(JSON.stringify(data))); // Log a deep copy
+
+            // If player view is not active (SPA navigation), skip DOM updates
+            if (!isPlayerViewActive()) return;
+
+            // Ensure critical elements exist before manipulating
+            const requiredIds = [
+                'track-title', 'track-author', 'queue-info', 'track-source-text', 'track-source-icon',
+                'track-requester', 'track-volume', 'spotify-info-container', 'gensokyo-info-container',
+                'localfile-info-container', 'track-thumbnail', 'progress-bar', 'status-message',
+                'radio-logo-container', 'station-logo', 'live-indicator', 'progress-container'
+            ];
+            const missingEl = requiredIds.find(id => !document.getElementById(id));
+            if (missingEl) {
+                console.warn('[fetchStatus] Missing expected element:', missingEl);
+                return;
+            }
 
             const previousSourceType = window.currentStatus.sourceType;
             const previousTrackId = window.currentStatus.currentTrackUri; // Store previous track ID
@@ -330,18 +404,25 @@ const Player = (function() {
                 sourceIconElement.className = sourceIcon;
                 
                 // Add color class based on source type
-                const sourceType = data.sourceType;
-                if (sourceType === 'YouTube') {
+                const sourceType = data.sourceType || '';
+                const sourceTypeLower = sourceType.toLowerCase();
+                if (sourceTypeLower === 'youtube') {
                     sourceIconElement.classList.add('source-icon-youtube');
-                } else if (sourceType === 'Spotify') {
+                } else if (sourceTypeLower === 'spotify') {
                     sourceIconElement.classList.add('source-icon-spotify');
-                } else if (sourceType === 'SoundCloud') {
+                } else if (sourceTypeLower === 'soundcloud') {
                     sourceIconElement.classList.add('source-icon-soundcloud');
-                } else if (sourceType === 'Gensokyo Radio' || (sourceType === 'Stream' && data.currentTrackUri && data.currentTrackUri.includes('stream.gensokyoradio.net'))) {
+                } else if (sourceTypeLower === 'tiktok') {
+                    sourceIconElement.classList.add('source-icon-tiktok');
+                } else if (sourceTypeLower === 'instagram') {
+                    sourceIconElement.classList.add('source-icon-instagram');
+                } else if (sourceTypeLower === 'twitter') {
+                    sourceIconElement.classList.add('source-icon-twitter');
+                } else if (sourceTypeLower === 'gensokyo radio' || (sourceTypeLower === 'stream' && data.currentTrackUri && data.currentTrackUri.includes('stream.gensokyoradio.net'))) {
                     sourceIconElement.classList.add('source-icon-gensokyoradio');
-                } else if (sourceType === 'Radio') {
+                } else if (sourceTypeLower === 'radio') {
                     sourceIconElement.classList.add('source-icon-radio');
-                } else if (sourceType === 'Local File' || sourceType === 'Local') {
+                } else if (sourceTypeLower === 'local file' || sourceTypeLower === 'local') {
                     sourceIconElement.classList.add('source-icon-local');
                 }
             }
@@ -602,7 +683,7 @@ const Player = (function() {
                         
                         // Use Gensokyo Radio logo if no custom thumbnail
                         if (!data.currentTrackThumbnail) {
-                            document.getElementById('track-thumbnail').src = 'https://stream.gensokyoradio.net/images/logo.png';
+                            document.getElementById('track-thumbnail').src = makeSafeThumbnail('https://stream.gensokyoradio.net/images/logo.png');
                         }
                     }
                 } else {
@@ -638,32 +719,22 @@ const Player = (function() {
 
                 if (artworkFilename && artworkFilename.trim() !== '') {
                     console.log('[fetchStatus] Using artwork filename (fetchStatus):', artworkFilename);
-                    document.getElementById('track-thumbnail').src = `/api/artwork/${encodeURIComponent(artworkFilename)}`;
+                    document.getElementById('track-thumbnail').src = makeSafeThumbnail(`/api/artwork/${encodeURIComponent(artworkFilename)}`);
                 } else {
                     console.warn('[fetchStatus] Could not determine artwork filename for local track (fetchStatus):', rawUri);
-                    document.getElementById('track-thumbnail').src = 'https://cdn-icons-png.flaticon.com/512/4725/4725478.png';
+                    document.getElementById('track-thumbnail').src = makeSafeThumbnail('https://cdn-icons-png.flaticon.com/512/4725/4725478.png');
                 }
             } else if (data.currentTrackThumbnail) { // This will now be checked only if not Local or Local without URI
-                document.getElementById('track-thumbnail').src = data.currentTrackThumbnail;
+                document.getElementById('track-thumbnail').src = makeSafeThumbnail(data.currentTrackThumbnail);
             } else {
                 // Set a default thumbnail based on source type (if not Local and no specific thumbnail)
-                const defaultThumbnails = {
-                    'YouTube': 'https://www.gstatic.com/youtube/img/branding/youtubelogo/svg/youtubelogo.svg',
-                    'SoundCloud': 'https://developers.soundcloud.com/assets/logo_big_white-65c2b096da68dd533db18b5a2bcfbcce.png',
-                    'Spotify': 'https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png',
-                    'Local': 'https://cdn-icons-png.flaticon.com/512/4725/4725478.png',
-                    'Radio': 'https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png',
-                    'Stream': 'https://cdn-icons-png.flaticon.com/128/11796/11796884.png',
-                    'Gensokyo Radio': 'https://stream.gensokyoradio.net/images/logo.png'
-                };
-                
-                const defaultImage = defaultThumbnails[data.sourceType] || 'https://cdn.discordapp.com/embed/avatars/0.png';
-                document.getElementById('track-thumbnail').src = defaultImage;
+                const defaultImage = getDefaultThumbnail(data.sourceType);
+                document.getElementById('track-thumbnail').src = makeSafeThumbnail(defaultImage);
             }
             
             // For radio tracks, if we have a song image, use it as the main thumbnail and keep the station logo separate
             if (data.sourceType === 'Radio' && data.radioSongImageUrl) {
-                document.getElementById('track-thumbnail').src = data.radioSongImageUrl;
+                document.getElementById('track-thumbnail').src = makeSafeThumbnail(data.radioSongImageUrl);
             }
             
             // For Gensokyo Radio, we might have albumImageUrl in the spotifyInfo object
@@ -671,7 +742,7 @@ const Player = (function() {
                 (data.sourceType === 'Stream' && data.currentTrackUri && 
                 data.currentTrackUri.includes('stream.gensokyoradio.net'))) && 
                 data.spotifyInfo && data.spotifyInfo.albumImageUrl) {
-                document.getElementById('track-thumbnail').src = data.spotifyInfo.albumImageUrl;
+                document.getElementById('track-thumbnail').src = makeSafeThumbnail(data.spotifyInfo.albumImageUrl);
             }
             
             // Update the current status safely - except for Gensokyo Radio tracks which handle their own time display
@@ -767,19 +838,24 @@ const Player = (function() {
         } catch (error) {
             console.error('Error fetching status:', error);
             const statusElement = document.getElementById('status-message');
-            statusElement.textContent = 'Error connecting to server';
-            statusElement.classList.remove('status-playing', 'status-paused', 'status-idle');
-            statusElement.classList.add('status-error');
+            if (statusElement) {
+                statusElement.textContent = 'Error connecting to server';
+                statusElement.classList.remove('status-playing', 'status-paused', 'status-idle');
+                statusElement.classList.add('status-error');
+            }
         }
     }
     
     // Fetch queue from the API
     async function fetchQueue() {
         try {
+            if (!isPlayerViewActive()) return;
+
             const response = await fetch('/api/queue');
             const data = await response.json();
-            
+
             const queueList = document.getElementById('queue-list');
+            if (!queueList) return;
             queueList.innerHTML = '';
             
             if (data.length === 0) {
@@ -794,28 +870,20 @@ const Player = (function() {
                 item.setAttribute('draggable', 'true');
                 
                 // For thumbnails in queue, use the right approach based on source type
-                let thumbnailUrl = track.thumbnail; // This should now have local_artwork/hash.ext for local files
+                let thumbnailUrl = makeSafeThumbnail(track.thumbnail); // This should now have local_artwork/hash.ext for local files
                 
                 // If no thumbnail provided, or for specific source types, override with defaults
                 // The logic for local files is now primarily handled by the backend providing the correct track.thumbnail path.
                 // We just need a fallback here if track.thumbnail is somehow empty.
                 if (!thumbnailUrl || thumbnailUrl === '') {
                     // Fallback for non-local types or if local thumbnail path is missing
-                    const defaultThumbnails = {
-                        'YouTube': 'https://www.gstatic.com/youtube/img/branding/youtubelogo/svg/youtubelogo.svg',
-                        'SoundCloud': 'https://developers.soundcloud.com/assets/logo_big_white-65c2b096da68dd533db18b5a2bcfbcce.png',
-                        'Spotify': 'https://www.freepnglogos.com/uploads/spotify-logo-png/file-spotify-logo-png-4.png',
-                        'Local File': 'https://cdn-icons-png.flaticon.com/512/4725/4725478.png', // Ensure sourceType matches 'Local File'
-                        'Radio': 'https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png',
-                        'Stream': 'https://cdn-icons-png.flaticon.com/128/11796/11796884.png',
-                        'Gensokyo Radio': 'https://stream.gensokyoradio.net/images/logo.png'
-                    };
-                    thumbnailUrl = defaultThumbnails[track.sourceType] || 'https://cdn.discordapp.com/embed/avatars/0.png';
+                    const defaultImage = getDefaultThumbnail(track.sourceType);
+                    thumbnailUrl = makeSafeThumbnail(defaultImage);
                 } else if (track.sourceType === 'Local File' && !thumbnailUrl.startsWith('local_artwork/')){
                     // If it's a local file but the thumbnail isn't the expected path, use fallback
                     // This handles cases where backend might not have populated it correctly for some reason
                     console.warn('[fetchQueue] Local File track.thumbnail does not seem to be a local_artwork path:', thumbnailUrl);
-                    thumbnailUrl = 'https://cdn-icons-png.flaticon.com/512/4725/4725478.png'; 
+                    thumbnailUrl = makeSafeThumbnail('https://cdn-icons-png.flaticon.com/512/4725/4725478.png'); 
                 }
                 
                 // Add source-specific class for thumbnail styling
@@ -884,7 +952,7 @@ const Player = (function() {
                         <i class="fas fa-grip-lines"></i>
                     </div>
                     <div class="${thumbnailClass}">
-                        <img src="${thumbnailUrl}" alt="${track.title}">
+                        <img src="${thumbnailUrl}" alt="${track.title}" referrerpolicy="no-referrer">
                     </div>
                     <div class="queue-item-info">
                         ${titleElement}

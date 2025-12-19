@@ -318,6 +318,18 @@
     color: #FFD700 !important; /* Yellow - Local Files */
 }
 
+.source-icon-tiktok {
+    color: #010101 !important; /* Black - TikTok */
+}
+
+.source-icon-instagram {
+    color: #E4405F !important; /* Pink - Instagram */
+}
+
+.source-icon-twitter {
+    color: #1DA1F2 !important; /* Blue - Twitter/X */
+}
+
 /* Radio station logo container in history items */
 .station-logo-container {
     display: flex;
@@ -386,6 +398,20 @@
 .pagination-pages {
     display: flex;
     gap: 5px;
+}
+
+.pagination-info {
+    text-align: center;
+    color: var(--muted-text);
+    width: 100%;
+    font-size: 13px;
+}
+
+.history-sentinel {
+    padding: 12px 0 20px 0;
+    text-align: center;
+    color: var(--muted-text);
+    font-size: 13px;
 }
 
 .pagination-btn {

@@ -30,6 +30,7 @@ import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
+import dev.cosgy.jmusicbot.util.YtDlpManager.FallbackPlatform;
 import com.sedmelluq.discord.lavaplayer.track.playback.AudioFrame;
 import dev.cosgy.jmusicbot.settings.RepeatMode;
 import dev.cosgy.jmusicbot.slashcommands.music.RadioCmd;
@@ -44,6 +45,7 @@ import net.dv8tion.jda.api.utils.FileUpload; // Import pour FileUpload
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 import net.dv8tion.jda.api.utils.messages.MessageCreateData;
 import org.slf4j.LoggerFactory; // Import manquant
+import dev.cosgy.jmusicbot.util.YtDlpManager.YtDlpMetadata;
 
 import java.io.File; // Import pour java.io.File
 import java.io.IOException;
@@ -151,6 +153,15 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         // Check for SoundCloud
         if (track.getSourceManager() != null && 
             track.getSourceManager().getSourceName().equalsIgnoreCase("soundcloud")) {
+            return TrackType.SOUNDCLOUD;
+        }
+
+        // Infer from yt-dlp platform metadata
+        FallbackPlatform platform = PlayerManager.getYtDlpPlatform(track);
+        if (platform == FallbackPlatform.YOUTUBE) {
+            return TrackType.YOUTUBE;
+        }
+        if (platform == FallbackPlatform.SOUNDCLOUD) {
             return TrackType.SOUNDCLOUD;
         }
         
@@ -439,6 +450,18 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                 break;
             case "vimeo":
                 iconUrl = "https://pluspng.com/img-png/vimeo-logo-png-vimeo-color-icon-vimeo-video-social-png-and-vector-vimeo-logo-840x859.png";
+                break;
+            case "tiktok":
+                iconUrl = "https://cdn-icons-png.flaticon.com/512/3046/3046121.png";
+                break;
+            case "twitter":
+                iconUrl = "https://cdn-icons-png.flaticon.com/512/5968/5968830.png";
+                break;
+            case "x":
+                iconUrl = "https://cdn-icons-png.flaticon.com/512/5968/5968830.png";
+                break;
+            case "instagram":
+                iconUrl = "https://cdn-icons-png.flaticon.com/512/15713/15713420.png";
                 break;
             case "http":
             case "stream":
@@ -1571,6 +1594,9 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             info = track.getInfo();
         }
 
+        YtDlpMetadata ytMeta = PlayerManager.getYtDlpMetadata(track);
+        FallbackPlatform ytPlatform = PlayerManager.getYtDlpPlatform(track);
+
         try {
             String title = info.title;
             if (title == null || title.isEmpty() || title.equals("Unknown title")) {
@@ -1594,6 +1620,8 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (manager.getBot().getConfig().useNPImages()) {
             if (info.artworkUrl != null && !info.artworkUrl.isEmpty()) {
                 eb.setThumbnail(info.artworkUrl);
+            } else if (ytMeta != null && ytMeta.thumbnailUrl() != null && !ytMeta.thumbnailUrl().isEmpty()) {
+                eb.setThumbnail(ytMeta.thumbnailUrl());
             }
         }
 
@@ -1601,29 +1629,29 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         String sourcePlatform = "Unknown Source";
         String sourceKey = null;
 
-        switch (trackType) {
-            case YOUTUBE:
-                sourcePlatform = "YouTube";
-                sourceKey = "youtube";
-                break;
-            case SPOTIFY:
-                sourcePlatform = "Spotify";
-                sourceKey = "spotify";
-                break;
-            case SOUNDCLOUD:
-                sourcePlatform = "SoundCloud";
-                sourceKey = "soundcloud";
-                break;
-            case RADIO:
-                sourcePlatform = "Radio";
-                sourceKey = "radio";
-                break;
-            case LOCAL:
-                sourcePlatform = "Local File";
-                sourceKey = "local";
-                break;
-            default:
-                break;
+        if (ytPlatform != null && ytPlatform != FallbackPlatform.NONE) {
+            switch (ytPlatform) {
+                case INSTAGRAM -> { sourcePlatform = "Instagram"; sourceKey = "instagram"; }
+                case TIKTOK -> { sourcePlatform = "TikTok"; sourceKey = "tiktok"; }
+                case TWITTER -> { sourcePlatform = "Twitter"; sourceKey = "twitter"; }
+                case BILIBILI -> { sourcePlatform = "Bilibili"; sourceKey = "bilibili"; }
+                case VIMEO -> { sourcePlatform = "Vimeo"; sourceKey = "vimeo"; }
+                case TWITCH -> { sourcePlatform = "Twitch"; sourceKey = "twitch"; }
+                case SOUNDCLOUD -> { sourcePlatform = "SoundCloud"; sourceKey = "soundcloud"; }
+                case YOUTUBE -> { sourcePlatform = "YouTube"; sourceKey = "youtube"; }
+                default -> { }
+            }
+        }
+
+        if (sourceKey == null) {
+            switch (trackType) {
+                case YOUTUBE -> { sourcePlatform = "YouTube"; sourceKey = "youtube"; }
+                case SPOTIFY -> { sourcePlatform = "Spotify"; sourceKey = "spotify"; }
+                case SOUNDCLOUD -> { sourcePlatform = "SoundCloud"; sourceKey = "soundcloud"; }
+                case RADIO -> { sourcePlatform = "Radio"; sourceKey = "radio"; }
+                case LOCAL -> { sourcePlatform = "Local File"; sourceKey = "local"; }
+                default -> { }
+            }
         }
 
         if (sourceKey == null && track.getSourceManager() != null) {
@@ -1643,6 +1671,14 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         StringBuilder descBuilder = new StringBuilder();
         if (info.author != null && !info.author.isEmpty()) {
             descBuilder.append("**Artist:** ").append(info.author).append("\n\n");
+        }
+
+        if (ytMeta != null && ytMeta.description() != null && !ytMeta.description().isBlank()) {
+            String desc = ytMeta.description().trim();
+            if (desc.length() > 350) {
+                desc = desc.substring(0, 347) + "...";
+            }
+            descBuilder.append(desc).append("\n\n");
         }
 
         appendProgressBar(descBuilder, track);

@@ -21,7 +21,7 @@ This fork aims to updates dependencies when YouTube playback breaks and adds min
 
 ### Changes :
 
-* Youtube fallback with **[`yt-dlp`](https://github.com/yt-dlp/yt-dlp)**.
+* **[`yt-dlp`](https://github.com/yt-dlp/yt-dlp)** fallback and support.
 * Added a web panel for music / bot management.  
 * Added `/history` command that track played songs.  
 * Added `/radio` command that searches and plays radio stations.  
@@ -45,7 +45,7 @@ Check the [CHANGELOG](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/main/CHANG
 * Unique permission system with DJs
 * Simple and easy-to-use UI
 * Playback bar displayed in channel topics
-* Supports many sites including YouTube, Spotify, Soundcloud and NicoNico Douga
+* Supports many sites including YouTube, Spotify, Soundcloud and NicoNico Douga and now Instagram, Tiktok, X / Twitter
 * Supports numerous online radios/streams
 * Playback of local files
 * Playlist support

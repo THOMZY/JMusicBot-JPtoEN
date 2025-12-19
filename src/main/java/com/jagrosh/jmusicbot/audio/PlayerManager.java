@@ -28,6 +28,9 @@ import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import dev.cosgy.jmusicbot.util.YtDlpManager;
+import dev.cosgy.jmusicbot.util.YtDlpManager.FallbackPlatform;
+import dev.cosgy.jmusicbot.util.YtDlpManager.YtDlpMetadata;
+import dev.cosgy.jmusicbot.util.YtDlpManager.YtDlpResult;
 import dev.lavalink.youtube.YoutubeAudioSourceManager;
 import dev.lavalink.youtube.YoutubeSourceOptions;
 import dev.lavalink.youtube.clients.*;
@@ -36,24 +39,19 @@ import net.dv8tion.jda.api.entities.Guild;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 /**
  * @author John Grosh <john.a.grosh@gmail.com>
@@ -62,6 +60,7 @@ public class PlayerManager extends DefaultAudioPlayerManager {
     private final Bot bot;
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private Path ytDlpPath;
+    private YtDlpManager ytDlpManager;
 
     public PlayerManager(Bot bot) {
         this.bot = bot;
@@ -71,13 +70,14 @@ public class PlayerManager extends DefaultAudioPlayerManager {
         // Prepare yt-dlp for YouTube fallback
         try {
             Path botDir = Paths.get("").toAbsolutePath();
-            YtDlpManager y = new YtDlpManager(botDir);
-            this.ytDlpPath = y.prepare();
-            y.startAutoUpdate(Duration.ofHours(6));
+            this.ytDlpManager = new YtDlpManager(botDir);
+            this.ytDlpPath = ytDlpManager.prepare();
+            ytDlpManager.startAutoUpdate(Duration.ofHours(6));
             logger.info("yt-dlp ready at {}", ytDlpPath);
         } catch (Exception e) {
             logger.error("Failed to initialize yt-dlp. YouTube fallback is disabled.", e);
             this.ytDlpPath = null;
+            this.ytDlpManager = null;
         }
 
         if (bot.getConfig().isNicoNicoEnabled()) {
@@ -194,35 +194,66 @@ public class PlayerManager extends DefaultAudioPlayerManager {
     }
 
     boolean shouldFallbackToYtDlp(String identifier) {
-        if (ytDlpPath == null || identifier == null) {
-            return false;
-        }
-        String id = identifier.toLowerCase(Locale.ROOT);
-        if (id.startsWith("ytsearch:")) {
-            return false;
-        }
-        if (id.startsWith("http://") || id.startsWith("https://")) {
-            return id.contains("youtube.com/") || id.contains("youtu.be/");
-        }
-        return id.matches("^[a-zA-Z0-9_-]{10,}$");
+        return ytDlpManager != null && ytDlpManager.detectPlatform(identifier) != FallbackPlatform.NONE;
     }
 
     private void tryFallbackDownload(Object orderingKey,
                                      String identifier,
                                      AudioLoadResultHandler handler,
                                      FriendlyException cause) {
-        logger.warn("YouTube load failed. Falling back to yt-dlp: {}", identifier);
+        if (ytDlpManager == null) {
+            handler.loadFailed(cause != null ? cause : new FriendlyException("yt-dlp not initialized", FriendlyException.Severity.SUSPICIOUS, null));
+            return;
+        }
+
+        FallbackPlatform platform = ytDlpManager.detectPlatform(identifier);
+        logger.warn("{} load failed. Falling back to yt-dlp: {}", platform, identifier);
         try {
-            Path out = downloadViaYtDlp(identifier);
+            YtDlpResult result = ytDlpManager.download(identifier);
+            Path out = result.file();
             if (out == null || !Files.isRegularFile(out)) {
                 throw new IllegalStateException("yt-dlp output not found: " + out);
             }
-            super.loadItemOrdered(orderingKey, out.toAbsolutePath().toString(), handler);
+            super.loadItemOrdered(orderingKey, out.toAbsolutePath().toString(), new AudioLoadResultHandler() {
+                @Override
+                public void trackLoaded(AudioTrack track) {
+                    applyYtDlpMetadata(track, result);
+                    try {
+                        handler.trackLoaded(track);
+                    } catch (Exception e) {
+                        logger.error("Handler trackLoaded failed", e);
+                    }
+                }
+
+                @Override
+                public void playlistLoaded(AudioPlaylist playlist) {
+                    if (!playlist.getTracks().isEmpty()) {
+                        AudioTrack t = playlist.getTracks().get(0);
+                        applyYtDlpMetadata(t, result);
+                    }
+                    try {
+                        handler.playlistLoaded(playlist);
+                    } catch (Exception e) {
+                        logger.error("Handler playlistLoaded failed", e);
+                    }
+                }
+
+                @Override
+                public void noMatches() {
+                    handler.noMatches();
+                }
+
+                @Override
+                public void loadFailed(FriendlyException exception) {
+                    handler.loadFailed(exception);
+                }
+            });
         } catch (Exception ex) {
             logger.error("yt-dlp fallback failed: {}", ex.toString());
+            String platformLabel = platform == null ? "Unknown" : platform.name();
             if (cause != null) {
                 handler.loadFailed(new FriendlyException(
-                        "YouTube load failed and yt-dlp fallback also failed: " + ex.getMessage(),
+                        platformLabel + " load failed and yt-dlp fallback also failed: " + ex.getMessage(),
                         FriendlyException.Severity.SUSPICIOUS,
                         cause));
             } else {
@@ -234,114 +265,37 @@ public class PlayerManager extends DefaultAudioPlayerManager {
         }
     }
 
-    Path downloadViaYtDlp(String input) throws Exception {
-        Path botRoot = Paths.get("").toAbsolutePath().normalize();
-        Path cacheDir = botRoot.resolve("yt-dlp").resolve("cache");
-        Files.createDirectories(cacheDir);
-
-        String url = toYoutubeUrl(input);
-        logger.info("Downloading via yt-dlp: {}", url);
-
-        List<String> cmd = new ArrayList<>();
-        cmd.add(ytDlpPath.toString());
-        Collections.addAll(cmd,
-                "--no-playlist",
-                "--ignore-config",
-                "--no-progress",
-                "--newline",
-                "--restrict-filenames",
-                "--force-overwrites",
-                "-f", "bestaudio[ext=webm][acodec=opus]/bestaudio[ext=m4a]/bestaudio",
-                "--no-post-overwrites",
-                "--output", cacheDir.resolve("%(id)s.%(ext)s").toString(),
-                "--print", "after_move:filepath");
-        cmd.add(url);
-
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.directory(botRoot.toFile());
-        pb.redirectErrorStream(true);
-        pb.environment().put("PYTHONIOENCODING", "utf-8");
-
-        Process proc = pb.start();
-        String lastNonEmpty = null;
-        try (BufferedReader r = new BufferedReader(new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = r.readLine()) != null) {
-                if (!line.isBlank()) {
-                    lastNonEmpty = line.trim();
-                }
-                logger.debug("[yt-dlp] {}", line);
-            }
+    /**
+     * Deletes yt-dlp cache files created for fallback downloads.
+     */
+    public void clearYtDlpCache() {
+        if (ytDlpManager == null) {
+            return;
         }
 
-        if (!proc.waitFor(600, TimeUnit.SECONDS)) {
-            proc.destroyForcibly();
-            throw new RuntimeException("yt-dlp timeout (600s)");
-        }
-        if (proc.exitValue() != 0) {
-            throw new RuntimeException("yt-dlp exit code=" + proc.exitValue());
+        Path cacheDir = ytDlpManager.getCacheDir();
+        if (!Files.isDirectory(cacheDir)) {
+            return;
         }
 
-        if (lastNonEmpty == null) {
-            String id = tryExtractYoutubeId(url);
-            if (id != null) {
-                Path guessWebm = cacheDir.resolve(id + ".webm");
-                if (Files.isRegularFile(guessWebm)) {
-                    return guessWebm;
-                }
-                Path guessM4a = cacheDir.resolve(id + ".m4a");
-                if (Files.isRegularFile(guessM4a)) {
-                    return guessM4a;
-                }
-            }
-            throw new FileNotFoundException("yt-dlp output is unknown");
-        }
+        try (Stream<Path> paths = Files.walk(cacheDir)) {
+            paths.sorted(Comparator.reverseOrder())
+                    .forEach(p -> {
+                        if (p.equals(cacheDir)) {
+                            return; // keep the cache directory itself
+                        }
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException e) {
+                            logger.warn("Failed to delete yt-dlp cache entry {}: {}", p, e.toString());
+                        }
+                    });
 
-        Path out = Paths.get(lastNonEmpty);
-        if (!out.isAbsolute()) {
-            out = botRoot.resolve(out).normalize();
+            Files.createDirectories(cacheDir); // ensure directory still exists
+            logger.info("Cleared yt-dlp cache at {}", cacheDir);
+        } catch (IOException e) {
+            logger.warn("Unable to clear yt-dlp cache at {}: {}", cacheDir, e.toString());
         }
-        if (!Files.isRegularFile(out)) {
-            throw new FileNotFoundException("yt-dlp output missing: " + out);
-        }
-        logger.info("yt-dlp finished: {}", out);
-        return out;
-    }
-
-    private String toYoutubeUrl(String input) {
-        String s = input == null ? "" : input.trim();
-        if (s.startsWith("http://") || s.startsWith("https://")) {
-            return s;
-        }
-        return "https://www.youtube.com/watch?v=" + s;
-    }
-
-    private String tryExtractYoutubeId(String url) {
-        if (url == null) {
-            return null;
-        }
-        try {
-            int vIndex = url.indexOf("v=");
-            if (vIndex >= 0) {
-                String v = url.substring(vIndex + 2);
-                int amp = v.indexOf('&');
-                return amp > 0 ? v.substring(0, amp) : v;
-            }
-            int idx = url.indexOf("youtu.be/");
-            if (idx >= 0) {
-                String v = url.substring(idx + "youtu.be/".length());
-                int q = v.indexOf('?');
-                return q > 0 ? v.substring(0, q) : v;
-            }
-            idx = url.indexOf("/shorts/");
-            if (idx >= 0) {
-                String v = url.substring(idx + "/shorts/".length());
-                int q = v.indexOf('?');
-                return q > 0 ? v.substring(0, q) : v;
-            }
-        } catch (Exception ignored) {
-        }
-        return null;
     }
 
     void applyReplacementContext(AudioTrack newTrack, AudioTrack oldTrack) {
@@ -349,16 +303,94 @@ public class PlayerManager extends DefaultAudioPlayerManager {
             return;
         }
         Object ud = oldTrack.getUserData();
-        newTrack.setUserData(new TrackContext(oldTrack.getInfo(), ud));
+        // Preserve existing TrackContext metadata if present in newTrack
+        Object newUd = newTrack.getUserData();
+        YtDlpMetadata meta = null;
+        FallbackPlatform platform = null;
+        
+        if (newUd instanceof TrackContext) {
+            TrackContext tc = (TrackContext) newUd;
+            meta = tc.ytMeta;
+            platform = tc.platform;
+        }
+        
+        newTrack.setUserData(new TrackContext(oldTrack.getInfo(), ud, meta, platform));
     }
 
+    void applyYtDlpMetadata(AudioTrack track, YtDlpResult result) {
+        if (track == null || result == null) {
+            return;
+        }
+        YtDlpMetadata meta = result.metadata();
+        AudioTrackInfo base = track.getInfo();
+        AudioTrackInfo enriched = buildInfoFromMetadata(base, meta);
+        Object currentUserData = track.getUserData();
+        track.setUserData(new TrackContext(enriched, currentUserData, meta, meta != null ? meta.platform() : null));
+    }
+
+    private AudioTrackInfo buildInfoFromMetadata(AudioTrackInfo base, YtDlpMetadata meta) {
+        if (meta == null) {
+            return base;
+        }
+        String title = firstNonNull(meta.title(), defaultTitleFor(meta, base));
+        String author = firstNonNull(meta.author(), base != null ? base.author : "");
+        long length = meta.durationMs() > 0 ? meta.durationMs() : (base != null ? base.length : 0);
+        // Only keep stream flag for true livestream platforms (e.g., Twitch/YouTube lives); VOD-only platforms are forced to VOD
+        boolean isStream;
+        if (meta.platform() == FallbackPlatform.TWITCH || meta.platform() == FallbackPlatform.YOUTUBE) {
+            isStream = meta.durationMs() <= 0 && base != null && base.isStream;
+        } else {
+            isStream = false;
+        }
+        String uri = firstNonNull(meta.webpageUrl(), base != null ? base.uri : null);
+        String identifier = firstNonNull(meta.webpageUrl(), base != null ? base.identifier : uri);
+        String artwork = firstNonNull(meta.thumbnailUrl(), base != null ? base.artworkUrl : null);
+        String isrc = base != null ? base.isrc : null;
+        return new AudioTrackInfo(title, author, length, identifier, isStream, uri, artwork, isrc);
+    }
+
+    private String defaultTitleFor(YtDlpMetadata meta, AudioTrackInfo base) {
+        FallbackPlatform p = meta != null ? meta.platform() : null;
+        String shortTag = "yt";
+        if (p != null) {
+            switch (p) {
+                case INSTAGRAM -> shortTag = "insta";
+                case TIKTOK -> shortTag = "tiktok";
+                case TWITTER -> shortTag = "twitter";
+                case TWITCH -> shortTag = "twitch";
+                case BILIBILI -> shortTag = "bilibili";
+                case VIMEO -> shortTag = "vimeo";
+                case SOUNDCLOUD -> shortTag = "soundcloud";
+                case YOUTUBE -> shortTag = "youtube";
+                default -> shortTag = "source";
+            }
+        }
+        String author = meta != null ? meta.author() : null;
+        if ((author == null || author.isBlank()) && base != null) {
+            author = base.author;
+        }
+        if (author != null && !author.isBlank()) {
+            return author + " - [" + shortTag + "]";
+        }
+        return "[" + shortTag + "]";
+    }
+
+    private String firstNonNull(String a, String b) {
+        return (a != null && !a.isBlank()) ? a : b;
+    }
+
+    // Changed from private to package-private (default) so QueuedTrack can access it
     static final class TrackContext {
         final AudioTrackInfo originalInfo;
         final Object userData;
+        final YtDlpMetadata ytMeta;
+        final FallbackPlatform platform;
 
-        TrackContext(AudioTrackInfo info, Object userData) {
+        TrackContext(AudioTrackInfo info, Object userData, YtDlpMetadata meta, FallbackPlatform platform) {
             this.originalInfo = info;
             this.userData = userData;
+            this.ytMeta = meta;
+            this.platform = platform;
         }
     }
 
@@ -374,6 +406,28 @@ public class PlayerManager extends DefaultAudioPlayerManager {
             }
         }
         return track.getInfo();
+    }
+
+    public static YtDlpMetadata getYtDlpMetadata(AudioTrack track) {
+        if (track == null) {
+            return null;
+        }
+        Object ud = track.getUserData();
+        if (ud instanceof TrackContext) {
+            return ((TrackContext) ud).ytMeta;
+        }
+        return null;
+    }
+
+    public static FallbackPlatform getYtDlpPlatform(AudioTrack track) {
+        if (track == null) {
+            return null;
+        }
+        Object ud = track.getUserData();
+        if (ud instanceof TrackContext) {
+            return ((TrackContext) ud).platform;
+        }
+        return null;
     }
 
     private static class YtDlpExceptionListener extends AudioEventAdapter {
@@ -409,7 +463,12 @@ public class PlayerManager extends DefaultAudioPlayerManager {
 
             CompletableFuture.runAsync(() -> {
                 try {
-                    Path out = pm.downloadViaYtDlp(id);
+                    if (pm.ytDlpManager == null) {
+                        pm.logger.warn("yt-dlp manager missing; cannot fallback for id={}", id);
+                        return;
+                    }
+                    YtDlpResult result = pm.ytDlpManager.download(id);
+                    Path out = result.file();
                     if (out == null || !Files.isRegularFile(out)) {
                         throw new IllegalStateException("yt-dlp output missing: " + out);
                     }
@@ -418,6 +477,7 @@ public class PlayerManager extends DefaultAudioPlayerManager {
                     pm.loadItemOrdered(handler, out.toAbsolutePath().toString(), new AudioLoadResultHandler() {
                         @Override
                         public void trackLoaded(AudioTrack newTrack) {
+                            pm.applyYtDlpMetadata(newTrack, result);
                             pm.applyReplacementContext(newTrack, track);
                             player.startTrack(newTrack, false);
                         }
@@ -426,6 +486,7 @@ public class PlayerManager extends DefaultAudioPlayerManager {
                         public void playlistLoaded(AudioPlaylist playlist) {
                             AudioTrack t = playlist.getTracks().isEmpty() ? null : playlist.getTracks().get(0);
                             if (t != null) {
+                                pm.applyYtDlpMetadata(t, result);
                                 pm.applyReplacementContext(t, track);
                                 player.startTrack(t, false);
                             } else {

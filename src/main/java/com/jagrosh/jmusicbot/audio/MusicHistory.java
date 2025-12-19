@@ -25,6 +25,8 @@ import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import dev.cosgy.jmusicbot.slashcommands.music.SpotifyCmd;
 import dev.cosgy.jmusicbot.slashcommands.music.RadioCmd;
 import dev.cosgy.jmusicbot.util.LocalAudioMetadata;
+import dev.cosgy.jmusicbot.util.YtDlpManager.FallbackPlatform;
+import dev.cosgy.jmusicbot.util.YtDlpManager.YtDlpMetadata;
 import net.dv8tion.jda.api.entities.User;
 
 import java.io.File;
@@ -77,6 +79,14 @@ public class MusicHistory {
             // Load existing history
             loadHistory();
         }
+    }
+
+    private RequestMetadata getRequestMetadata(AudioTrack track) {
+        if (track == null) return null;
+        Object userData = track.getUserData();
+        if (userData instanceof RequestMetadata) return (RequestMetadata) userData;
+        if (userData instanceof PlayerManager.TrackContext) return (RequestMetadata) ((PlayerManager.TrackContext) userData).userData;
+        return track.getUserData(RequestMetadata.class);
     }
 
     /**
@@ -143,7 +153,7 @@ public class MusicHistory {
                 }
             }
             
-            RequestMetadata rm = track.getUserData(RequestMetadata.class);
+            RequestMetadata rm = getRequestMetadata(track);
             
             User requester = rm != null && rm.getOwner() != 0 
                 ? bot.getJDA().getUserById(rm.getOwner()) 
@@ -207,6 +217,35 @@ public class MusicHistory {
                 guildId
             );
             
+            // Check for YtDlp metadata
+            YtDlpMetadata ytMeta = PlayerManager.getYtDlpMetadata(track);
+            FallbackPlatform ytPlatform = PlayerManager.getYtDlpPlatform(track);
+
+            if (ytPlatform != null && ytPlatform != FallbackPlatform.NONE) {
+                String sourceType = "Unknown";
+                String thumbnailUrl = "";
+
+                switch (ytPlatform) {
+                    case INSTAGRAM -> sourceType = "Instagram";
+                    case TIKTOK -> sourceType = "TikTok";
+                    case TWITTER -> sourceType = "Twitter";
+                    case BILIBILI -> sourceType = "Bilibili";
+                    case VIMEO -> sourceType = "Vimeo";
+                    case TWITCH -> sourceType = "Twitch";
+                    case SOUNDCLOUD -> sourceType = "SoundCloud";
+                    case YOUTUBE -> sourceType = "YouTube";
+                    default -> { }
+                }
+
+                if (ytMeta != null && ytMeta.thumbnailUrl() != null && !ytMeta.thumbnailUrl().isEmpty()) {
+                    thumbnailUrl = ytMeta.thumbnailUrl();
+                }
+                
+                if (!"Unknown".equals(sourceType)) {
+                    record.setYtDlpData(sourceType, thumbnailUrl);
+                }
+            }
+
             // Add metadata based on track type
             AudioHandler.TrackType type = handler.getTrackType(track);
             
@@ -289,7 +328,7 @@ public class MusicHistory {
                 }
             }
             // Handle regular streams if not Gensokyo Radio
-            else if (info.isStream) {
+            else if (info.isStream && !record.hasYtDlpData()) {
                 // Check for ICY metadata
                 IcyMetadataHandler.StreamMetadata icyMetadata = 
                     bot.getIcyMetadataHandler().getMetadata(String.valueOf(handler.getGuildId()));
@@ -417,6 +456,12 @@ public class MusicHistory {
                             record.setSoundCloudData(
                                 soundcloudData.path("artworkUrl").asText(null)
                             );
+                        } else if (recordNode.has("ytDlpData")) {
+                            ObjectNode ytDlpData = (ObjectNode) recordNode.get("ytDlpData");
+                            record.setYtDlpData(
+                                ytDlpData.path("sourceType").asText(null),
+                                ytDlpData.path("thumbnailUrl").asText(null)
+                            );
                         } else if (recordNode.has("youtubeData")) {
                             ObjectNode ytData = (ObjectNode) recordNode.get("youtubeData");
                             record.setYoutubeData(ytData.path("videoId").asText(null));
@@ -493,6 +538,10 @@ public class MusicHistory {
                 } else if (record.hasSoundCloudData()) {
                     ObjectNode soundcloudData = recordNode.putObject("soundcloudData");
                     soundcloudData.put("artworkUrl", record.getSoundCloudArtworkUrl());
+                } else if (record.hasYtDlpData()) {
+                    ObjectNode ytDlpData = recordNode.putObject("ytDlpData");
+                    ytDlpData.put("sourceType", record.getYtDlpSourceType());
+                    ytDlpData.put("thumbnailUrl", record.getYtDlpThumbnailUrl());
                 } else if (record.hasYoutubeData()) {
                     ObjectNode ytData = recordNode.putObject("youtubeData");
                     ytData.put("videoId", record.getYoutubeVideoId());
@@ -610,6 +659,10 @@ public class MusicHistory {
         
         // SoundCloud metadata
         private String soundCloudArtworkUrl;
+
+        // YtDlp metadata
+        private String ytDlpSourceType;
+        private String ytDlpThumbnailUrl;
 
         /**
          * Creates a new play record
@@ -751,5 +804,15 @@ public class MusicHistory {
         
         public boolean hasSoundCloudData() { return soundCloudArtworkUrl != null; }
         public String getSoundCloudArtworkUrl() { return soundCloudArtworkUrl; }
+
+        // YtDlp metadata
+        public void setYtDlpData(String sourceType, String thumbnailUrl) {
+            this.ytDlpSourceType = sourceType;
+            this.ytDlpThumbnailUrl = thumbnailUrl;
+        }
+
+        public boolean hasYtDlpData() { return ytDlpSourceType != null; }
+        public String getYtDlpSourceType() { return ytDlpSourceType; }
+        public String getYtDlpThumbnailUrl() { return ytDlpThumbnailUrl; }
     }
 } 

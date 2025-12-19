@@ -24,6 +24,7 @@ import com.jagrosh.jdautilities.menu.ButtonMenu;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.PlayStatus;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
+import com.jagrosh.jmusicbot.audio.PlayerManager;
 import com.jagrosh.jmusicbot.audio.QueuedTrack;
 import com.jagrosh.jmusicbot.playlist.PlaylistLoader.Playlist;
 import com.jagrosh.jmusicbot.settings.Settings;
@@ -33,6 +34,7 @@ import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException.Severity;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
+import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import dev.cosgy.jmusicbot.playlist.CacheLoader;
 import dev.cosgy.jmusicbot.playlist.MylistLoader;
 import dev.cosgy.jmusicbot.playlist.PubliclistLoader;
@@ -100,6 +102,23 @@ public class PlayCmd extends MusicCommand {
         Pattern pattern = Pattern.compile("https://open\\.spotify\\.com/(intl-[a-z]+/)?track/\\w+");
         Matcher matcher = pattern.matcher(url.split("\\?")[0]);
         return matcher.matches();
+    }
+
+    private String resolveTrackTitle(AudioTrack track) {
+        if (track == null) {
+            return "Unknown Title";
+        }
+
+        AudioTrackInfo info = PlayerManager.getDisplayInfo(track);
+        String title = info != null ? info.title : null;
+        String uri = info != null ? info.uri : track.getInfo().uri;
+
+        if (title == null || title.isEmpty() || title.equals("Unknown title")) {
+            title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
+            title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
+        }
+
+        return (title == null || title.isEmpty()) ? "Unknown Title" : title;
     }
 
     @Override
@@ -395,13 +414,8 @@ public class PlayCmd extends MusicCommand {
             // Output MSG ex:
             // Added <title><(length)>.
             // Added <title><(length)> to <playback queue number> in the queue.
-            String title = track.getInfo().title;
-            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                // Extract filename from URL for local files
-                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
-                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
-            }
-            
+            String title = resolveTrackTitle(track);
+
             String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
                     + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue. "));
             
@@ -571,13 +585,8 @@ public class PlayCmd extends MusicCommand {
             // Output MSG ex:
             // Added <title><(length)>.
             // Added <title><(length)> to <playback queue number> in the queue.
-            String title = track.getInfo().title;
-            if (title == null || title.isEmpty() || title.equals("Unknown title")) {
-                // Extract filename from URL for local files
-                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(track.getInfo().uri);
-                title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
-            }
-            
+            String title = resolveTrackTitle(track);
+
             String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
                     + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue. "));
             

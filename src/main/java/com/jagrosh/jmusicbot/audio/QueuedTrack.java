@@ -34,12 +34,23 @@ public class QueuedTrack implements Queueable {
 
     public QueuedTrack(AudioTrack track, RequestMetadata rm) {
         this.track = track;
-        this.track.setUserData(rm);
+        
+        // Check if the track already has a TrackContext (from yt-dlp fallback)
+        Object currentData = track.getUserData();
+        if (currentData instanceof PlayerManager.TrackContext) {
+            PlayerManager.TrackContext tc = (PlayerManager.TrackContext) currentData;
+            // Create a new TrackContext that preserves the metadata but updates the userData to RequestMetadata
+            // We need to access the package-private constructor of TrackContext
+            track.setUserData(new PlayerManager.TrackContext(tc.originalInfo, rm, tc.ytMeta, tc.platform));
+        } else {
+            this.track.setUserData(rm);
+        }
     }
 
     @Override
     public long getIdentifier() {
-        return track.getUserData(RequestMetadata.class).getOwner();
+        RequestMetadata rm = track.getUserData(RequestMetadata.class);
+        return rm == null ? 0L : rm.getOwner();
     }
 
     public AudioTrack getTrack() {
@@ -65,6 +76,7 @@ public class QueuedTrack implements Queueable {
         }
         
         entry = entry + (trackInfo.uri.startsWith("http") ? "[**" + title + "**](" + trackInfo.uri + ")" : "**" + title + "**");
-        return entry + " - <@" + track.getUserData(RequestMetadata.class).getOwner() + ">";
+        RequestMetadata rm = track.getUserData(RequestMetadata.class);
+        return entry + " - <@" + (rm == null ? 0L : rm.getOwner()) + ">";
     }
 }

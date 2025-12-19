@@ -62,9 +62,12 @@ public class SeekCmd extends MusicCommand {
             return;
         }
 
-        if (!DJCommand.checkDJPermission(event) && playingTrack.getUserData(RequestMetadata.class).getOwner() != event.getAuthor().getIdLong()) {
-            event.replyError("You cannot seek because you did not add **" + playingTrack.getInfo().title + "**!");
-            return;
+        if (!DJCommand.checkDJPermission(event)) {
+            RequestMetadata rm = playingTrack.getUserData(RequestMetadata.class);
+            if (rm == null || rm.getOwner() != event.getAuthor().getIdLong()) {
+                event.replyError("You cannot seek because you did not add **" + playingTrack.getInfo().title + "**!");
+                return;
+            }
         }
 
         String args = event.getArgs();
@@ -102,9 +105,12 @@ public class SeekCmd extends MusicCommand {
             return;
         }
 
-        if (!DJCommand.checkDJPermission(event.getClient(), event) && playingTrack.getUserData(RequestMetadata.class).getOwner() != event.getUser().getIdLong()) {
-            event.reply("You cannot seek because you did not add **" + playingTrack.getInfo().title + "**!").queue();
-            return;
+        if (!DJCommand.checkDJPermission(event.getClient(), event)) {
+            RequestMetadata rm = playingTrack.getUserData(RequestMetadata.class);
+            if (rm == null || rm.getOwner() != event.getUser().getIdLong()) {
+                event.reply("You cannot seek because you did not add **" + playingTrack.getInfo().title + "**!").queue();
+                return;
+            }
         }
 
         String args = event.getOption("time").getAsString();

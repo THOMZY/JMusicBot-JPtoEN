@@ -13,13 +13,23 @@
 }
 
 .history-header {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    /* Use content-sized columns for filters so separators sit visually centered */
+    grid-template-columns: auto 1px auto 1px auto 1px 1fr;
     align-items: center;
+    column-gap: 20px;
     margin-bottom: 20px;
     border-bottom: 1px solid var(--border-color);
     padding-bottom: 15px;
     flex-shrink: 0;
+}
+
+.history-header-sep {
+    align-self: stretch;
+    justify-self: center;
+    width: 1px;
+    background-color: var(--border-color);
+    opacity: 0.8;
 }
 
 .history-content-wrapper {
@@ -56,6 +66,7 @@
     font-weight: bold;
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     gap: 10px;
 }
 
@@ -63,13 +74,296 @@
     color: var(--primary-color);
 }
 
+.requester-filter {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 42px;
+}
+
+.requester-filter .filter-label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.requester-filter .filter-options {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    height: 100%;
+}
+
+.requester-filter-container {
+    display: inline-flex;
+    align-items: stretch;
+    height: 42px;
+}
+
+.requester-filter-select {
+    background-color: var(--darkest-bg);
+    color: var(--light-text);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0 12px;
+    font-size: 13px;
+    min-width: 150px;
+    cursor: pointer;
+    transition: all 0.2s;
+    height: 42px;
+    box-sizing: border-box;
+    text-align: center;
+    text-align-last: center;
+    line-height: 40px;
+}
+
+.requester-filter-select:hover, 
+.requester-filter-select:focus {
+    background-color: rgba(255, 255, 255, 0.1);
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.requester-filter-select option {
+    background-color: var(--darker-bg);
+    color: var(--light-text);
+    padding: 8px;
+}
+
+.history-header .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-direction: row;
+    height: 42px;
+}
+
+.history-header .filter-group .filter-label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.history-header .filter-group .filter-options {
+    margin: 0;
+    height: 100%;
+}
+
+/* Date filter (calendar) */
+.history-date-filter {
+    position: relative;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.history-date-filter .filter-label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.history-date-filter-btn {
+    height: 42px;
+    width: auto;
+    min-width: 170px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--darkest-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--muted-text);
+    cursor: pointer;
+    padding: 0 12px;
+    transition: all 0.2s;
+    gap: 8px;
+}
+
+.history-date-filter-label {
+    font-size: 13px;
+    color: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 240px;
+}
+
+.history-date-filter-btn:hover {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.history-date-filter-btn.active {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.history-date-picker {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: 320px;
+    background-color: var(--darker-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px;
+    z-index: 50;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.history-date-picker-header {
+    display: grid;
+    grid-template-columns: 32px 1fr 32px;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.history-date-selectors {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    width: 100%;
+}
+
+.history-date-select {
+    background-color: var(--darkest-bg);
+    color: var(--light-text);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0 4px;
+    font-size: 13px;
+    height: 32px;
+    cursor: pointer;
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    text-align-last: center;
+}
+
+.history-date-select:hover,
+.history-date-select:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+.history-date-nav-btn,
+.history-date-clear-btn {
+    height: 32px;
+    width: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--darkest-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--muted-text);
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.2s;
+}
+
+.history-date-nav-btn:hover,
+.history-date-clear-btn:hover {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.history-date-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 6px;
+    color: var(--muted-text);
+    font-size: 12px;
+    user-select: none;
+}
+
+.history-date-weekdays > div {
+    text-align: center;
+    padding: 4px 0;
+}
+
+.history-date-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.history-date-cell {
+    height: 32px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background: none;
+    color: var(--light-text);
+    cursor: pointer;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    padding: 0; /* override global button padding */
+    line-height: 1;
+}
+
+.history-date-cell:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: var(--border-color);
+}
+
+.history-date-cell.muted {
+    color: var(--muted-text);
+    opacity: 0.65;
+}
+
+.history-date-cell.selected {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.history-date-cell.in-range {
+    background-color: rgba(114, 137, 218, 0.22);
+    border-color: rgba(114, 137, 218, 0.25);
+}
+
+.history-date-cell.today:not(.selected) {
+    outline: 1px solid var(--border-color);
+    outline-offset: -1px;
+}
+
+.history-date-selection {
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--muted-text);
+    min-height: 16px;
+}
+
+.history-date-selection-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .history-search {
-    flex: 0 0 300px;
+    height: 42px;
+    display: flex;
+    justify-content: flex-end;
 }
 
 .search-input-container {
     display: flex;
     position: relative;
+    height: 100%;
+    width: 100%;
+    max-width: 300px;
+    margin-left: auto;
 }
 
 .history-search-input {
@@ -82,6 +376,8 @@
     font-size: 14px;
     width: 100%;
     padding-right: 40px;
+    height: 100%;
+    box-sizing: border-box;
 }
 
 .history-search-btn {
@@ -103,11 +399,28 @@
 .history-filters {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
     gap: 20px;
     margin-bottom: 20px;
     padding-bottom: 15px;
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
+}
+
+/* Keep "Source:" label and its buttons on the same row */
+.history-filters .filter-group {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+}
+
+.history-filters .filter-label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.history-filters .filter-options {
+    align-items: center;
 }
 
 .filter-group {
@@ -140,6 +453,9 @@
     align-items: center;
     gap: 5px;
     color: var(--light-text);
+    white-space: nowrap;
+    height: 100%;
+    box-sizing: border-box;
 }
 
 .history-filter-btn:hover {
@@ -150,6 +466,43 @@
     background-color: var(--primary-color);
     color: white;
     border-color: var(--primary-color);
+}
+
+/* Brand-color the source icon when the filter is active (text stays white) */
+.history-filter-btn.active[data-value="youtube"] i {
+    color: #FF0000;
+}
+
+.history-filter-btn.active[data-value="spotify"] i {
+    color: #1DB954;
+}
+
+.history-filter-btn.active[data-value="soundcloud"] i {
+    color: #FF7700;
+}
+
+.history-filter-btn.active[data-value="radio"] i {
+    color: #1E90FF;
+}
+
+.history-filter-btn.active[data-value="gensokyo"] i {
+    color: #9370DB;
+}
+
+.history-filter-btn.active[data-value="local"] i {
+    color: #FFD700;
+}
+
+.history-filter-btn.active[data-value="tiktok"] i {
+    color: #010101;
+}
+
+.history-filter-btn.active[data-value="instagram"] i {
+    color: #E4405F;
+}
+
+.history-filter-btn.active[data-value="twitter"] i {
+    color: #1DA1F2;
 }
 
 .history-info {

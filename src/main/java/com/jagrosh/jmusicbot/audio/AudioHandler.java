@@ -683,7 +683,14 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     // Audio Events
     @Override
     public void onTrackEnd(AudioPlayer player, AudioTrack track, AudioTrackEndReason endReason) {
-        if (endReason == AudioTrackEndReason.REPLACED || suppressAutoLeaveOnce.getAndSet(false)) {
+        if (endReason == AudioTrackEndReason.REPLACED) {
+            return;
+        }
+
+        boolean suppress = suppressAutoLeaveOnce.getAndSet(false);
+        // If a fallback/replacement already started another track, ignore this end event.
+        // But if nothing is playing (fallback failed), continue normally so the queue can advance.
+        if (suppress && player.getPlayingTrack() != null) {
             return;
         }
         RepeatMode repeatMode = manager.getBot().getSettingsManager().getSettings(guildId).getRepeatMode();
@@ -704,11 +711,19 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         }
         
         // Handle YouTube livestreams that ended prematurely
+        // Only replay if the stream crashed within the first 30 seconds (premature end)
+        // If it played longer, it's likely a normal stream end, so continue to next track
         if (track != null && track.getInfo().isStream && track.getInfo().uri.contains("youtube.com") 
             && (endReason == AudioTrackEndReason.FINISHED || endReason == AudioTrackEndReason.LOAD_FAILED)) {
-            // For YouTube livestreams, automatically replay the same stream
-            player.playTrack(track.makeClone());
-            return;
+            
+            // Check if the stream ended prematurely (less than 30 seconds of playback)
+            long playbackDuration = track.getPosition();
+            if (playbackDuration < 30000) { // 30 seconds in milliseconds
+                // This is a premature crash, replay the stream
+                player.playTrack(track.makeClone());
+                return;
+            }
+            // If played for more than 30 seconds, treat as normal end and continue to next track
         }
 
         // Handle track repetition based on RepeatMode setting

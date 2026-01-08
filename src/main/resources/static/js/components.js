@@ -138,6 +138,8 @@ document.addEventListener('component:loaded', function(e) {
     switch(componentName) {
         case 'header':
             setupHeaderEvents();
+            // Note: Bot status updates are now started in initializeApp() in script.js
+            // This ensures BotProfile module is loaded before we call it
             break;
         case 'modals':
             setupModalEvents();

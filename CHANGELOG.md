@@ -2,6 +2,15 @@
 
 ---
 
+# 08 January 2026
+
+### 🔧 Changes
+- yt-dlp JS runtime (Deno) + cookies
+- Better web panel history : 
+infinite scroll, instant search and time range calendar
+
+---
+
 # 16 December 2025
 
 ## ▶️ Added yt-dlp support for 3 new sources : Instagram, Tiktok, X / Twitter.

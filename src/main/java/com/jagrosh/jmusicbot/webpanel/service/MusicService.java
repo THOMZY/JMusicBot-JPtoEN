@@ -132,7 +132,23 @@ public class MusicService {
         }
         
         try {
-            return bot.getJDA().getGuilds().stream()
+            // Get music history to count activity per server
+            Map<String, Long> activityCount = new HashMap<>();
+            if (Bot.INSTANCE.getMusicHistory() != null) {
+                List<com.jagrosh.jmusicbot.audio.MusicHistory.PlayRecord> history = 
+                    Bot.INSTANCE.getMusicHistory().getHistory();
+                
+                // Count number of tracks played per guild
+                activityCount = history.stream()
+                    .collect(Collectors.groupingBy(
+                        com.jagrosh.jmusicbot.audio.MusicHistory.PlayRecord::getGuildId,
+                        Collectors.counting()
+                    ));
+            }
+            
+            final Map<String, Long> finalActivityCount = activityCount;
+            
+            List<Guild> guilds = bot.getJDA().getGuilds().stream()
                     .map(g -> {
                         AudioHandler audioHandler = (AudioHandler) g.getAudioManager().getSendingHandler();
                         boolean hasConnectedAudio = audioHandler != null;
@@ -148,6 +164,23 @@ public class MusicService {
                         );
                     })
                     .collect(Collectors.toList());
+            
+            // Sort guilds by music activity (most active servers first), then by name as tiebreaker
+            guilds.sort((g1, g2) -> {
+                long activity1 = finalActivityCount.getOrDefault(g1.getId(), 0L);
+                long activity2 = finalActivityCount.getOrDefault(g2.getId(), 0L);
+                
+                // Primary sort: by activity (descending)
+                int activityCompare = Long.compare(activity2, activity1);
+                if (activityCompare != 0) {
+                    return activityCompare;
+                }
+                
+                // Secondary sort: by name (alphabetically) for servers with same activity
+                return g1.getName().compareToIgnoreCase(g2.getName());
+            });
+            
+            return guilds;
         } catch (Exception e) {
             System.out.println("Web Panel: Error getting guilds: " + e.getMessage());
             e.printStackTrace();

@@ -61,15 +61,19 @@ public final class YtDlpManager {
     private final Path exePath;
     private final String assetName;
     private volatile Path preparedExe;
+    private final String denoPath;
+    private final String cookiesPath;
     private final Map<FallbackPlatform, List<String>> extractorArgs = new HashMap<>();
     private final Map<FallbackPlatform, String> formatOverrides = new HashMap<>();
 
-    public YtDlpManager(Path botDir) {
+    public YtDlpManager(Path botDir, String denoPath, String cookiesPath) {
         this.botRoot = Objects.requireNonNull(botDir, "botDir").toAbsolutePath().normalize();
         Path baseDir = botRoot.resolve(ROOT_DIR);
         this.binDir = baseDir.resolve("bin");
         this.assetName = pickAssetForCurrentPlatform();
         this.exePath = binDir.resolve(assetNameForLocal(assetName));
+        this.denoPath = (denoPath == null || denoPath.isBlank()) ? null : denoPath.trim();
+        this.cookiesPath = (cookiesPath == null || cookiesPath.isBlank()) ? null : cookiesPath.trim();
 
         // Minimal sensible defaults; can be extended later or sourced from config
         extractorArgs.put(FallbackPlatform.TIKTOK, List.of("--extractor-args", "tiktok:player_client=web,download=h264-yes"));
@@ -131,6 +135,28 @@ public final class YtDlpManager {
 
         List<String> cmd = new ArrayList<>();
         cmd.add(exePath.toString());
+
+        // Optional JS runtime (Deno) for YouTube extractors.
+        // When the bot runs with a restricted PATH, specifying the absolute deno path avoids
+        // yt-dlp failing with "No supported JavaScript runtime could be found".
+        if (denoPath != null) {
+            cmd.add("--js-runtimes");
+            cmd.add("deno:" + denoPath);
+        }
+
+        // Optional cookies for YouTube bot-check / auth.
+        if (cookiesPath != null) {
+            Path cookieFile = Paths.get(cookiesPath);
+            if (!cookieFile.isAbsolute()) {
+                cookieFile = botRoot.resolve(cookieFile).normalize();
+            }
+            if (Files.isRegularFile(cookieFile)) {
+                cmd.add("--cookies");
+                cmd.add(cookieFile.toString());
+            } else {
+                log.warn("yt-dlp cookies file not found; ignoring ytdlp.cookies: {} (resolved: {})", cookiesPath, cookieFile);
+            }
+        }
 
         String format = formatOverrides.getOrDefault(platform, "bestaudio[ext=webm][acodec=opus]/bestaudio[ext=m4a]/bestaudio");
         Collections.addAll(cmd,

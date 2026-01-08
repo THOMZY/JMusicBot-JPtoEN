@@ -70,7 +70,11 @@ public class PlayerManager extends DefaultAudioPlayerManager {
         // Prepare yt-dlp for YouTube fallback
         try {
             Path botDir = Paths.get("").toAbsolutePath();
-            this.ytDlpManager = new YtDlpManager(botDir);
+            this.ytDlpManager = new YtDlpManager(
+                    botDir,
+                    bot.getConfig().getYtDlpDenoPath(),
+                    bot.getConfig().getYtDlpCookiesPath()
+            );
             this.ytDlpPath = ytDlpManager.prepare();
             ytDlpManager.startAutoUpdate(Duration.ofHours(6));
             logger.info("yt-dlp ready at {}", ytDlpPath);

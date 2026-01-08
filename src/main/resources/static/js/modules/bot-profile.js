@@ -3,6 +3,8 @@
  */
 
 const BotProfile = (function() {
+    let statusUpdateInterval = null;
+
     // Fetch bot information
     async function fetchBotInfo(retryCount = 0) {
         try {
@@ -315,6 +317,63 @@ const BotProfile = (function() {
         }
     }
 
+    /**
+     * Update bot status indicator based on voice connection
+     */
+    async function updateBotStatus() {
+        try {
+            const statusIndicator = document.getElementById('bot-status-indicator');
+            if (!statusIndicator) return;
+
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            
+            // Update the status indicator
+            if (typeof UI !== 'undefined' && typeof UI.updateBotStatusIndicator === 'function') {
+                UI.updateBotStatusIndicator(data.inVoiceChannel);
+            } else {
+                // Fallback if UI module is not available
+                if (data.inVoiceChannel) {
+                    statusIndicator.classList.add('active');
+                    statusIndicator.title = 'Connected to voice channel';
+                } else {
+                    statusIndicator.classList.remove('active');
+                    statusIndicator.title = 'Not connected to voice channel';
+                }
+            }
+        } catch (error) {
+            console.error('BotProfile: Error updating bot status:', error);
+        }
+    }
+
+    /**
+     * Start periodic bot status updates
+     */
+    function startStatusUpdates() {
+        // Clear any existing interval
+        if (statusUpdateInterval) {
+            clearInterval(statusUpdateInterval);
+        }
+        
+        // Update immediately
+        updateBotStatus();
+        
+        // Update every 5 seconds
+        statusUpdateInterval = setInterval(updateBotStatus, 5000);
+        console.log('BotProfile: Status updates started');
+    }
+
+    /**
+     * Stop periodic bot status updates
+     */
+    function stopStatusUpdates() {
+        if (statusUpdateInterval) {
+            clearInterval(statusUpdateInterval);
+            statusUpdateInterval = null;
+            console.log('BotProfile: Status updates stopped');
+        }
+    }
+
     // Public API
     return {
         fetchBotInfo,
@@ -323,6 +382,9 @@ const BotProfile = (function() {
         updateBotAvatar,
         updateBotBanner,
         rebootBot,
-        checkBotStatus
+        checkBotStatus,
+        startStatusUpdates,
+        stopStatusUpdates,
+        updateBotStatus
     };
 })(); 

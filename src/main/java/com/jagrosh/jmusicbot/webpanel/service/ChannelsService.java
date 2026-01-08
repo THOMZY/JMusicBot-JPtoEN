@@ -77,6 +77,20 @@ public class ChannelsService {
                 return servers;
             }
             
+            // Get music history to count activity per server
+            Map<String, Long> activityCount = new HashMap<>();
+            if (Bot.INSTANCE.getMusicHistory() != null) {
+                List<com.jagrosh.jmusicbot.audio.MusicHistory.PlayRecord> history = 
+                    Bot.INSTANCE.getMusicHistory().getHistory();
+                
+                // Count number of tracks played per guild
+                activityCount = history.stream()
+                    .collect(Collectors.groupingBy(
+                        com.jagrosh.jmusicbot.audio.MusicHistory.PlayRecord::getGuildId,
+                        Collectors.counting()
+                    ));
+            }
+            
             for (Guild guild : jda.getGuilds()) {
                 boolean botHasAdmin = guild.getSelfMember().hasPermission(Permission.ADMINISTRATOR);
                 
@@ -91,8 +105,21 @@ public class ChannelsService {
                 servers.add(server);
             }
             
-            // Sort servers by name
-            servers.sort(Comparator.comparing(DiscordServer::getName, String.CASE_INSENSITIVE_ORDER));
+            // Sort servers by music activity (most active servers first), then by name as tiebreaker
+            final Map<String, Long> finalActivityCount = activityCount;
+            servers.sort((s1, s2) -> {
+                long activity1 = finalActivityCount.getOrDefault(s1.getId(), 0L);
+                long activity2 = finalActivityCount.getOrDefault(s2.getId(), 0L);
+                
+                // Primary sort: by activity (descending)
+                int activityCompare = Long.compare(activity2, activity1);
+                if (activityCompare != 0) {
+                    return activityCompare;
+                }
+                
+                // Secondary sort: by name (alphabetically) for servers with same activity
+                return s1.getName().compareToIgnoreCase(s2.getName());
+            });
             
         } catch (Exception e) {
             log.error("Error fetching servers", e);

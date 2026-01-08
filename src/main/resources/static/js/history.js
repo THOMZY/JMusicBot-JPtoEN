@@ -16,6 +16,12 @@ const HistoryModule = (() => {
         requester: 'all', // all, or specific requester name
         guildId: 'all' // all, or specific guild ID
     };
+
+    // Date filter (single day or inclusive range)
+    let dateFilterStart = null; // yyyy-MM-dd
+    let dateFilterEnd = null;   // yyyy-MM-dd (null until second click)
+    let datePickerViewYear = null;
+    let datePickerViewMonth = null; // 0-11
     let currentGuildId = null;
     let servers = [];
     let uniqueRequesters = []; // Store unique requester names
@@ -84,7 +90,291 @@ const HistoryModule = (() => {
         serverDropdownContent: null,
         selectedServerIcon: null,
         selectedServerName: null,
-        requesterSelect: null // Add requester select element
+        requesterSelect: null,
+        dateFilterBtn: null,
+        dateFilterLabel: null,
+        datePicker: null,
+        datePrevBtn: null,
+        dateNextBtn: null,
+        dateClearBtn: null,
+        dateMonthSelect: null,
+        dateYearSelect: null,
+        dateGrid: null,
+        dateSelectionLabel: null,
+        dateSelectionText: null
+    };
+
+    const pad2 = (n) => String(n).padStart(2, '0');
+
+    const formatISODate = (date) => {
+        const y = date.getFullYear();
+        const m = pad2(date.getMonth() + 1);
+        const d = pad2(date.getDate());
+        return `${y}-${m}-${d}`;
+    };
+
+    const parseISODate = (iso) => {
+        if (!iso) return null;
+        const [y, m, d] = iso.split('-').map(Number);
+        if (!y || !m || !d) return null;
+        const dt = new Date(y, m - 1, d);
+        if (Number.isNaN(dt.getTime())) return null;
+        return dt;
+    };
+
+    const compareISO = (a, b) => {
+        // Works because yyyy-MM-dd lexicographically sortable
+        if (a === b) return 0;
+        return a < b ? -1 : 1;
+    };
+
+    const getEffectiveDateEnd = () => {
+        if (!dateFilterStart) return null;
+        return dateFilterEnd || dateFilterStart;
+    };
+
+    const updateDateButtonState = () => {
+        if (!historyElements.dateFilterBtn) return;
+        if (dateFilterStart) {
+            historyElements.dateFilterBtn.classList.add('active');
+            return;
+        }
+        historyElements.dateFilterBtn.classList.remove('active');
+    };
+
+    const updateDateSelectionLabel = () => {
+        const target = historyElements.dateSelectionText || historyElements.dateSelectionLabel;
+        if (!target) return;
+        if (!dateFilterStart) {
+            target.textContent = 'No date filter';
+            return;
+        }
+        const end = getEffectiveDateEnd();
+        if (!dateFilterEnd || dateFilterEnd === dateFilterStart) {
+            target.textContent = `Selected: ${dateFilterStart}`;
+            return;
+        }
+        target.textContent = `Selected: ${dateFilterStart} → ${end}`;
+    };
+
+    const updateDateFilterButtonLabel = () => {
+        if (!historyElements.dateFilterLabel) return;
+        if (!dateFilterStart) {
+            historyElements.dateFilterLabel.textContent = 'All';
+            return;
+        }
+        const end = getEffectiveDateEnd();
+        if (!dateFilterEnd || dateFilterEnd === dateFilterStart) {
+            historyElements.dateFilterLabel.textContent = dateFilterStart;
+            return;
+        }
+        historyElements.dateFilterLabel.textContent = `${dateFilterStart} → ${end}`;
+    };
+
+    const setDateFilter = (startIso, endIso) => {
+        dateFilterStart = startIso || null;
+        dateFilterEnd = endIso || null;
+        updateDateButtonState();
+        updateDateSelectionLabel();
+        updateDateFilterButtonLabel();
+    };
+
+    const openDatePicker = () => {
+        if (!historyElements.datePicker) return;
+        historyElements.datePicker.hidden = false;
+        // Initialize view month to selected date or today
+        const base = parseISODate(dateFilterStart) || new Date();
+        datePickerViewYear = base.getFullYear();
+        datePickerViewMonth = base.getMonth();
+        renderDatePicker();
+    };
+
+    const closeDatePicker = () => {
+        if (!historyElements.datePicker) return;
+        historyElements.datePicker.hidden = true;
+    };
+
+    const toggleDatePicker = () => {
+        if (!historyElements.datePicker) return;
+        if (historyElements.datePicker.hidden) {
+            openDatePicker();
+        } else {
+            closeDatePicker();
+        }
+    };
+
+    const moveDatePickerMonth = (deltaMonths) => {
+        if (datePickerViewYear === null || datePickerViewMonth === null) {
+            const now = new Date();
+            datePickerViewYear = now.getFullYear();
+            datePickerViewMonth = now.getMonth();
+        }
+        const next = new Date(datePickerViewYear, datePickerViewMonth + deltaMonths, 1);
+        datePickerViewYear = next.getFullYear();
+        datePickerViewMonth = next.getMonth();
+        renderDatePicker();
+    };
+
+    const getStartOfWeekMondayIndex = (year, month0, day) => {
+        // Return 0..6 where 0=Mon
+        const dow = new Date(year, month0, day).getDay(); // 0=Sun
+        return (dow + 6) % 7;
+    };
+
+    const populateDateDropdowns = () => {
+        if (!historyElements.dateMonthSelect || !historyElements.dateYearSelect) return;
+
+        // Populate months if empty
+        if (historyElements.dateMonthSelect.options.length === 0) {
+            const monthNames = [
+                'January','February','March','April','May','June',
+                'July','August','September','October','November','December'
+            ];
+            monthNames.forEach((name, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = name;
+                historyElements.dateMonthSelect.appendChild(option);
+            });
+        }
+
+        // Populate years
+        const currentYear = new Date().getFullYear();
+        const startYear = 2025;
+        const endYear = currentYear + 10;
+        
+        // Check if we need to repopulate (e.g. if empty)
+        if (historyElements.dateYearSelect.options.length === 0) {
+             for (let y = startYear; y <= endYear; y++) {
+                const option = document.createElement('option');
+                option.value = y;
+                option.textContent = y;
+                historyElements.dateYearSelect.appendChild(option);
+             }
+        }
+        
+        // If datePickerViewYear is outside the range, add it
+        if (datePickerViewYear) {
+             let found = false;
+             for(let i=0; i<historyElements.dateYearSelect.options.length; i++) {
+                 if (parseInt(historyElements.dateYearSelect.options[i].value) === datePickerViewYear) {
+                     found = true;
+                     break;
+                 }
+             }
+             if (!found) {
+                 const option = document.createElement('option');
+                 option.value = datePickerViewYear;
+                 option.textContent = datePickerViewYear;
+                 // Insert in order
+                 let inserted = false;
+                 for(let i=0; i<historyElements.dateYearSelect.options.length; i++) {
+                     if (parseInt(historyElements.dateYearSelect.options[i].value) > datePickerViewYear) {
+                         historyElements.dateYearSelect.insertBefore(option, historyElements.dateYearSelect.options[i]);
+                         inserted = true;
+                         break;
+                     }
+                 }
+                 if (!inserted) {
+                     historyElements.dateYearSelect.appendChild(option);
+                 }
+             }
+        }
+    };
+
+    const renderDatePicker = () => {
+        if (!historyElements.dateGrid) return;
+        if (datePickerViewYear === null || datePickerViewMonth === null) return;
+
+        populateDateDropdowns();
+        
+        if (historyElements.dateMonthSelect) historyElements.dateMonthSelect.value = datePickerViewMonth;
+        if (historyElements.dateYearSelect) historyElements.dateYearSelect.value = datePickerViewYear;
+
+        const firstDayOffset = getStartOfWeekMondayIndex(datePickerViewYear, datePickerViewMonth, 1);
+        const daysInMonth = new Date(datePickerViewYear, datePickerViewMonth + 1, 0).getDate();
+
+        const prevMonthLastDay = new Date(datePickerViewYear, datePickerViewMonth, 0);
+        const prevMonthDays = prevMonthLastDay.getDate();
+
+        // Determine selection range (inclusive)
+        const selectedStart = dateFilterStart;
+        const selectedEnd = getEffectiveDateEnd();
+        const rangeStart = selectedStart && selectedEnd ? (compareISO(selectedStart, selectedEnd) <= 0 ? selectedStart : selectedEnd) : null;
+        const rangeEnd = selectedStart && selectedEnd ? (compareISO(selectedStart, selectedEnd) <= 0 ? selectedEnd : selectedStart) : null;
+
+        const todayIso = formatISODate(new Date());
+
+        historyElements.dateGrid.innerHTML = '';
+
+        const totalCells = 42; // 6 weeks
+        for (let i = 0; i < totalCells; i++) {
+            const cell = document.createElement('button');
+            cell.type = 'button';
+            cell.className = 'history-date-cell';
+
+            const dayNumber = i - firstDayOffset + 1;
+            let cellDate;
+            let muted = false;
+
+            if (dayNumber < 1) {
+                // previous month
+                muted = true;
+                const day = prevMonthDays + dayNumber;
+                cellDate = new Date(datePickerViewYear, datePickerViewMonth - 1, day);
+                cell.textContent = String(day);
+            } else if (dayNumber > daysInMonth) {
+                // next month
+                muted = true;
+                const day = dayNumber - daysInMonth;
+                cellDate = new Date(datePickerViewYear, datePickerViewMonth + 1, day);
+                cell.textContent = String(day);
+            } else {
+                cellDate = new Date(datePickerViewYear, datePickerViewMonth, dayNumber);
+                cell.textContent = String(dayNumber);
+            }
+
+            const iso = formatISODate(cellDate);
+            cell.dataset.iso = iso;
+            if (muted) cell.classList.add('muted');
+
+            if (iso === todayIso) cell.classList.add('today');
+
+            if (selectedStart && iso === selectedStart) cell.classList.add('selected');
+            if (dateFilterEnd && iso === dateFilterEnd) cell.classList.add('selected');
+
+            if (rangeStart && rangeEnd && compareISO(iso, rangeStart) >= 0 && compareISO(iso, rangeEnd) <= 0) {
+                // Avoid overriding selected styling; keep both when selected
+                cell.classList.add('in-range');
+            }
+
+            cell.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const clicked = cell.dataset.iso;
+                if (!dateFilterStart || (dateFilterStart && dateFilterEnd)) {
+                    // First click (or restart selection)
+                    setDateFilter(clicked, null);
+                } else {
+                    // Second click -> range
+                    if (compareISO(clicked, dateFilterStart) < 0) {
+                        setDateFilter(clicked, dateFilterStart);
+                    } else {
+                        setDateFilter(dateFilterStart, clicked);
+                    }
+                }
+
+                // Apply filter immediately
+                currentPage = 1;
+                loadHistory();
+                renderDatePicker();
+            });
+
+            historyElements.dateGrid.appendChild(cell);
+        }
+
+        updateDateButtonState();
+        updateDateSelectionLabel();
     };
 
     /**
@@ -179,6 +469,20 @@ const HistoryModule = (() => {
         historyElements.filterButtons = document.querySelectorAll('.history-filter-btn');
         historyElements.contentWrapper = document.querySelector('.history-content-wrapper');
         historyElements.requesterSelect = document.getElementById('requester-filter-select');
+
+        // Date picker elements
+        historyElements.dateFilterBtn = document.getElementById('history-date-filter-btn');
+        historyElements.dateFilterLabel = document.getElementById('history-date-filter-label');
+        historyElements.datePicker = document.getElementById('history-date-picker');
+        historyElements.datePrevBtn = document.getElementById('history-date-prev');
+        historyElements.dateNextBtn = document.getElementById('history-date-next');
+        historyElements.dateClearBtn = document.getElementById('history-date-clear');
+        // historyElements.dateMonthLabel = document.getElementById('history-date-month-label'); // Removed
+        historyElements.dateMonthSelect = document.getElementById('history-date-month-select');
+        historyElements.dateYearSelect = document.getElementById('history-date-year-select');
+        historyElements.dateGrid = document.getElementById('history-date-grid');
+        historyElements.dateSelectionLabel = document.getElementById('history-date-selection');
+        historyElements.dateSelectionText = document.getElementById('history-date-selection-text');
         
         // Server selection elements
         historyElements.serverDropdownBtn = document.getElementById('server-dropdown-btn');
@@ -193,6 +497,9 @@ const HistoryModule = (() => {
         if (!historyElements.searchInput) console.error('Search input element not found!');
         if (!historyElements.requesterSelect) console.error('Requester select element not found!');
         if (!historyElements.contentWrapper) console.error('History content wrapper not found!');
+        if (!historyElements.dateFilterBtn) console.error('Date filter button not found!');
+        if (!historyElements.dateFilterLabel) console.error('Date filter label not found!');
+        if (!historyElements.datePicker) console.error('Date picker container not found!');
         
         return true;
     };
@@ -201,27 +508,105 @@ const HistoryModule = (() => {
      * Set up event listeners
      */
     const setupEventListeners = () => {
+        let searchDebounceTimer = null;
+
         // Search input
         historyElements.searchInput.addEventListener('keyup', (e) => {
             if (e.key === 'Enter') {
+                if (searchDebounceTimer) {
+                    clearTimeout(searchDebounceTimer);
+                    searchDebounceTimer = null;
+                }
                 searchHistory();
             }
         });
+
+        // Live search (refresh on each typed character)
+        historyElements.searchInput.addEventListener('input', () => {
+            if (searchDebounceTimer) {
+                clearTimeout(searchDebounceTimer);
+            }
+            searchDebounceTimer = setTimeout(() => {
+                searchDebounceTimer = null;
+                searchHistory();
+            }, 250);
+        });
         
-        document.getElementById('history-search-btn').addEventListener('click', searchHistory);
+        document.getElementById('history-search-btn').addEventListener('click', () => {
+            if (searchDebounceTimer) {
+                clearTimeout(searchDebounceTimer);
+                searchDebounceTimer = null;
+            }
+            searchHistory();
+        });
+
+        // Date filter calendar
+        if (historyElements.dateFilterBtn) {
+            historyElements.dateFilterBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleDatePicker();
+            });
+        }
+        if (historyElements.datePicker) {
+            historyElements.datePicker.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+        if (historyElements.datePrevBtn) {
+            historyElements.datePrevBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                moveDatePickerMonth(-1);
+            });
+        }
+        if (historyElements.dateNextBtn) {
+            historyElements.dateNextBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                moveDatePickerMonth(1);
+            });
+        }
+        if (historyElements.dateClearBtn) {
+            historyElements.dateClearBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setDateFilter(null, null);
+                closeDatePicker();
+                currentPage = 1;
+                loadHistory();
+            });
+        }
+
+        if (historyElements.dateMonthSelect) {
+            historyElements.dateMonthSelect.addEventListener('change', (e) => {
+                e.stopPropagation();
+                datePickerViewMonth = parseInt(e.target.value);
+                renderDatePicker();
+            });
+            historyElements.dateMonthSelect.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+        if (historyElements.dateYearSelect) {
+            historyElements.dateYearSelect.addEventListener('change', (e) => {
+                e.stopPropagation();
+                datePickerViewYear = parseInt(e.target.value);
+                renderDatePicker();
+            });
+            historyElements.dateYearSelect.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+
+        // Close date picker on Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeDatePicker();
+            }
+        });
         
         // Filter buttons
         historyElements.filterButtons.forEach(btn => {
             btn.addEventListener('click', function() {
                 const filterType = this.getAttribute('data-filter');
                 const filterValue = this.getAttribute('data-value');
-                
-                // If this is for requester filter and it's the "Anyone" button
-                if (filterType === 'requester' && filterValue === 'all') {
-                    // Reset the requester filter
-                    activeFilters.requester = 'all';
-                    historyElements.requesterSelect.value = '';
-                }
                 
                 // Update active filters
                 activeFilters[filterType] = filterValue;
@@ -237,18 +622,11 @@ const HistoryModule = (() => {
         
         // Requester select change event
         historyElements.requesterSelect.addEventListener('change', function() {
-            if (this.value) {
-                activeFilters.requester = this.value;
-                
-                // Update filter buttons (deactivate "Anyone" button)
-                document.querySelectorAll('.history-filter-btn[data-filter="requester"]').forEach(btn => {
-                    btn.classList.remove('active');
-                });
-                
-                // Reload history with new requester filter
-                currentPage = 1;
-                loadHistory();
-            }
+            activeFilters.requester = this.value || 'all';
+
+            // Reload history with new requester filter
+            currentPage = 1;
+            loadHistory();
         });
         
         // Server dropdown toggle
@@ -256,12 +634,20 @@ const HistoryModule = (() => {
             historyElements.serverDropdownContent.classList.toggle('show');
         });
         
-        // Close dropdown when clicking outside
+        // Close dropdown / date picker when clicking outside
         document.addEventListener('click', function(event) {
-            if (!event.target.matches('.server-select-btn') && 
-                !event.target.closest('.server-select-btn') && 
+            if (historyElements.serverDropdownContent &&
+                !event.target.matches('.server-select-btn') &&
+                !event.target.closest('.server-select-btn') &&
                 historyElements.serverDropdownContent.classList.contains('show')) {
                 historyElements.serverDropdownContent.classList.remove('show');
+            }
+
+            if (historyElements.datePicker && !historyElements.datePicker.hidden) {
+                const clickedInsideDateFilter = event.target.closest('.history-date-filter');
+                if (!clickedInsideDateFilter) {
+                    closeDatePicker();
+                }
             }
         });
         
@@ -381,8 +767,8 @@ const HistoryModule = (() => {
         // Save current selection
         const currentSelection = select.value;
         
-        // Clear existing options except the first one
-        select.innerHTML = '<option value="">Select Requester</option>';
+        // Clear existing options and ensure default "Anyone" option
+        select.innerHTML = '<option value="all">Anyone</option>';
         
         // Add requester options
         sortedRequesters.forEach(requester => {
@@ -393,9 +779,13 @@ const HistoryModule = (() => {
         });
         
         // Restore selection if it still exists
-        if (currentSelection && sortedRequesters.includes(currentSelection)) {
+        if (currentSelection && currentSelection !== 'all' && sortedRequesters.includes(currentSelection)) {
             select.value = currentSelection;
+            return;
         }
+
+        // Default selection
+        select.value = 'all';
     };
 
     /**
@@ -423,7 +813,7 @@ const HistoryModule = (() => {
             activeFilters.type = 'all';
             activeFilters.requester = 'all';
             activeFilters.timeRange = 'all';
-            historyElements.requesterSelect.value = '';
+            historyElements.requesterSelect.value = 'all';
             updateFilterUI();
             
             // Reset to first page
@@ -453,7 +843,7 @@ const HistoryModule = (() => {
                 activeFilters.type = 'all';
                 activeFilters.requester = 'all';
                 activeFilters.timeRange = 'all';
-                historyElements.requesterSelect.value = '';
+                historyElements.requesterSelect.value = 'all';
                 updateFilterUI();
                 
                 // Reset to first page
@@ -482,7 +872,7 @@ const HistoryModule = (() => {
                     activeFilters.type = 'all';
                     activeFilters.requester = 'all';
                     activeFilters.timeRange = 'all';
-                    historyElements.requesterSelect.value = '';
+                    historyElements.requesterSelect.value = 'all';
                     updateFilterUI();
                     
                     // Reset to first page
@@ -709,6 +1099,12 @@ const HistoryModule = (() => {
         if (activeFilters.timeRange !== 'all') {
             params += `&timeRange=${encodeURIComponent(activeFilters.timeRange)}`;
         }
+
+        // Add date range filter (single day or inclusive range)
+        if (dateFilterStart) {
+            const end = getEffectiveDateEnd();
+            params += `&startDate=${encodeURIComponent(dateFilterStart)}&endDate=${encodeURIComponent(end)}`;
+        }
         
         if (searchQuery) {
             endpoint = '/api/history/search';
@@ -732,6 +1128,12 @@ const HistoryModule = (() => {
             // Add time range filter if specified
             if (activeFilters.timeRange !== 'all') {
                 params += `&timeRange=${encodeURIComponent(activeFilters.timeRange)}`;
+            }
+
+            // Add date range filter (single day or inclusive range)
+            if (dateFilterStart) {
+                const end = getEffectiveDateEnd();
+                params += `&startDate=${encodeURIComponent(dateFilterStart)}&endDate=${encodeURIComponent(end)}`;
             }
         }
         
@@ -1093,11 +1495,6 @@ const HistoryModule = (() => {
                     if (requesterName) {
                         // Update filter
                         activeFilters.requester = requesterName;
-                        
-                        // Update UI
-                        document.querySelectorAll('.history-filter-btn[data-filter="requester"]').forEach(btn => {
-                            btn.classList.remove('active');
-                        });
                         
                         // Update select dropdown
                         historyElements.requesterSelect.value = requesterName;

@@ -45,6 +45,9 @@
     <logger name="org.jaudiotagger.tag" level="OFF"/>
     <logger name="org.jaudiotagger.audio" level="OFF"/>
 
+    <!-- Suppress noisy logs when an HTTPS/TLS handshake hits the HTTP port -->
+    <logger name="org.apache.coyote.http11.Http11Processor" level="WARN"/>
+
     <root level="INFO">
         <appender-ref ref="Simple"/>
         <appender-ref ref="File"/>

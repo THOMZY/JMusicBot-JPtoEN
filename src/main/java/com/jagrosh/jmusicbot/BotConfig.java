@@ -65,6 +65,10 @@ public class BotConfig {
     private String ytCipherUrl;
     private String ytCipherPassword;
     private String ytCipherUserAgent;
+    // Optional Deno path for yt-dlp JS runtime support
+    private String ytDlpDenoPath;
+    // Optional cookies for yt-dlp auth/bot-check bypass
+    private String ytDlpCookiesPath;
     // WebPanel settings
     private int webPanelPort;
     // [JMusicBot-JP] added useNicoNico, changeNickName, pauseNoUsers, resumeJoined, stopNoUsers, cosgyDevHost, helpToDm, officialInvite
@@ -149,6 +153,12 @@ public class BotConfig {
             ytCipherUrl = config.hasPath("ytcipher.url") ? config.getString("ytcipher.url") : null;
             ytCipherPassword = config.hasPath("ytcipher.password") ? config.getString("ytcipher.password") : null;
             ytCipherUserAgent = config.hasPath("ytcipher.user-agent") ? config.getString("ytcipher.user-agent") : null;
+
+            // Optional Deno executable path for yt-dlp (JS runtime)
+            ytDlpDenoPath = config.hasPath("ytdlp.deno") ? config.getString("ytdlp.deno") : "";
+
+            // Optional cookies for yt-dlp
+            ytDlpCookiesPath = config.hasPath("ytdlp.cookies") ? config.getString("ytdlp.cookies") : "";
 
 
             cosgyDevHost = false;
@@ -258,6 +268,14 @@ public class BotConfig {
 
     public String getSearching() {
         return searchingEmoji;
+    }
+
+    public String getYtDlpDenoPath() {
+        return ytDlpDenoPath;
+    }
+
+    public String getYtDlpCookiesPath() {
+        return ytDlpCookiesPath;
     }
 
     public Activity getGame() {

@@ -18,6 +18,10 @@ const Player = (function() {
     
     window.currentChapters = [];
     let progressInterval;
+    let lastSeekTime = 0;
+    let lastSeekPosition = 0;
+    let lastServerUpdateTime = 0;
+    let lastServerPosition = 0;
 
     const isPlayerViewActive = () => {
         const container = document.getElementById('player-component');
@@ -115,9 +119,14 @@ const Player = (function() {
             return;
         }
         
-        // Regular track handling (existing code)
-        // Update currentStatus
-        window.currentStatus.currentTrackPosition += 100; // Add 100ms (interval time)
+        // Regular track handling
+        // Calculate current position based on time elapsed since last server update
+        const now = Date.now();
+        const timeElapsed = now - lastServerUpdateTime;
+        const calculatedPosition = lastServerPosition + timeElapsed;
+        
+        // Update currentStatus with calculated position
+        window.currentStatus.currentTrackPosition = calculatedPosition;
         
         // Calculate percentage
         const progressPercentage = (window.currentStatus.currentTrackPosition / window.currentStatus.currentTrackDuration) * 100;
@@ -149,6 +158,10 @@ const Player = (function() {
         // Update the current status immediately for a more responsive feel
         window.currentStatus.currentTrackPosition = seekPosition;
         
+        // Store the seek time and position to avoid reverting in fetchStatus
+        lastSeekTime = Date.now();
+        lastSeekPosition = seekPosition;
+        
         // Animation effect for click feedback
         const progressHandle = document.getElementById('progress-handle');
         progressHandle.style.opacity = '1';
@@ -172,16 +185,21 @@ const Player = (function() {
                 } else {
                     // Revert UI changes if seek failed
                     UI.showToast('Failed to seek: ' + (data.message || 'Unknown error'), false);
-                    progressBar.style.width = `${(window.currentStatus.currentTrackPosition / window.currentStatus.currentTrackDuration) * 100}%`;
-                    document.getElementById('current-time').textContent = UI.formatTime(window.currentStatus.currentTrackPosition);
+                    // Reset seek tracking
+                    lastSeekTime = 0;
+                    lastSeekPosition = 0;
+                    // Fetch real position from server
+                    fetchStatus();
                 }
             })
             .catch(error => {
                 console.error('Error seeking:', error);
                 UI.showToast('Error seeking to position', false);
-                // Revert UI changes
-                progressBar.style.width = `${(window.currentStatus.currentTrackPosition / window.currentStatus.currentTrackDuration) * 100}%`;
-                document.getElementById('current-time').textContent = UI.formatTime(window.currentStatus.currentTrackPosition);
+                // Reset seek tracking
+                lastSeekTime = 0;
+                lastSeekPosition = 0;
+                // Fetch real position from server
+                fetchStatus();
             });
     }
     
@@ -302,7 +320,25 @@ const Player = (function() {
 
             const previousSourceType = window.currentStatus.sourceType;
             const previousTrackId = window.currentStatus.currentTrackUri; // Store previous track ID
+            
+            // Store the previous position if we just performed a seek
+            const justSeeked = (Date.now() - lastSeekTime) < 1000; // Within 1 second of seek
+            const preservedPosition = justSeeked ? lastSeekPosition : null;
+            
             window.currentStatus = data;
+            
+            // If we just seeked, use the local position instead of server position
+            // This prevents the progress bar from jumping back to the old position
+            if (preservedPosition !== null) {
+                window.currentStatus.currentTrackPosition = preservedPosition;
+                // Also update the server tracking variables to use the seek position
+                lastServerPosition = preservedPosition;
+                lastServerUpdateTime = Date.now();
+            } else {
+                // Update tracking variables with server data
+                lastServerPosition = data.currentTrackPosition || 0;
+                lastServerUpdateTime = Date.now();
+            }
             
             // For Radio tracks, clean up the title by removing the station name
             let displayTitle = data.currentTrackTitle || 'No track playing';
@@ -750,7 +786,8 @@ const Player = (function() {
                 !(data.sourceType === 'Stream' && data.currentTrackUri && 
                   data.currentTrackUri.includes('stream.gensokyoradio.net'))) {
                 
-                if (currentTime) currentTime.textContent = UI.formatTime(data.currentTrackPosition || 0);
+                // Use currentStatus position (which may be preserved from seek) instead of data position
+                if (currentTime) currentTime.textContent = UI.formatTime(window.currentStatus.currentTrackPosition || 0);
                 if (totalTime) totalTime.textContent = UI.formatTime(data.currentTrackDuration || 0);
             }
             
@@ -761,8 +798,9 @@ const Player = (function() {
             if (!(data.sourceType === 'Gensokyo Radio' || 
                 (data.sourceType === 'Stream' && data.currentTrackUri && 
                  data.currentTrackUri.includes('stream.gensokyoradio.net')))) {
+                // Use currentStatus position (which may be preserved from seek)
                 const progressPercentage = data.currentTrackDuration ? 
-                    (data.currentTrackPosition / duration) * 100 : 0;
+                    (window.currentStatus.currentTrackPosition / duration) * 100 : 0;
                     
                 document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
             }
@@ -797,8 +835,8 @@ const Player = (function() {
                 progressInterval = setInterval(updateProgress, 100);
             }
             
-            // Use the new inVoiceChannel property from the API response
-            UI.updateBotStatusIndicator(data.inVoiceChannel);
+            // Bot status indicator is now managed globally by BotProfile module
+            // No need to update it here to avoid redundancy
             
             // Fetch chapters if source type changed to YouTube OR if track changed while type is still YouTube
             const trackChanged = previousTrackId !== data.currentTrackUri;

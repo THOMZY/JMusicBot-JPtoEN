@@ -38,9 +38,11 @@ function initializeApp() {
                 .catch(console.error);
         }
         
-        // Load bot profile information
+        // Load bot profile information and start status updates
         if (typeof BotProfile !== 'undefined') {
             BotProfile.fetchBotInfo();
+            console.log('Starting bot status updates...');
+            BotProfile.startStatusUpdates();
         }
         
         // Set up socket connections
@@ -71,36 +73,47 @@ function setupEventHandlers() {
 // Handle form submission for adding tracks
 function setupTrackInputForm() {
     const addUrlForm = document.getElementById('add-url-form');
-    const urlInput = document.getElementById('url-input');
-    const addNextButton = document.getElementById('add-next-button');
     
     if (addUrlForm) {
         // Remove old listeners to avoid duplicates if called multiple times
+        // Cloning the form also clones its children (buttons, inputs)
         const newForm = addUrlForm.cloneNode(true);
         addUrlForm.parentNode.replaceChild(newForm, addUrlForm);
         
+        // Setup Submit (Add to Queue)
         newForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            // Re-get input as we cloned the form
+            // Re-get input from the live DOM
             const input = document.getElementById('url-input');
             if (input && input.value.trim() && typeof Player !== 'undefined') {
                 Player.addToQueue(input.value.trim());
                 input.value = '';
             }
         });
-    }
-    
-    if (addNextButton && urlInput) {
-        const newBtn = addNextButton.cloneNode(true);
-        addNextButton.parentNode.replaceChild(newBtn, addNextButton);
-        
-        newBtn.addEventListener('click', function() {
-            const input = document.getElementById('url-input');
-            if (input && input.value.trim() && typeof Player !== 'undefined') {
-                Player.addToQueue(input.value.trim(), true); // true = add next
-                input.value = '';
-            }
-        });
+
+        // Setup Add Next Button
+        // We must find the button inside the NEW form because the old one is detached
+        const newAddNextBtn = newForm.querySelector('#add-next-button');
+        if (newAddNextBtn) {
+            newAddNextBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const input = document.getElementById('url-input');
+                
+                if (input && input.value.trim()) {
+                    if (typeof Player !== 'undefined') {
+                        Player.addToQueue(input.value.trim(), true); // true = add next
+                        input.value = '';
+                    } else {
+                        console.error('Player module is not defined');
+                    }
+                } else {
+                    // Provide feedback if input is empty
+                    if (typeof UI !== 'undefined') {
+                        UI.showToast('Please enter a URL first', false);
+                    }
+                }
+            });
+        }
     }
 }
 

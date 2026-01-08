@@ -18,4 +18,5 @@
     <!-- Set specific logger levels as needed -->
     <logger name="com.jagrosh.jmusicbot" level="INFO" />
     <logger name="org.springframework.web" level="INFO" />
+    <logger name="org.apache.coyote.http11.Http11Processor" level="WARN" />
 </configuration> 

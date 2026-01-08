@@ -29,6 +29,26 @@ const Router = (() => {
                     console.warn('Chapters sidebar host #chapters-component is missing; skipping YouTube chapters UI for this layout.');
                 }
 
+                    // If the SPA was entered from a lightweight entry page (e.g. history.html),
+                    // Player/UI/YouTubeChapters modules might not be loaded yet.
+                    // Load them on-demand so the Player view works without needing a manual refresh.
+                    if (typeof loadScript === 'function') {
+                        const moduleLoads = [];
+                        if (typeof UI === 'undefined') {
+                            moduleLoads.push(loadScript('js/modules/ui.js'));
+                        }
+                        if (typeof Player === 'undefined') {
+                            moduleLoads.push(loadScript('js/modules/player.js'));
+                        }
+                        if (typeof YouTubeChapters === 'undefined') {
+                            moduleLoads.push(loadScript('js/modules/youtube-chapters.js'));
+                        }
+
+                        if (moduleLoads.length > 0) {
+                            await Promise.all(moduleLoads);
+                        }
+                    }
+
                 await Promise.all(componentLoads);
                 
                 // Re-attach event listeners for the player view
@@ -38,6 +58,13 @@ const Router = (() => {
 
                 // Refresh player UI
                 if (typeof Player !== 'undefined') {
+                    // If we didn't boot from index.html, initializeApp() may not have called Player.initialize().
+                    // Start it once so periodic refresh works without requiring a full reload.
+                    if (typeof Player.initialize === 'function' && !window.__playerInitialized) {
+                        window.__playerInitialized = true;
+                        Player.initialize();
+                    }
+
                     Player.fetchStatus();
                     Player.fetchQueue();
                     Player.setupProgressBarInteraction();

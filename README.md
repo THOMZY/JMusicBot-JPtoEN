@@ -7,15 +7,13 @@
 [![CodeFactor](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/badge/main)](https://www.codefactor.io/repository/github/thomzy/jmusicbot-jptoen/overview/main)
 [![Build and Test](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml/badge.svg)](https://github.com/THOMZY/JMusicBot-JPtoEN/actions/workflows/release.yml)
 </h3>
-<h2 align="center">▶️ Youtube playback fixed ( 12 December 2025 )</h2>
-
 
 # JMusicBot
 <img align="right" src="https://i.imgur.com/KA0s1mn.png" height="290">
 
 JMusicBot uses a simple and user-friendly UI. Both setup and launch are easy.
 
-This is an English translation of JMusicBotJP.
+This is an English translation of [JMusicBotJP](https://github.com/Cosgy-Dev/JMusicBot-JP).
 
 This fork aims to updates dependencies when YouTube playback breaks and adds minor new features.
 
@@ -28,7 +26,8 @@ This fork aims to updates dependencies when YouTube playback breaks and adds min
 * Added `/stats` command to view total play time and songs played.  
 * Added `/settopicstatus` command to toggle text channel playing status.  
 * `/nowplaying` now have more and cleaner informations.  
-* `/lyrics` his now more robust finding lyrics. 
+* `/lyrics` his now more robust finding lyrics.  
+* `/shuffle` now have 2 modes, "all" tracks in queue or "mytracks" only.  
 * `/play` now work with Spotify links instead of returning "Unknown file format." error.   
 * Fixed Youtube livestreams fail at 30sec. 
 * Added the ability to queue multiple local files in a single message. ( 10 max, Discord upload limit )

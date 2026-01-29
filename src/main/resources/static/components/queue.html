@@ -2,7 +2,10 @@
 <div class="queue-container">
     <div class="queue-header">
         <div class="queue-title">Current Queue</div>
-        <div class="queue-info" id="queue-info">Queue: 0 tracks</div>
+        <div style="display: flex; align-items: center;">
+            <div class="queue-info" id="queue-info">Queue: 0 tracks</div>
+            <i class="fas fa-times" onclick="Player.clearQueue()" style="color: #ff4444; cursor: pointer; margin-left: 10px; font-size: 1.2em;" title="Clear Queue"></i>
+        </div>
     </div>
     <div class="queue-list" id="queue-list">
         <!-- Queue items will be added here dynamically -->

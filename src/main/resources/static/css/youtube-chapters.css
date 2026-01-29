@@ -12,9 +12,9 @@
     left: var(--chapters-left, auto);
     right: 16px;
     display: none;
-    transform: translateX(20px);
+    transform: translateX(100%);
     opacity: 0;
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease;
     pointer-events: none;
     z-index: 405;
 }
@@ -76,7 +76,7 @@ body.chapters-open .chapters-sidebar {
 
 .chapters-list {
     overflow-y: auto;
-    padding: 10px 0;
+    padding: 10px 0 25px 0; /* Extra bottom padding to prevent last item cutoff */
     scrollbar-width: thin;
     max-height: calc(100vh - 160px); /* Adjust based on your header height */
 }
@@ -112,6 +112,37 @@ body.chapters-open .chapters-sidebar {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* Adjust layout on larger screens to prevent overlap */
+@media (min-width: 1201px) {
+    body.chapters-open {
+        /* 
+         * Fluid padding:
+         * - At 1550px: Need 350px padding (max shift).
+         * - At 1900px: Need 0px padding (space exists).
+         * Formula: Linear interpolation from 350px at 1550px down to 0px at 1900px.
+         * The correct slope to prevent overlap is steeper: 1900px - 100vw.
+         * Using clamp to ensure it stays between 0 and 350.
+         * 
+         * NO TRANSITION: We must apply this padding instantly during resize to match 
+         * the sidebar's position calculation and prevent overlap or gaps/lag.
+         */
+        padding-right: clamp(0px, 1900px - 100vw, 350px);
+    }
+
+    /* Fluid positioning for the sidebar */
+    .chapters-sidebar {
+        /*
+         * Simplified locking mechanism:
+         * 1. Stick to right edge (100vw - 330px) when screen < 1900px.
+         *    (The body padding handles pushing the content away)
+         * 2. Lock to content center (50vw + 620px) when screen > 1900px.
+         */
+        left: min(100vw - 330px, 50vw + 620px);
+        right: auto;
+    }
+}
+/* Responsive adjustments for smaller screens */
 
 @media (max-width: 1200px) {
     .chapters-sidebar {

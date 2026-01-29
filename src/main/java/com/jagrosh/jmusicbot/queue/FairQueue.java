@@ -139,6 +139,21 @@ public class FairQueue<T extends Queueable> {
         return iset.size();
     }
 
+    public int shuffleAll() {
+        int size = list.size();
+        if (size <= 1)
+            return size;
+        
+        // Fisher-Yates shuffle algorithm
+        for (int i = size - 1; i > 0; i--) {
+            int j = (int) (Math.random() * (i + 1));
+            T temp = list.get(i);
+            list.set(i, list.get(j));
+            list.set(j, temp);
+        }
+        return size;
+    }
+
     public void skip(int number) {
         if (number > 0) {
             list.subList(0, number).clear();

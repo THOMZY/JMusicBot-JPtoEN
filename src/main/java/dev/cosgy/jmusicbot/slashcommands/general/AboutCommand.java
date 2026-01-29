@@ -92,7 +92,7 @@ public class AboutCommand extends SlashCommand {
                 .append(description).append(" uses [" + JDAUtilitiesInfo.AUTHOR + "](https://github.com/JDA-Applications)'s [Commands Extension](" + JDAUtilitiesInfo.GITHUB + ") (")
                 .append(JDAUtilitiesInfo.VERSION).append(") and the [JDA library](https://github.com/DV8FromTheWorld/JDA) (")
                 .append(JDAInfo.VERSION).append("), and is owned by ").append((IS_AUTHOR ? CosgyOwner : author + ". "))
-                .append("Related questions about ").append(event.getJDA().getSelfUser().getName()).append(" can be directed to the [Cosgy Dev Official Channel](https://discord.gg/RBpkHxf).")
+                .append("\nRelated questions about ").append(event.getJDA().getSelfUser().getName()).append(" can be directed to the [GitHub](https://github.com/THOMZY/JMusicBot-JPtoEN).")
                 .append("\nTo check the bot's usage, type `").append("/help")
                 .append("`.").append("\n\nFeatures: ```css");
         for (String feature : features)
@@ -110,7 +110,7 @@ public class AboutCommand extends SlashCommand {
             builder.addField("", event.getJDA().getUsers().size() + " users in shard\n" + event.getJDA().getGuilds().size() + " servers", true);
             builder.addField("", event.getJDA().getTextChannels().size() + " text channels\n" + event.getJDA().getVoiceChannels().size() + " voice channels", true);
         }
-        builder.setFooter("Time when the bot was last restarted", "https://www.cosgy.dev/wp-content/uploads/2020/03/restart.jpg");
+        builder.setFooter("Time when the bot was last restarted", "https://cdn-icons-png.flaticon.com/512/3357/3357329.png");
         builder.setTimestamp(event.getClient().getStartTime());
         event.replyEmbeds(builder.build()).queue();
     }

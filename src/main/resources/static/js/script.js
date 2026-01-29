@@ -7,6 +7,8 @@
 window.initializeApp = initializeApp;
 window.setupTrackInputForm = setupTrackInputForm;
 window.setupModalButtons = setupModalButtons;
+// window.handleImageError is defined at the bottom as a window assignment
+
 
 // Initialize the application after all modules are loaded
 function initializeApp() {
@@ -258,3 +260,88 @@ function setupChaptersToggleButton() {
         }
     });
 }
+
+// Strategy state for failed thumbnails
+// stored as: originalUrl => currentStage (0: Start, 1: Weserv, 2: DuckDuckGo, 3: Failed)
+window.thumbnailStrategies = new Map();
+
+// Helper to construct URLs based on strategy
+window.getStrategyUrl = function(originalUrl, stage) {
+    if (!originalUrl) return '';
+    
+    switch (stage) {
+        case 1: // Weserv
+            // Ensure schema
+            let target = originalUrl;
+            if (!target.startsWith('http')) target = 'https://' + target;
+            return `https://images.weserv.nl/?url=${encodeURIComponent(target)}&w=640&h=640&fit=inside`;
+            
+        case 2: // DuckDuckGo
+            return 'https://external-content.duckduckgo.com/iu/?u=' + encodeURIComponent(originalUrl);
+            
+        case 3: // Default / Failed
+            return 'https://cdn.discordapp.com/embed/avatars/0.png';
+            
+        default: // 0 or undefined = Original
+            return originalUrl;
+    }
+};
+
+// Global Image Error Handler
+function handleImageError(img) {
+    if (!img || !img.src) return;
+    
+    // 1. Identify Original URL
+    let originalUrl = img.src;
+    
+    // Try to unwrap if already proxied
+    if (img.src.includes('images.weserv.nl')) {
+        try {
+            const urlObj = new URL(img.src);
+            originalUrl = urlObj.searchParams.get('url');
+        } catch(e) {}
+    } else if (img.src.includes('external-content.duckduckgo.com')) {
+        try {
+            const urlObj = new URL(img.src);
+            originalUrl = urlObj.searchParams.get('u');
+        } catch(e) {}
+    } else if (img.src === 'https://cdn.discordapp.com/embed/avatars/0.png') {
+        // Already at default, stop.
+        img.onerror = null;
+        return;
+    }
+
+    if (!originalUrl) return;
+
+    // 2. Determine and Advance Stage
+    // Default to 0 (Original) if not found
+    let currentStage = window.thumbnailStrategies.get(originalUrl) || 0;
+    
+    // If we receive an error on the 'Original' URL (stage 0), we move to Weserv (stage 1)
+    // If we receive an error on Weserv (stage 1), we move to DDG (stage 2)
+    // If we receive an error on DDG (stage 2), we move to Default (stage 3)
+    let nextStage = currentStage + 1;
+    
+    // Safety break
+    if (nextStage > 3) {
+        img.onerror = null;
+        return;
+    }
+    
+    console.log(`[ThumbnailFallback] url: ${originalUrl} failed at stage ${currentStage}. Advancing to stage ${nextStage}`);
+    
+    // 3. Update State
+    window.thumbnailStrategies.set(originalUrl, nextStage);
+    
+    // 4. Apply New Source
+    const newSrc = window.getStrategyUrl(originalUrl, nextStage);
+    
+    // Clear error handler briefly to avoid immediate re-trigger during assignment if browser is synchronous (rare)
+    // But we need it for the NEXT error if this one fails too.
+    // The browser will fire onerror again if newSrc fails.
+    
+    img.src = newSrc;
+    
+    // Special handling for Hotlink Protection (Original URL retry) - not needed here as we move TO proxy.
+}
+window.handleImageError = handleImageError;

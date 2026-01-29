@@ -11,45 +11,41 @@
 }
 
 .chapters-toggle {
-    position: absolute;
-    top: 50%;
-    right: -14px;
-    border: none;
+    /* Reset absolute positioning to fit in flow */
+    position: static;
+    transform: none;
+    border: 1px solid var(--border-color); /* Light border to give it shape */
     background: transparent;
-    display: none;
+    display: none; /* Hidden by default */
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transform: translateY(-50%);
-    padding: 4px;
-    z-index: 12;
-}
-
-.chapters-toggle .toggle-icon {
-    border: solid var(--primary-color);
-    border-width: 0 3px 3px 0;
-    display: inline-block;
-    padding: 8px;
-    transform: rotate(-45deg);
-    transition: transform 0.3s ease;
-    background: transparent;
-    box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+    padding: 10px 20px; /* Match standard button padding */
+    border-radius: 4px; /* Match standard button radius */
+    color: var(--muted-text);
+    font-size: 16px; /* Match standard button font size */
+    transition: all 0.2s ease;
+    gap: 8px; /* Space between icon and text */
 }
 
 body.chapters-available .chapters-toggle {
-    display: flex;
+    display: inline-flex;
 }
 
-body.chapters-open .chapters-toggle .toggle-icon {
-    transform: rotate(135deg);
+body.chapters-open .chapters-toggle {
+    color: var(--light-text);
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary-color);
 }
 
-@media (max-width: 768px) {
-    .chapters-toggle {
-        right: 10px;
-        top: 15px;
-        transform: none;
-    }
+.chapters-toggle:hover {
+    color: var(--light-text); 
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--muted-text);
+}
+
+@media (max-width: 1150px) {
+    /* No special positioning needed for mobile as it's part of the flex flow now */
 }
 
 .player-content {
@@ -534,23 +530,42 @@ body.chapters-open .chapters-toggle .toggle-icon {
 }
 
 /* Responsive styles */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
+    .player-container {
+        padding: 15px;
+    }
+    
     .player-content {
         flex-direction: column;
         align-items: center;
+        padding: 15px;
+        gap: 15px;
     }
 
     .album-art {
-        width: 120px;
-        height: 120px;
+        width: 180px;
+        height: 180px;
     }
 
     .track-info {
         text-align: center;
+        width: 100%;
+    }
+    
+    .track-title {
+        font-size: 18px;
+        line-height: 1.4;
+    }
+    
+    .track-author {
+        font-size: 14px;
     }
 
     .track-metadata {
         justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 12px;
     }
     
     .status {
@@ -558,5 +573,79 @@ body.chapters-open .chapters-toggle .toggle-icon {
         padding: 4px 10px;
         top: 10px;
         right: 10px;
+    }
+    
+    /* Progress bar */
+    .progress-container {
+        margin: 12px 0;
+    }
+    
+    .time-display {
+        font-size: 12px;
+    }
+    
+    .progress-bar {
+        height: 6px;
+    }
+    
+    /* Controls */
+    .player-controls {
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .player-controls button {
+        padding: 10px 18px;
+        font-size: 14px;
+    }
+    
+    .control-btn i {
+        font-size: 16px;
+    }
+    
+    /* Volume control */
+    .volume-control {
+        width: 100%;
+        justify-content: center;
+        margin-top: 8px;
+    }
+    
+    .volume-slider {
+        max-width: 200px;
+    }
+}
+
+@media (max-width: 480px) {
+    .player-content {
+        padding: 12px;
+        gap: 12px;
+    }
+    
+    .album-art {
+        width: 150px;
+        height: 150px;
+    }
+    
+    .track-title {
+        font-size: 16px;
+    }
+    
+    .track-author {
+        font-size: 13px;
+    }
+    
+    .track-metadata {
+        font-size: 11px;
+        gap: 6px;
+    }
+    
+    .player-controls button {
+        padding: 8px 14px;
+        font-size: 13px;
+    }
+    
+    .control-btn i {
+        font-size: 14px;
     }
 }

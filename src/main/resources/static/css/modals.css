@@ -469,3 +469,140 @@
 #clear-history-btn:hover {
     background-color: rgba(255, 255, 255, 0.1);
 }
+
+/* ===== MOBILE RESPONSIVE STYLES ===== */
+@media (max-width: 1150px) {
+    .modal-content {
+        width: 95%;
+        max-width: none;
+        max-height: 85vh;
+        border-radius: 6px;
+    }
+    
+    .modal-header {
+        padding: 12px 15px;
+    }
+    
+    .modal-title {
+        font-size: 18px;
+    }
+    
+    .modal-close {
+        font-size: 20px;
+    }
+    
+    .modal-body {
+        padding: 15px;
+    }
+    
+    /* Bot Profile Modal */
+    .profile-banner-container {
+        height: 100px;
+    }
+    
+    .profile-avatar {
+        width: 70px;
+        height: 70px;
+        margin-top: -35px;
+    }
+    
+    .profile-name {
+        font-size: 18px;
+        margin-bottom: 12px;
+    }
+    
+    .profile-form {
+        gap: 12px;
+    }
+    
+    .form-section label {
+        font-size: 14px;
+    }
+    
+    .input-with-button {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .input-with-button input {
+        width: 100%;
+        font-size: 14px;
+        padding: 8px 12px;
+    }
+    
+    .input-with-button button {
+        width: 100%;
+    }
+    
+    /* Color picker */
+    .color-picker-group {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .color-option {
+        width: 36px;
+        height: 36px;
+    }
+    
+    /* Date picker popup */
+    .date-picker-popup {
+        width: calc(100vw - 30px) !important;
+        max-width: 340px;
+    }
+    
+    .calendar-grid {
+        gap: 4px;
+    }
+    
+    .calendar-day {
+        padding: 8px 4px;
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .modal-content {
+        width: 98%;
+        max-height: 90vh;
+    }
+    
+    .modal-header {
+        padding: 10px 12px;
+    }
+    
+    .modal-title {
+        font-size: 16px;
+    }
+    
+    .modal-body {
+        padding: 12px;
+    }
+    
+    .profile-banner-container {
+        height: 80px;
+    }
+    
+    .profile-avatar {
+        width: 60px;
+        height: 60px;
+        margin-top: -30px;
+    }
+    
+    .profile-name {
+        font-size: 16px;
+    }
+    
+    .form-section label {
+        font-size: 13px;
+    }
+    
+    .input-with-button input {
+        font-size: 13px;
+    }
+    
+    .color-option {
+        width: 32px;
+        height: 32px;
+    }
+}

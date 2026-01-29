@@ -42,16 +42,24 @@ const Player = (function() {
         const isLocalAsset = lower.startsWith('/') || lower.startsWith('local_artwork/') || lower.startsWith('data:');
         if (isLocalAsset) return url;
 
-        const isInstagram = lower.includes('instagram.com') || lower.includes('cdninstagram.com');
-        if (isInstagram) {
-            return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=640&h=640&fit=inside`;
+        // Check if we have a failure strategy for this URL
+        if (window.thumbnailStrategies && window.thumbnailStrategies.has(url)) {
+            const stage = window.thumbnailStrategies.get(url);
+            if (window.getStrategyUrl) {
+                return window.getStrategyUrl(url, stage);
+            }
         }
 
+        // Default behavior: Try Original First
         return url;
     }
 
     // Centralized default thumbnails per source.
     function getDefaultThumbnail(sourceType) {
+        if (!sourceType || sourceType === 'Unknown') {
+            return 'https://camo.githubusercontent.com/05bfda98ab36433a3ee7437a031f93b5c5bc02be3508ad1910e5ad44e5d7d3b7/68747470733a2f2f692e696d6775722e636f6d2f4b413073316d6e2e706e67';
+        }
+
         const defaults = {
             'YouTube': 'https://www.gstatic.com/youtube/img/branding/youtubelogo/svg/youtubelogo.svg',
             'SoundCloud': 'https://developers.soundcloud.com/assets/logo_big_white-65c2b096da68dd533db18b5a2bcfbcce.png',
@@ -61,9 +69,16 @@ const Player = (function() {
             'Local File': 'https://cdn-icons-png.flaticon.com/512/4725/4725478.png',
             'Radio': 'https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png',
             'Stream': 'https://cdn-icons-png.flaticon.com/128/11796/11796884.png',
-            'Gensokyo Radio': 'https://stream.gensokyoradio.net/images/logo.png'
+            'Gensokyo Radio': 'https://stream.gensokyoradio.net/images/logo.png',
+            'Instagram': 'https://www.svgrepo.com/show/303145/instagram-2-1-logo.svg',
+            'Twitter': 'https://www.svgrepo.com/show/494187/twitter.svg',
+            'Twitch': 'https://www.svgrepo.com/show/448251/twitch.svg',
+            'Vimeo': 'https://www.svgrepo.com/show/494322/vimeo-rounded.svg',
+            'Bilibili': 'https://www.svgrepo.com/show/515022/bilibili.svg'
         };
-        return defaults[sourceType] || 'https://cdn.discordapp.com/embed/avatars/0.png';
+        
+        // Return specific default or fallback to Globe icon for generic websites
+        return defaults[sourceType] || 'https://www.svgrepo.com/show/522133/globe.svg';
     }
     
     // Update the progress bar
@@ -464,10 +479,18 @@ const Player = (function() {
             }
             
             // Update requester from API data
-            if (data.requester) {
-                document.getElementById('track-requester').textContent = `Requested by: ${data.requester}`;
-            } else {
-                document.getElementById('track-requester').textContent = 'Requested by: Unknown';
+            const requesterEl = document.getElementById('track-requester');
+            if (requesterEl) {
+                const container = requesterEl.parentElement;
+                if (data.requester) {
+                    const avatarHtml = data.requesterAvatar 
+                        ? `<img src="${data.requesterAvatar}" class="requester-avatar" alt="${data.requester}">` 
+                        : '<i class="fas fa-user"></i>';
+                    
+                    container.innerHTML = `${avatarHtml} <span id="track-requester">Requested by: ${data.requester}</span>`;
+                } else {
+                    container.innerHTML = `<i class="fas fa-user"></i> <span id="track-requester">Requested by: Unknown</span>`;
+                }
             }
             
             // Update volume from API data
@@ -931,7 +954,13 @@ const Player = (function() {
                 
                 // Include source icon and requester info
                 const sourceIcon = UI.getSourceIcon(track.sourceType);
-                const requesterInfo = track.requester ? ` • Requested by: ${track.requester}` : '';
+                let requesterInfo = '';
+                if (track.requester) {
+                    const avatarHtml = track.requesterAvatar 
+                        ? `<img src="${track.requesterAvatar}" class="requester-avatar" alt="" style="width:16px;height:16px;margin:0 4px;vertical-align:text-bottom;">` 
+                        : '';
+                    requesterInfo = ` • ${avatarHtml}Requested by: ${track.requester}`;
+                }
                 
                 // Get appropriate source URL for the track
                 let trackSourceUrl = '';
@@ -990,7 +1019,7 @@ const Player = (function() {
                         <i class="fas fa-grip-lines"></i>
                     </div>
                     <div class="${thumbnailClass}">
-                        <img src="${thumbnailUrl}" alt="${track.title}" referrerpolicy="no-referrer">
+                        <img src="${thumbnailUrl}" alt="${track.title}" referrerpolicy="no-referrer" onerror="handleImageError(this)">
                     </div>
                     <div class="queue-item-info">
                         ${titleElement}
@@ -1283,6 +1312,26 @@ const Player = (function() {
         }
     }
 
+    // Clear the entire queue
+    async function clearQueue() {
+        if (!confirm('Are you sure you want to clear the entire queue?')) return;
+        
+        try {
+            const response = await fetch('/api/queue/clear', { method: 'POST' });
+            const data = await response.json();
+            
+            if (data.success) {
+                if (typeof UI !== 'undefined') UI.showToast('Queue cleared', true);
+                fetchQueue();
+            } else {
+                if (typeof UI !== 'undefined') UI.showToast('Failed to clear queue: ' + (data.message || 'Unknown error'), false);
+            }
+        } catch (error) {
+            console.error('Error clearing queue:', error);
+            if (typeof UI !== 'undefined') UI.showToast('Error clearing queue', false);
+        }
+    }
+
     // Public API
     return {
         initialize,
@@ -1299,6 +1348,10 @@ const Player = (function() {
         skipTrack,
         stopTrack,
         removeFromQueue,
-        addToQueue
+        addToQueue,
+        clearQueue
     };
 })();
+
+// Expose to window for inline event handlers
+window.Player = Player;

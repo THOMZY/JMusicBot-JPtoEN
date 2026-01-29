@@ -11,7 +11,7 @@ const HistoryModule = (() => {
     let recordsPerPage = 20;
     let searchQuery = '';
     let activeFilters = {
-        type: 'all', // all, spotify, youtube, soundcloud, radio, gensokyo, local, instagram, tiktok, twitter
+        type: [], // all, spotify, youtube, soundcloud, radio, gensokyo, local, instagram, tiktok, twitter
         timeRange: 'all', // all, today, week, month
         requester: 'all', // all, or specific requester name
         guildId: 'all' // all, or specific guild ID
@@ -62,6 +62,19 @@ const HistoryModule = (() => {
         currentPage = 1;
         hasMorePages = true;
         isLoadingHistory = false;
+        
+        // Reset search and filters
+        searchQuery = '';
+        activeFilters = {
+            type: [],
+            timeRange: 'all',
+            requester: 'all',
+            guildId: 'all'
+        };
+        
+        // Reset date filters
+        dateFilterStart = null;
+        dateFilterEnd = null;
     };
 
     // Proxy Instagram thumbnails to bypass referrer blocking while leaving local/static assets untouched
@@ -70,10 +83,16 @@ const HistoryModule = (() => {
         const lower = url.toLowerCase();
         const isLocalAsset = lower.startsWith('/') || lower.startsWith('local_artwork/') || lower.startsWith('data:');
         if (isLocalAsset) return url;
-        const isInstagram = lower.includes('instagram.com') || lower.includes('cdninstagram.com');
-        if (isInstagram) {
-            return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&w=640&h=640&fit=inside`;
+
+        // Check if we have a failure strategy for this URL
+        if (window.thumbnailStrategies && window.thumbnailStrategies.has(url)) {
+            const stage = window.thumbnailStrategies.get(url);
+            if (window.getStrategyUrl) {
+                return window.getStrategyUrl(url, stage);
+            }
         }
+
+        // Default behavior: Try Original First
         return url;
     };
 
@@ -501,7 +520,44 @@ const HistoryModule = (() => {
         if (!historyElements.dateFilterLabel) console.error('Date filter label not found!');
         if (!historyElements.datePicker) console.error('Date picker container not found!');
         
+        // Reset UI elements to default state
+        resetUIElements();
+        
         return true;
+    };
+
+    /**
+     * Reset UI elements to their default state
+     */
+    const resetUIElements = () => {
+        // Clear search input
+        if (historyElements.searchInput) {
+            historyElements.searchInput.value = '';
+        }
+        
+        // Reset filter buttons to 'all'
+        if (historyElements.filterButtons) {
+            historyElements.filterButtons.forEach(btn => {
+                if (btn.getAttribute('data-filter') === 'all') {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+        
+        // Reset requester select to 'all'
+        if (historyElements.requesterSelect) {
+            historyElements.requesterSelect.value = 'all';
+        }
+        
+        // Reset date filter button and labels
+        updateDateButtonState();
+        updateDateSelectionLabel();
+        updateDateFilterButtonLabel();
+        
+        // Close date picker if open
+        closeDatePicker();
     };
 
     /**
@@ -608,8 +664,27 @@ const HistoryModule = (() => {
                 const filterType = this.getAttribute('data-filter');
                 const filterValue = this.getAttribute('data-value');
                 
-                // Update active filters
-                activeFilters[filterType] = filterValue;
+                if (filterType === 'type') {
+                    if (filterValue === 'all') {
+                        activeFilters.type = [];
+                    } else {
+                        if (!Array.isArray(activeFilters.type)) {
+                            activeFilters.type = [];
+                        }
+                        
+                        const index = activeFilters.type.indexOf(filterValue);
+                        if (index > -1) {
+                            // Toggle OFF
+                            activeFilters.type.splice(index, 1);
+                        } else {
+                            // Toggle ON
+                            activeFilters.type.push(filterValue);
+                        }
+                    }
+                } else {
+                    // Update active filters
+                    activeFilters[filterType] = filterValue;
+                }
                 
                 // Update UI
                 updateFilterUI();
@@ -652,6 +727,75 @@ const HistoryModule = (() => {
         });
         
         // Pagination events will be added dynamically
+        
+        // Create mobile source filter select
+        createMobileSourceFilter();
+    };
+    
+    /**
+     * Create a select dropdown for source filters on mobile
+     */
+    const createMobileSourceFilter = () => {
+        // Check if we're on mobile (viewport width)
+        const isMobile = window.innerWidth <= 768;
+        
+        if (!isMobile) return;
+        
+        const filterOptions = document.querySelector('.history-filters .filter-options');
+        if (!filterOptions) return;
+        
+        // Check if select already exists
+        let mobileSelect = document.getElementById('source-filter-mobile-select');
+        
+        if (!mobileSelect) {
+            // Create the select element
+            mobileSelect = document.createElement('select');
+            mobileSelect.id = 'source-filter-mobile-select';
+            mobileSelect.className = 'source-filter-mobile-select';
+            
+            // Add options from buttons
+            const filterButtons = document.querySelectorAll('.history-filter-btn');
+            filterButtons.forEach(btn => {
+                const value = btn.getAttribute('data-value');
+                const text = btn.textContent.trim();
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = text;
+                if (btn.classList.contains('active')) {
+                    option.selected = true;
+                }
+                mobileSelect.appendChild(option);
+            });
+            
+            // Add change event
+            mobileSelect.addEventListener('change', function() {
+                const selectedValue = this.value;
+                if (selectedValue === 'all') {
+                    activeFilters.type = [];
+                } else {
+                    activeFilters.type = [selectedValue];
+                }
+                
+                // Update button states for consistency
+                updateFilterUI();
+                
+                // Reload history
+                currentPage = 1;
+                loadHistory();
+            });
+            
+            // Insert the select before the buttons
+            filterOptions.insertBefore(mobileSelect, filterOptions.firstChild);
+        }
+        
+        // Update select value based on active filter
+        if (mobileSelect) {
+            if (Array.isArray(activeFilters.type) && activeFilters.type.length > 0) {
+                mobileSelect.value = activeFilters.type[0];
+            } else {
+                mobileSelect.value = 'all';
+            }
+        }
     };
 
     const disconnectInfiniteScrollObserver = () => {
@@ -810,7 +954,7 @@ const HistoryModule = (() => {
             }
             
             // Reset all filters
-            activeFilters.type = 'all';
+            activeFilters.type = []
             activeFilters.requester = 'all';
             activeFilters.timeRange = 'all';
             historyElements.requesterSelect.value = 'all';
@@ -925,7 +1069,19 @@ const HistoryModule = (() => {
             const filterType = btn.getAttribute('data-filter');
             const filterValue = btn.getAttribute('data-value');
             
-            if (activeFilters[filterType] === filterValue) {
+            if (filterType === 'type') {
+                // Handle multiple selection for type
+                if (Array.isArray(activeFilters.type)) {
+                    if (activeFilters.type.includes(filterValue)) {
+                        btn.classList.add('active');
+                    } else if (activeFilters.type.length === 0 && filterValue === 'all') {
+                        // If no filter selected, "all" is implicitly active (if we kept the button)
+                        btn.classList.add('active');
+                    }
+                } else if (activeFilters.type === filterValue) {
+                     btn.classList.add('active');
+                }
+            } else if (activeFilters[filterType] === filterValue) {
                 btn.classList.add('active');
             }
         });
@@ -1086,7 +1242,9 @@ const HistoryModule = (() => {
         }
         
         // Add type filter if specified
-        if (activeFilters.type !== 'all') {
+        if (Array.isArray(activeFilters.type) && activeFilters.type.length > 0) {
+            params += `&type=${activeFilters.type.join(',')}`;
+        } else if (activeFilters.type && activeFilters.type !== 'all' && !Array.isArray(activeFilters.type)) {
             params += `&type=${activeFilters.type}`;
         }
         
@@ -1116,7 +1274,9 @@ const HistoryModule = (() => {
             }
             
             // Also add type filter to search if specified
-            if (activeFilters.type !== 'all') {
+            if (Array.isArray(activeFilters.type) && activeFilters.type.length > 0) {
+                params += `&type=${activeFilters.type.join(',')}`;
+            } else if (activeFilters.type && activeFilters.type !== 'all' && !Array.isArray(activeFilters.type)) {
                 params += `&type=${activeFilters.type}`;
             }
             
@@ -1437,7 +1597,6 @@ const HistoryModule = (() => {
             // Requester info with avatar if available
             const requesterHtml = record.requesterName ? `
                 <div class="metadata-item requester-item" data-requester="${record.requesterName}">
-                    <i class="fas fa-user-music"></i> 
                     ${record.requesterAvatar ? 
                         `<img src="${record.requesterAvatar}" alt="${record.requesterName}" class="requester-avatar">` : 
                         '<i class="fas fa-user"></i>'} 
@@ -1450,7 +1609,7 @@ const HistoryModule = (() => {
             // Build HTML
             historyItem.innerHTML = `
                 <div class="history-item-thumbnail">
-                    <img src="${thumbnailSrc}" alt="${record.title}" referrerpolicy="no-referrer" onerror="this.src='https://cdn.discordapp.com/embed/avatars/0.png'">
+                    <img src="${thumbnailSrc}" alt="${record.title}" referrerpolicy="no-referrer" onerror="handleImageError(this)">
                 </div>
                 <div class="history-item-info">
                     <div class="history-item-title">${record.title || 'Unknown Title'}</div>

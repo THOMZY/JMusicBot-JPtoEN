@@ -296,7 +296,24 @@ public class MusicService {
                     case TWITCH -> sourceType = source = "Twitch";
                     case SOUNDCLOUD -> sourceType = source = "SoundCloud";
                     case YOUTUBE -> sourceType = source = "YouTube";
-                    default -> { }
+                    default -> {
+                        if (ytMeta != null && ytMeta.webpageUrl() != null) {
+                            try {
+                                java.net.URI uri = new java.net.URI(ytMeta.webpageUrl());
+                                String host = uri.getHost();
+                                if (host != null) {
+                                    host = host.startsWith("www.") ? host.substring(4) : host;
+                                    int lastDot = host.lastIndexOf('.');
+                                    if (lastDot > 0) {
+                                        host = host.substring(0, lastDot);
+                                    }
+                                    if (!host.isEmpty()) {
+                                        sourceType = source = host.substring(0, 1).toUpperCase() + host.substring(1);
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                    }
                 }
 
                 if (ytMeta != null && ytMeta.thumbnailUrl() != null && !ytMeta.thumbnailUrl().isEmpty()) {
@@ -489,14 +506,20 @@ public class MusicService {
                 default: // OTHER or unknown types
                     FallbackPlatform platform = PlayerManager.getYtDlpPlatform(track);
                     if (platform != null && platform != FallbackPlatform.NONE) {
-                        sourceType = platform.name().charAt(0) + platform.name().substring(1).toLowerCase();
-                        source = sourceType;
+                        if (sourceType.equals("Unknown")) { // Don't overwrite if already set by generic logic above
+                            sourceType = platform.name().charAt(0) + platform.name().substring(1).toLowerCase();
+                            source = sourceType;
+                        }
                         if (info.artworkUrl != null && !info.artworkUrl.isEmpty()) {
                             thumbnailUrl = info.artworkUrl;
                         }
+                    } else if (track.getInfo().isStream) { // Check if it's a stream with ICY metadata but NOT if it's ytdlp
+                        sourceType = "Stream";
+                        source = "Web Stream";
+                        thumbnailUrl = "https://cdn-icons-png.flaticon.com/128/11796/11796884.png";
                     }
                     // Check if it's a stream with ICY metadata
-                    if (sourceType.equals("Unknown")) {
+                    if (sourceType.equals("Unknown") || sourceType.equals("Stream")) {
                         IcyMetadataHandler.StreamMetadata metadata = bot.getIcyMetadataHandler().getMetadata(selectedGuildId);
                         if (metadata != null && !metadata.hasFailed()) {
                             sourceType = "Stream";
@@ -746,7 +769,24 @@ public class MusicService {
                             case TWITCH -> sourceType = source = "Twitch";
                             case SOUNDCLOUD -> sourceType = source = "SoundCloud";
                             case YOUTUBE -> sourceType = source = "YouTube";
-                            default -> { }
+                            default -> {
+                                if (ytMeta != null && ytMeta.webpageUrl() != null) {
+                                    try {
+                                        java.net.URI uri = new java.net.URI(ytMeta.webpageUrl());
+                                        String host = uri.getHost();
+                                        if (host != null) {
+                                            host = host.startsWith("www.") ? host.substring(4) : host;
+                                            int lastDot = host.lastIndexOf('.');
+                                            if (lastDot > 0) {
+                                                host = host.substring(0, lastDot);
+                                            }
+                                            if (!host.isEmpty()) {
+                                                sourceType = source = host.substring(0, 1).toUpperCase() + host.substring(1);
+                                            }
+                                        }
+                                    } catch (Exception ignored) {}
+                                }
+                            }
                         }
 
                         if (ytMeta != null && ytMeta.thumbnailUrl() != null && !ytMeta.thumbnailUrl().isEmpty()) {
@@ -1248,6 +1288,23 @@ public class MusicService {
                 }
             } catch (Exception e) {
                 System.out.println("Web Panel: Error removing track: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Clears the entire queue
+     */
+    public boolean clearQueue() {
+        Optional<AudioHandler> handler = getAudioHandler();
+        if (handler.isPresent()) {
+            try {
+                handler.get().getQueue().clear();
+                return true;
+            } catch (Exception e) {
+                System.out.println("Web Panel: Error clearing queue: " + e.getMessage());
                 e.printStackTrace();
             }
         }

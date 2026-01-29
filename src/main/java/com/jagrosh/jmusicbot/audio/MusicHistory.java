@@ -234,7 +234,24 @@ public class MusicHistory {
                     case TWITCH -> sourceType = "Twitch";
                     case SOUNDCLOUD -> sourceType = "SoundCloud";
                     case YOUTUBE -> sourceType = "YouTube";
-                    default -> { }
+                    default -> {
+                        if (ytMeta != null && ytMeta.webpageUrl() != null) {
+                            try {
+                                java.net.URI uri = new java.net.URI(ytMeta.webpageUrl());
+                                String host = uri.getHost();
+                                if (host != null) {
+                                    host = host.startsWith("www.") ? host.substring(4) : host;
+                                    int lastDot = host.lastIndexOf('.');
+                                    if (lastDot > 0) {
+                                        host = host.substring(0, lastDot);
+                                    }
+                                    if (!host.isEmpty()) {
+                                        sourceType = host.substring(0, 1).toUpperCase() + host.substring(1);
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                    }
                 }
 
                 if (ytMeta != null && ytMeta.thumbnailUrl() != null && !ytMeta.thumbnailUrl().isEmpty()) {

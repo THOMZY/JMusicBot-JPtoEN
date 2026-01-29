@@ -13,6 +13,7 @@
     --border-color: #4a4d51;
     --success-color: #43B581;
     --error-color: #F04747;
+    --header-height: 70px;
 }
 
 * {
@@ -74,7 +75,7 @@ button:disabled {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 70px);
+    height: calc(100vh - var(--header-height));
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--primary-color) var(--darkest-bg);
@@ -111,9 +112,86 @@ button:disabled {
 }
 
 /* Responsive styles */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
+    :root {
+        --header-height: 220px;
+    }
+    
+    body {
+        padding: 0;
+    }
+    
+    .main-content {
+        padding: 10px;
+        height: auto;
+        min-height: calc(100vh - var(--header-height) - 20px);
+        overflow-y: visible;
+    }
+    
+    .view-card {
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 6px;
+    }
+    
+    .content-with-chapters {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    button {
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+    
     .form-buttons {
         flex-direction: column;
+        gap: 10px;
+    }
+    
+    .form-buttons button {
+        width: 100%;
+    }
+    
+    /* Toast notifications - adjust position for mobile */
+    .toast-container {
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: calc(100vw - 20px);
+    }
+    
+    .toast {
+        max-width: 100%;
+        font-size: 13px;
+    }
+    
+    .notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: calc(100vw - 20px);
+    }
+}
+
+@media (max-width: 480px) {
+    :root {
+        --header-height: 200px;
+    }
+    
+    .main-content {
+        padding: 8px;
+        min-height: calc(100vh - var(--header-height) - 20px);
+    }
+    
+    .view-card {
+        padding: 12px;
+        border-radius: 4px;
+    }
+    
+    button {
+        padding: 7px 14px;
+        font-size: 13px;
     }
 } 
 
@@ -214,3 +292,14 @@ button:disabled {
     overflow: hidden;
     height: 100%;
 } 
+
+/* Avatar styles */
+.requester-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 5px;
+    object-fit: cover;
+    display: inline-block;
+}

@@ -5,6 +5,7 @@
 /* Header & Navigation */
 .main-header {
     width: 100%;
+    align-self: stretch;
     background-color: var(--darker-bg);
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
     padding: 0;
@@ -277,23 +278,234 @@
 }
 
 /* Responsive styles */
-@media (max-width: 768px) {
-    .header-container {
-        flex-direction: column;
-        gap: 15px;
+/* Switch to mobile view earlier (at 1150px) to prevent layout breaking on intermediate screens */
+@media (max-width: 1150px) {
+    .main-header {
+        position: relative;
         height: auto;
-        padding: 10px;
-    }
-
-    .nav-buttons {
-        width: 100%;
-        justify-content: center;
-        flex-wrap: wrap;
+        padding-bottom: 0; /* Removed padding to let border stick to bottom */
+        z-index: 1000;
     }
     
-    .server-select-btn,
-    .bot-profile-btn {
+    .header-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        /* Rows: 1=Logo, 2=Sep, 3=Nav, 4=Server, 5=Bot (Sep 2 is absolute) */
+        grid-template-rows: auto 1px auto auto auto;
+        gap: 12px;
+        padding: 15px;
+        padding-bottom: 20px; /* Add extra padding at bottom for visual spacing before line */
+        height: auto;
         width: 100%;
-        max-width: 300px;
+        max-width: 100%;
+        position: relative; /* For absolute positioning of bottom separator */
     }
-} 
+    
+    /* Separator Lines */
+    .header-container::before {
+        content: "";
+        grid-row: 2;
+        grid-column: 1 / -1;
+        height: 1px;
+        background-color: var(--border-color);
+        width: calc(100% + 30px);
+        margin-left: -15px;
+    }
+
+    /* Bottom Separator - Absolute positioned at the bottom */
+    .header-container::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 1px;
+        background-color: var(--border-color);
+    }
+    
+    /* Flatten the structure to grid items directly */
+    .logo-area, .nav-buttons {
+        display: contents;
+    }
+    
+    /* Line 1: Logo (Left) + Advanced Dropdown (Right) */
+    .logo {
+        grid-row: 1;
+        grid-column: 1 / span 2;
+        justify-self: start;
+        align-self: center;
+        margin: 0;
+        font-size: 20px;
+    }
+    
+    .advanced-dropdown {
+        grid-row: 1;
+        grid-column: 3;
+        justify-self: end;
+        align-self: center;
+        position: static !important;
+    }
+    
+    .advanced-dropdown-btn {
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        margin: 0;
+    }
+    
+    .advanced-dropdown-btn i.fa-chevron-down {
+        display: none;
+    }
+    
+    .advanced-dropdown-content {
+        right: 0;
+        top: 100%;
+        width: 200px;
+    }
+    
+    /* Line 3: Player, History, Channels buttons (Shifted down for separator) */
+    #player-btn {
+        grid-row: 3;
+        grid-column: 1;
+    }
+    
+    #history-btn {
+        grid-row: 3;
+        grid-column: 2;
+    }
+    
+    #channels-btn {
+        grid-row: 3;
+        grid-column: 3;
+    }
+    
+    .nav-btn {
+        width: 100%;
+        height: 42px;
+        justify-content: center;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font-size: 10px;
+        margin: 0;
+    }
+    
+    .nav-btn i {
+        margin: 0;
+        font-size: 14px;
+    }
+    
+    /* Line 4: Server Dropdown (Shifted) */
+    .server-dropdown {
+        grid-row: 4;
+        grid-column: 1 / span 3;
+        width: 100%;
+        min-width: 0;
+        margin: 0 !important;
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        right: auto !important;
+    }
+    
+    .server-select-btn {
+        width: 100%;
+        height: 42px;
+        margin: 0;
+        max-width: none;
+        justify-content: center; /* Center content so icon is next to text */
+        display: flex;
+        align-items: center;
+    }
+    
+    .server-icon {
+        margin-right: 10px; /* Space between icon and text */
+        /* Ensure icon doesn't shrink */
+        flex-shrink: 0;
+    }
+
+    .server-name {
+        flex: 0 1 auto; /* Allow text to flex but not push icon away */
+    }
+
+    /* Hide arrow if needed to center perfectly, or keep it */
+    .server-select-btn .dropdown-arrow {
+        position: absolute;
+        right: 12px;
+    }
+    
+    /* Line 5: Bot Profile Button (Shifted) */
+    .bot-profile-btn {
+        grid-row: 5;
+        grid-column: 1 / span 3;
+        width: 100%;
+        height: 42px;
+        margin: 0 !important;
+        justify-content: center;
+        border: 1px solid var(--border-color);
+        background-color: var(--darkest-bg);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        color: var(--light-text);
+        cursor: pointer;
+        position: static;
+        max-width: none;
+    }
+    
+    .bot-profile-btn .bot-avatar-container {
+        margin-right: 10px;
+    }
+    
+    .server-dropdown-content {
+        width: 100%;
+        position: absolute;
+        left: 0;
+        top: 100%;
+        margin-top: 4px;
+        z-index: 1001;
+    }
+}
+
+/* 
+ * Layout adjustments for when YouTube Chapters are open.
+ * These styles need to be in the header file because they modify the header's behavior
+ * in response to the global layout state (chapters-open).
+ */
+@media (min-width: 1201px) {
+    /* 
+     * Extend header background to the right using box-shadow to cover the sidebar area
+     * without affecting the content flow/width.
+     * Use space-between to prevent content from being pushed off-screen when space is tight.
+     */
+    body.chapters-open .main-header {
+        width: 100%;
+        margin-right: 0;
+        padding-right: 0;
+        box-shadow: 350px 0 0 var(--darker-bg), 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    body.chapters-open .header-container {
+        /* 
+         * Use fit-content + margin auto to center the header visually when space allows.
+         * Switch to flex-start alignment so that if space is tight, the overflow 
+         * happens on the right (clipping menu) rather than the left (clipping logo).
+         */
+        justify-content: flex-start; 
+        max-width: 100%; /* Override 1200px constraint if needed, or stick to safe bounds */
+        width: fit-content;
+        
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+}
+
+/* 
+ * Removed the 1880px breakpoint to prevent layout jumps.
+ * We keep the padding-right strategy for all desktop widths to ensure consistency and fluidity.
+ */ 

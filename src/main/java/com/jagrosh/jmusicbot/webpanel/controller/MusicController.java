@@ -158,6 +158,19 @@ public class MusicController {
         return ResponseEntity.ok(response);
     }
     
+    @PostMapping("/queue/clear")
+    public ResponseEntity<Map<String, Object>> clearQueue() {
+        boolean success = musicService.clearQueue();
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", success);
+        if (success) {
+            response.put("message", "Queue cleared");
+        } else {
+            response.put("message", "Failed to clear queue");
+        }
+        return ResponseEntity.ok(response);
+    }
+    
     @PostMapping("/queue/add")
     public ResponseEntity<Map<String, Object>> addTrackToQueue(@RequestParam(name = "url") String url) {
         // Check if the URL is a Spotify link

@@ -54,12 +54,41 @@
     background-color: #ec971f;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
+    .add-track-container {
+        padding: 12px 15px;
+        border-radius: 6px;
+    }
+    
     .input-with-buttons {
         flex-direction: column;
+        gap: 8px;
+    }
+    
+    .add-track-input {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 14px;
     }
     
     .form-buttons {
         width: 100%;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .form-buttons button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .add-track-container {
+        padding: 10px 12px;
+    }
+    
+    .add-track-input {
+        font-size: 13px;
+        padding: 8px 10px;
     }
 } 

@@ -88,6 +88,7 @@ public final class YtDlpManager {
         formatOverrides.put(FallbackPlatform.BILIBILI, "bestaudio/best");
         formatOverrides.put(FallbackPlatform.VIMEO, "bestaudio/best");
         formatOverrides.put(FallbackPlatform.TWITCH, "bestaudio/best");
+        formatOverrides.put(FallbackPlatform.GENERIC, "bestaudio/best");
     }
 
     /**
@@ -279,6 +280,7 @@ public final class YtDlpManager {
             if (id.contains("vimeo.com/") || id.contains("player.vimeo.com/")) {
                 return FallbackPlatform.VIMEO;
             }
+            return FallbackPlatform.GENERIC;
         }
 
         if (id.matches("^[a-zA-Z0-9_-]{10,}$")) {
@@ -465,7 +467,8 @@ public final class YtDlpManager {
         TWITTER,
         TWITCH,
         BILIBILI,
-        VIMEO
+        VIMEO,
+        GENERIC
     }
 
     public record YtDlpMetadata(String title,

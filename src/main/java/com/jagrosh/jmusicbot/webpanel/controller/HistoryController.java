@@ -6,6 +6,7 @@ package com.jagrosh.jmusicbot.webpanel.controller;
 
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.MusicHistory;
+import net.dv8tion.jda.api.entities.User;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,8 +24,141 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/history")
 public class HistoryController {
 
+    // Cache for user avatars to avoid rate limiting (1 hour cache)
+    private static final Map<String, CachedAvatar> avatarCache = new HashMap<>();
+    private static final long AVATAR_CACHE_DURATION = 60 * 60 * 1000L; // 1 hour
+    
+    private static class CachedAvatar {
+        final String url;
+        final long timestamp;
+        
+        CachedAvatar(String url) {
+            this.url = url;
+            this.timestamp = System.currentTimeMillis();
+        }
+        
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > AVATAR_CACHE_DURATION;
+        }
+    }
+
     private static boolean containsIgnoreCase(String value, String lowerNeedle) {
         return value != null && !value.isEmpty() && value.toLowerCase().contains(lowerNeedle);
+    }
+
+    /**
+     * Get avatar from cache or retrieve from Discord API
+     */
+    private String getAvatarUrl(String userId) {
+        if (userId == null || userId.isEmpty()) {
+            return null;
+        }
+        
+        // Check cache first
+        synchronized (avatarCache) {
+            CachedAvatar cached = avatarCache.get(userId);
+            if (cached != null && !cached.isExpired()) {
+                return cached.url;
+            }
+        }
+        
+        // Retrieve from Discord API
+        try {
+            User user = Bot.INSTANCE.getJDA().getUserById(userId);
+            if (user != null) {
+                String avatarUrl = user.getEffectiveAvatarUrl();
+                synchronized (avatarCache) {
+                    avatarCache.put(userId, new CachedAvatar(avatarUrl));
+                }
+                return avatarUrl;
+            }
+        } catch (Exception e) {
+            // If user not found or error, cache null to avoid repeated failures
+            synchronized (avatarCache) {
+                avatarCache.put(userId, new CachedAvatar(null));
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Enriches history records with dynamic user avatars (cached)
+     */
+    private List<Map<String, Object>> enrichWithAvatars(List<MusicHistory.PlayRecord> records) {
+        return records.stream().map(record -> {
+            Map<String, Object> enriched = new HashMap<>();
+            
+            // Copy all basic fields
+            enriched.put("title", record.getTitle());
+            enriched.put("artist", record.getArtist());
+            enriched.put("duration", record.getDuration());
+            enriched.put("url", record.getUrl());
+            enriched.put("playedAt", record.getPlayedAt());
+            enriched.put("requesterId", record.getRequesterId());
+            enriched.put("requesterName", record.getRequesterName());
+            enriched.put("guildName", record.getGuildName());
+            enriched.put("guildId", record.getGuildId());
+            enriched.put("formattedPlayedAt", record.getFormattedPlayedAt());
+            enriched.put("formattedDuration", record.getFormattedDuration());
+            
+            // Get avatar from cache or Discord API
+            String requesterAvatar = getAvatarUrl(record.getRequesterId());
+            enriched.put("requesterAvatar", requesterAvatar);
+            
+            // Copy all metadata fields
+            if (record.hasSpotifyData()) {
+                enriched.put("spotifyTrackId", record.getSpotifyTrackId());
+                enriched.put("spotifyAlbumName", record.getSpotifyAlbumName());
+                enriched.put("spotifyAlbumImageUrl", record.getSpotifyAlbumImageUrl());
+                enriched.put("spotifyArtistName", record.getSpotifyArtistName());
+                enriched.put("spotifyReleaseYear", record.getSpotifyReleaseYear());
+            }
+            
+            if (record.hasRadioData()) {
+                enriched.put("radioStationName", record.getRadioStationName());
+                enriched.put("radioLogoUrl", record.getRadioLogoUrl());
+                enriched.put("radioSongImageUrl", record.getRadioSongImageUrl());
+            }
+            
+            if (record.hasYoutubeData()) {
+                enriched.put("youtubeVideoId", record.getYoutubeVideoId());
+            }
+            
+            if (record.hasLocalData()) {
+                enriched.put("localAlbum", record.getLocalAlbum());
+                enriched.put("localGenre", record.getLocalGenre());
+                enriched.put("localYear", record.getLocalYear());
+                enriched.put("localArtworkHash", record.getLocalArtworkHash());
+            }
+            
+            if (record.hasGensokyoData()) {
+                enriched.put("gensokyoTitle", record.getGensokyoTitle());
+                enriched.put("gensokyoArtist", record.getGensokyoArtist());
+                enriched.put("gensokyoAlbum", record.getGensokyoAlbum());
+                enriched.put("gensokyoCircle", record.getGensokyoCircle());
+                enriched.put("gensokyoYear", record.getGensokyoYear());
+                enriched.put("gensokyoAlbumArtUrl", record.getGensokyoAlbumArtUrl());
+            }
+            
+            if (record.hasStreamData()) {
+                enriched.put("streamName", record.getStreamName());
+                enriched.put("streamGenre", record.getStreamGenre());
+                enriched.put("streamLogo", record.getStreamLogo());
+                enriched.put("isLiveStream", record.isLiveStream());
+            }
+            
+            if (record.hasSoundCloudData()) {
+                enriched.put("soundCloudArtworkUrl", record.getSoundCloudArtworkUrl());
+            }
+            
+            if (record.hasYtDlpData()) {
+                enriched.put("ytDlpSourceType", record.getYtDlpSourceType());
+                enriched.put("ytDlpThumbnailUrl", record.getYtDlpThumbnailUrl());
+            }
+            
+            return enriched;
+        }).collect(Collectors.toList());
     }
 
     private static List<MusicHistory.PlayRecord> applyStartEndDateFilter(
@@ -65,7 +199,7 @@ public class HistoryController {
             @RequestParam(value = "limit", required = false, defaultValue = "0") int limit,
             @RequestParam(value = "offset", required = false, defaultValue = "0") int offset,
             @RequestParam(value = "guildId", required = false) String guildId,
-            @RequestParam(value = "type", required = false) String type,
+            @RequestParam(value = "type", required = false) List<String> types,
             @RequestParam(value = "requester", required = false) String requester,
             @RequestParam(value = "timeRange", required = false) String timeRange,
             @RequestParam(value = "startDate", required = false) String startDate,
@@ -89,21 +223,30 @@ public class HistoryController {
                 }
                 
                 // Filter by type if specified
-                if (type != null && !type.isEmpty() && !type.equals("all")) {
+                if (types != null && !types.isEmpty() && !types.contains("all")) {
                     filteredHistory = filteredHistory.stream()
                             .filter(record -> {
-                                switch (type) {
-                                    case "spotify": return record.hasSpotifyData();
-                                    case "youtube": return record.getYoutubeVideoId() != null && !record.getYoutubeVideoId().isEmpty();
-                                    case "radio": return record.hasRadioData();
-                                    case "gensokyo": return record.hasGensokyoData();
-                                    case "local": return record.hasLocalData();
-                                    case "soundcloud": return record.hasSoundCloudData();
-                                    case "instagram": return record.hasYtDlpData() && "Instagram".equalsIgnoreCase(record.getYtDlpSourceType());
-                                    case "tiktok": return record.hasYtDlpData() && "TikTok".equalsIgnoreCase(record.getYtDlpSourceType());
-                                    case "twitter": return record.hasYtDlpData() && ("Twitter".equalsIgnoreCase(record.getYtDlpSourceType()) || "X".equalsIgnoreCase(record.getYtDlpSourceType()));
-                                    default: return true;
+                                for(String type : types) {
+                                    switch (type) {
+                                        case "spotify": if (record.hasSpotifyData()) return true; break;
+                                        case "youtube": if (record.getYoutubeVideoId() != null && !record.getYoutubeVideoId().isEmpty()) return true; break;
+                                        case "radio": if (record.hasRadioData()) return true; break;
+                                        case "gensokyo": if (record.hasGensokyoData()) return true; break;
+                                        case "local": if (record.hasLocalData()) return true; break;
+                                        case "soundcloud": if (record.hasSoundCloudData()) return true; break;
+                                        case "instagram": if (record.hasYtDlpData() && "Instagram".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
+                                        case "tiktok": if (record.hasYtDlpData() && "TikTok".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
+                                        case "twitter": if (record.hasYtDlpData() && ("Twitter".equalsIgnoreCase(record.getYtDlpSourceType()) || "X".equalsIgnoreCase(record.getYtDlpSourceType()))) return true; break;
+                                        case "generic": if (record.hasYtDlpData() 
+                                                && !"Instagram".equalsIgnoreCase(record.getYtDlpSourceType())
+                                                && !"TikTok".equalsIgnoreCase(record.getYtDlpSourceType())
+                                                && !"Twitter".equalsIgnoreCase(record.getYtDlpSourceType())
+                                                && !"X".equalsIgnoreCase(record.getYtDlpSourceType())
+                                                && !"YouTube".equalsIgnoreCase(record.getYtDlpSourceType())
+                                                && !"SoundCloud".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
+                                    }
                                 }
+                                return false;
                             })
                             .collect(Collectors.toList());
                 }
@@ -164,8 +307,11 @@ public class HistoryController {
                     }
                 }
                 
+                // Enrich with dynamic avatars
+                List<Map<String, Object>> enrichedHistory = enrichWithAvatars(filteredHistory);
+                
                 response.put("success", true);
-                response.put("history", filteredHistory);
+                response.put("history", enrichedHistory);
                 response.put("total", totalRecords); // Use the filtered total
             } else {
                 response.put("success", false);
@@ -196,7 +342,7 @@ public class HistoryController {
             @RequestParam(value = "limit", required = false, defaultValue = "0") int limit,
             @RequestParam(value = "offset", required = false, defaultValue = "0") int offset,
             @RequestParam(value = "guildId", required = false) String guildId,
-            @RequestParam(value = "type", required = false) String type,
+            @RequestParam(value = "type", required = false) List<String> types,
             @RequestParam(value = "requester", required = false) String requester,
             @RequestParam(value = "timeRange", required = false) String timeRange,
             @RequestParam(value = "startDate", required = false) String startDate,
@@ -217,21 +363,30 @@ public class HistoryController {
                 }
                 
                 // Filter by type if specified
-                if (type != null && !type.isEmpty() && !type.equals("all")) {
+                if (types != null && !types.isEmpty() && !types.contains("all")) {
                     allHistory = allHistory.stream()
                             .filter(record -> {
-                                switch (type) {
-                                    case "spotify": return record.hasSpotifyData();
-                                    case "youtube": return record.getYoutubeVideoId() != null && !record.getYoutubeVideoId().isEmpty();
-                                    case "radio": return record.hasRadioData();
-                                    case "gensokyo": return record.hasGensokyoData();
-                                    case "local": return record.hasLocalData();
-                                    case "soundcloud": return record.hasSoundCloudData();
-                                    case "instagram": return record.hasYtDlpData() && "Instagram".equalsIgnoreCase(record.getYtDlpSourceType());
-                                    case "tiktok": return record.hasYtDlpData() && "TikTok".equalsIgnoreCase(record.getYtDlpSourceType());
-                                    case "twitter": return record.hasYtDlpData() && ("Twitter".equalsIgnoreCase(record.getYtDlpSourceType()) || "X".equalsIgnoreCase(record.getYtDlpSourceType()));
-                                    default: return true;
+                                for(String type: types) {
+                                    switch (type) {
+                                        case "spotify": if (record.hasSpotifyData()) return true; break;
+                                        case "youtube": if (record.getYoutubeVideoId() != null && !record.getYoutubeVideoId().isEmpty()) return true; break;
+                                        case "radio": if (record.hasRadioData()) return true; break;
+                                        case "gensokyo": if (record.hasGensokyoData()) return true; break;
+                                        case "local": if (record.hasLocalData()) return true; break;
+                                        case "soundcloud": if (record.hasSoundCloudData()) return true; break;
+                                        case "instagram": if (record.hasYtDlpData() && "Instagram".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
+                                        case "tiktok": if (record.hasYtDlpData() && "TikTok".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
+                                        case "twitter": if (record.hasYtDlpData() && ("Twitter".equalsIgnoreCase(record.getYtDlpSourceType()) || "X".equalsIgnoreCase(record.getYtDlpSourceType()))) return true; break;
+                                        case "generic": if (record.hasYtDlpData() 
+                                                && !"Instagram".equalsIgnoreCase(record.getYtDlpSourceType())
+                                                && !"TikTok".equalsIgnoreCase(record.getYtDlpSourceType())
+                                                && !"Twitter".equalsIgnoreCase(record.getYtDlpSourceType())
+                                                && !"X".equalsIgnoreCase(record.getYtDlpSourceType())
+                                                && !"YouTube".equalsIgnoreCase(record.getYtDlpSourceType())
+                                                && !"SoundCloud".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
+                                    }
                                 }
+                                return false;
                             })
                             .collect(Collectors.toList());
                 }
@@ -367,8 +522,11 @@ public class HistoryController {
                     }
                 }
                 
+                // Enrich with dynamic avatars
+                List<Map<String, Object>> enrichedHistory = enrichWithAvatars(filteredHistory);
+                
                 response.put("success", true);
-                response.put("history", filteredHistory);
+                response.put("history", enrichedHistory);
                 response.put("total", totalRecords);
             } else {
                 response.put("success", false);

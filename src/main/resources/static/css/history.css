@@ -8,7 +8,7 @@
     margin: 0;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 110px); /* Fixed height to fit in viewport (100vh - header - padding - margins) */
+    height: calc(100vh - var(--header-height) - 40px);
     overflow: hidden; /* Prevent container from scrolling */
 }
 
@@ -441,6 +441,12 @@
     gap: 8px;
 }
 
+/* Hide mobile select on desktop */
+.source-filter-mobile-select,
+#source-filter-mobile-select {
+    display: none;
+}
+
 .history-filter-btn {
     background-color: var(--darkest-bg);
     border: 1px solid var(--border-color);
@@ -805,4 +811,551 @@
     gap: 5px;
 }
 
-/* Scrollbar styling moved to base.css for main-content */ 
+/* Scrollbar styling moved to base.css for main-content */
+
+/* ===== MOBILE RESPONSIVE STYLES ===== */
+@media (max-width: 1150px) {
+    .history-container {
+        height: auto;
+        min-height: 400px;
+        max-height: none;
+        padding: 15px;
+        overflow: visible;
+    }
+    
+    .history-content-wrapper {
+        overflow-y: visible;
+        max-height: none;
+        min-height: auto;
+    }
+    
+    .history-header {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        grid-template-columns: none;
+        column-gap: 0;
+        margin-bottom: 15px;
+        padding: 12px;
+        padding-bottom: 12px;
+        background-color: var(--darkest-bg);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    .history-header-sep {
+        display: none;
+    }
+    
+    .history-title {
+        font-size: 22px;
+        justify-content: center;
+        width: 100%;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--border-color);
+        margin-bottom: 8px;
+    }
+    
+    /* Container for requester and date filters on same line */
+    /* Remove generic styling here as it is handled more specifically below */
+    /* .history-header .requester-filter,
+    .history-header .history-date-filter {
+    } */
+    
+    /* Ensure they stay on the same line by using flexbox on parent */
+    .history-header {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: stretch; /* Ensure same height for items on same row */
+    }
+    
+    /* Title takes full width */
+    .history-header .history-title {
+        flex: 1 1 100%;
+    }
+    
+    /* Requester and Date filters on same line */
+    .history-header .requester-filter,
+    .history-header .history-date-filter {
+        flex: 0 0 calc(50% - 6px);
+        max-width: calc(50% - 6px);
+    }
+    
+    /* Search takes full width */
+    .history-header .history-search {
+        flex: 1 1 100%;
+    }
+    
+    /* Source filters - convert to dropdown on mobile */
+    .history-filters {
+        padding: 12px;
+        background-color: var(--darkest-bg);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        margin-bottom: 15px;
+    }
+    
+    .history-filters .filter-group {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    /* Create a row for requester and date filters */
+    .history-filters .filters-row {
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+        width: 100%;
+        justify-content: space-between;
+        align-items: stretch;
+    }
+    
+    .history-filters .filter-label {
+        font-size: 11px;
+        text-align: center;
+        font-weight: 600;
+        color: var(--muted-text);
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        margin: 0;
+    }
+    
+    /* Hide all filter buttons on mobile */
+    .history-filters .filter-options {
+        position: relative;
+    }
+    
+    .history-filter-btn {
+        display: none;
+    }
+    
+    /* Create a select dropdown style */
+    .history-filters .filter-options::before {
+        content: '';
+        display: block;
+    }
+    
+    /* Show as a styled select */
+    .history-filters .filter-options {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+    
+    /* Create custom select for sources */
+    .source-filter-mobile-select,
+    #source-filter-mobile-select {
+        display: block;
+        width: 100%;
+        height: 36px;
+        background-color: var(--darkest-bg);
+        color: var(--light-text);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 0 12px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+        text-align-last: center;
+    }
+    
+    .source-filter-mobile-select:focus,
+    #source-filter-mobile-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.15);
+        outline: none;
+    }
+    
+    .source-filter-mobile-select option,
+    #source-filter-mobile-select option {
+        background-color: var(--darker-bg);
+        color: var(--light-text);
+        padding: 8px;
+    }
+    
+    /* Requester filter and Date filter - same line */
+    /* Increased specificity to override any other rules */
+    .history-header .requester-filter,
+    .requester-filter {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        position: relative;
+        gap: 4px;
+        height: auto;
+        min-height: 64px;
+        align-items: stretch;
+        /* Using flex-start and indentical padding ensures perfect top alignment */
+        padding: 10px 6px 6px 6px; 
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+    }
+    
+    .requester-filter .filter-label {
+        font-size: 10px;
+        text-align: center;
+        font-weight: 600;
+        color: var(--muted-text);
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        margin: 0;
+        line-height: 1.2;
+    }
+
+    .requester-filter .filter-options,
+    .requester-filter .requester-filter-container {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        display: flex; /* Changed from block to flex to avoid line-height issues */
+        flex-direction: column;
+    }
+    
+    .requester-filter-select {
+        width: 100%;
+        min-width: unset;
+        height: 32px;
+        font-size: 11px;
+        border-radius: 4px;
+        border: 1px solid var(--border-color);
+        font-weight: 500;
+        transition: all 0.3s ease;
+        padding: 0 6px;
+        background-color: var(--darkest-bg);
+        color: var(--light-text);
+        text-align: center;
+        text-align-last: center;
+        cursor: pointer;
+        line-height: 32px;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+    }
+    
+    .requester-filter-select:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.1);
+    }
+    
+    .requester-filter-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.15);
+        outline: none;
+    }
+    
+    /* Date filter - same line as requester */
+    /* Increased specificity to override any other rules */
+    .history-header .history-date-filter,
+    .history-date-filter {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        gap: 4px;
+        height: auto;
+        min-height: 64px;
+        align-items: stretch;
+        /* Using flex-start and indentical padding ensures perfect top alignment */
+        padding: 10px 6px 6px 6px;
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+    }
+    
+    .history-date-filter .filter-label {
+        font-size: 10px;
+        text-align: center;
+        font-weight: 600;
+        color: var(--muted-text);
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        margin: 0;
+        line-height: 1.2;
+    }
+    
+    .history-date-filter-btn {
+        width: 100%;
+        min-width: unset;
+        height: 32px;
+        font-size: 11px;
+        border-radius: 4px;
+        border: 1px solid var(--border-color);
+        font-weight: 500;
+        transition: all 0.3s ease;
+        padding: 0 6px;
+        background-color: var(--darkest-bg);
+        color: var(--light-text);
+        text-align: center;
+        cursor: pointer;
+        line-height: 32px;
+    }
+    
+    .history-date-filter-btn:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.1);
+    }
+    
+    .history-date-filter-btn.active {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.15);
+    }
+    
+    .history-date-filter-label {
+        font-size: 11px;
+        max-width: none;
+    }
+    
+    /* Search bar */
+    .history-search {
+        width: 100%;
+        max-width: none;
+        height: auto;
+        padding: 10px 12px;
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        justify-content: center;
+    }
+    
+    .search-input-container {
+        max-width: none;
+        margin-left: 0;
+        width: 100%;
+    }
+    
+    .history-search-input {
+        height: 36px;
+        border-radius: 4px;
+        border: 1px solid var(--border-color);
+        font-size: 12px;
+        padding: 8px 36px 8px 12px;
+        transition: all 0.3s ease;
+    }
+    
+    .history-search-input:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.15);
+        outline: none;
+    }
+    
+    .history-search-btn {
+        right: 18px;
+    }
+    
+    /* History items - more compact on mobile */
+    .history-item {
+        flex-direction: column;
+        padding: 12px;
+        gap: 12px;
+    }
+    
+    .history-item-thumbnail {
+        width: 100%;
+        height: auto;
+        min-width: unset;
+        min-height: unset;
+        aspect-ratio: 16/9;
+        max-height: 180px;
+    }
+    
+    .history-item-thumbnail img,
+    .station-logo {
+        border-radius: 6px;
+    }
+    
+    .history-item-content {
+        width: 100%;
+        padding: 0;
+    }
+    
+    .history-item-title {
+        font-size: 15px;
+        line-height: 1.4;
+        -webkit-line-clamp: 2;
+    }
+    
+    .history-item-artist {
+        font-size: 13px;
+        margin-top: 4px;
+    }
+    
+    .history-item-info {
+        font-size: 12px;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    
+    .history-item-info span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .history-item-actions {
+        flex-direction: row;
+        justify-content: center;
+        width: 100%;
+        padding: 0;
+        margin: 0;
+        gap: 12px;
+    }
+    
+    .history-action-btn {
+        width: 42px;
+        height: 42px;
+        font-size: 16px;
+    }
+    
+    /* Pagination - mobile friendly */
+    .history-pagination {
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 15px;
+        padding-top: 8px;
+    }
+    
+    .pagination-pages {
+        gap: 4px;
+        order: 2;
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .pagination-btn {
+        padding: 6px 10px;
+        font-size: 13px;
+        min-width: 36px;
+    }
+    
+    .prev-btn, .next-btn {
+        order: 1;
+        font-size: 13px;
+    }
+    
+    .prev-btn {
+        margin-right: auto;
+    }
+    
+    .next-btn {
+        margin-left: auto;
+    }
+    
+    .pagination-info {
+        font-size: 12px;
+        order: 3;
+        margin-top: 8px;
+    }
+    
+    .history-sentinel {
+        font-size: 12px;
+        padding: 10px 0 15px 0;
+    }
+    
+    /* Calendar popup - full width on mobile */
+    .date-picker-popup {
+        left: 50% !important;
+        right: auto !important;
+        transform: translateX(-50%);
+        width: calc(100vw - 40px);
+        max-width: 350px;
+    }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+    .history-container {
+        padding: 8px;
+        min-height: 350px;
+    }
+    
+    .history-header {
+        padding: 12px;
+        gap: 12px;
+    }
+    
+    .history-title {
+        font-size: 19px;
+        padding-bottom: 10px;
+    }
+    
+    .requester-filter,
+    .history-date-filter {
+        width: calc(50% - 5px);
+        padding: 6px;
+        gap: 5px;
+    }
+    
+    .requester-filter .filter-label,
+    .history-date-filter .filter-label {
+        font-size: 10px;
+    }
+    
+    .requester-filter-select,
+    .history-date-filter-btn {
+        height: 34px;
+        font-size: 11px;
+    }
+    
+    .history-search {
+        padding: 8px 10px;
+    }
+    
+    .history-search-input {
+        height: 34px;
+        font-size: 11px;
+    }
+    
+    .history-filters {
+        padding: 10px;
+    }
+    
+    .history-filters .filter-label {
+        font-size: 10px;
+    }
+    
+    .source-filter-mobile-select,
+    #source-filter-mobile-select {
+        height: 34px;
+        font-size: 11px;
+        padding: 0 8px;
+    }
+    
+    .history-item {
+        padding: 10px;
+        gap: 10px;
+    }
+    
+    .history-item-thumbnail {
+        max-height: 160px;
+    }
+    
+    .history-item-title {
+        font-size: 14px;
+    }
+    
+    .history-item-artist {
+        font-size: 12px;
+    }
+    
+    .history-item-info {
+        font-size: 11px;
+        gap: 6px;
+    }
+    
+    .history-action-btn {
+        width: 38px;
+        height: 38px;
+        font-size: 14px;
+    }
+    
+    .pagination-btn {
+        padding: 5px 8px;
+        font-size: 12px;
+        min-width: 32px;
+    }
+} 

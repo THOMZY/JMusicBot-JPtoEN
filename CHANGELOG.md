@@ -2,6 +2,20 @@
 
 ---
 
+# XX February 2026
+
+### 🚀 New Features
+- `/shuffle` now have 2 modes, "all" tracks in queue or "mytracks" only.
+- yt-dlp support for all **[`supported sites`](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md)**.
+
+### 🔧 Changes
+- Webpanel responsive mobile version, better layout.
+
+### 📦 Dependency Updates
+- **youtube-source**: `1.16.0` → `1.17.0`
+
+---
+
 # 08 January 2026
 
 ### 🔧 Changes

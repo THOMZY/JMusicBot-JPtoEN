@@ -68,6 +68,30 @@ const ChannelsManager = (function() {
             showError('Server manager not available. Please refresh the page.');
         }
         
+        // Add event listeners for sidebar toggle (Mobile)
+        document.addEventListener('click', function(e) {
+            // Toggle Button
+            if (e.target.closest('#channels-sidebar-toggle')) {
+                const categories = document.getElementById('channel-categories');
+                const container = document.querySelector('.channels-container');
+                if (categories && container) {
+                    categories.classList.toggle('active');
+                    container.classList.toggle('sidebar-open');
+                }
+            }
+            
+            // Close sidebar when clicking outside (on the overlay)
+            const container = document.querySelector('.channels-container');
+            if (container && container.classList.contains('sidebar-open')) {
+                // If click is not on the sidebar itself and not on the toggle button
+                if (!e.target.closest('#channel-categories') && !e.target.closest('#channels-sidebar-toggle')) {
+                    const categories = document.getElementById('channel-categories');
+                    if (categories) categories.classList.remove('active');
+                    container.classList.remove('sidebar-open');
+                }
+            }
+        });
+
         // Add event listeners for category toggles
         document.addEventListener('click', function(e) {
             if (e.target.closest('.category-header')) {
@@ -81,6 +105,15 @@ const ChannelsManager = (function() {
         document.addEventListener('click', function(e) {
             if (e.target.closest('.channel-item')) {
                 const channelItem = e.target.closest('.channel-item');
+                
+                // Close sidebar on mobile
+                const categories = document.getElementById('channel-categories');
+                const container = document.querySelector('.channels-container');
+                if (categories && categories.classList.contains('active')) {
+                    categories.classList.remove('active');
+                    if (container) container.classList.remove('sidebar-open');
+                }
+
                 const channelId = channelItem.getAttribute('data-channel-id');
                 const channelType = channelItem.getAttribute('data-channel-type');
                 

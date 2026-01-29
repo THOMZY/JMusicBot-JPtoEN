@@ -1,8 +1,5 @@
 <!-- Player Component for JMusicBot Web Panel -->
 <div class="player-container view-card">
-    <button id="chapters-toggle" class="chapters-toggle" type="button" aria-label="Afficher les chapitres YouTube" aria-expanded="false" hidden>
-        <span class="toggle-icon"></span>
-    </button>
     <div class="player-content">
         <!-- Status indicator in top-right corner -->
         <div class="status" id="status-message">
@@ -10,7 +7,7 @@
         </div>
         
         <div class="album-art">
-            <img id="track-thumbnail" src="https://cdn.discordapp.com/embed/avatars/0.png" alt="Album Art" referrerpolicy="no-referrer">
+            <img id="track-thumbnail" src="https://camo.githubusercontent.com/05bfda98ab36433a3ee7437a031f93b5c5bc02be3508ad1910e5ad44e5d7d3b7/68747470733a2f2f692e696d6775722e636f6d2f4b413073316d6e2e706e67" alt="Album Art" referrerpolicy="no-referrer" onerror="handleImageError(this)">
         </div>
         <div class="track-info">
             <div class="track-title" id="track-title">No track playing</div>
@@ -79,5 +76,8 @@
         <button id="pause-button" disabled><i class="fas fa-pause"></i> Pause</button>
         <button id="skip-button" disabled><i class="fas fa-forward"></i> Skip</button>
         <button id="stop-button" disabled><i class="fas fa-stop"></i> Stop</button>
+        <button id="chapters-toggle" class="chapters-toggle" type="button" aria-label="Toggle YouTube chapters" title="Show YouTube Chapters" aria-expanded="false" hidden disabled>
+            <i class="fas fa-list-ul"></i>
+        </button>
     </div>
 </div> 

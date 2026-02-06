@@ -3,6 +3,17 @@
  */
 
 const ConsoleManager = (function() {
+    
+    // Helper to escape HTML to prevent XSS
+    function escapeHtml(unsafe) {
+        return unsafe
+             .replace(/&/g, "&amp;")
+             .replace(/</g, "&lt;")
+             .replace(/>/g, "&gt;")
+             .replace(/"/g, "&quot;")
+             .replace(/'/g, "&#039;");
+    }
+
     // Load console logs
     async function loadConsoleLogs() {
         try {
@@ -13,30 +24,92 @@ const ConsoleManager = (function() {
             consoleLog.innerHTML = '';
             
             if (logs.length === 0) {
-                consoleLog.innerHTML = '<div style="color: #B9BBBE;">No logs available</div>';
+                consoleLog.innerHTML = '<div style="color: #858585; padding: 10px; text-align: center;">No logs available</div>';
                 return;
             }
             
+            let previousEntry = null;
+            let stackTraceContainer = null;
+
             logs.forEach(log => {
-                const logLine = document.createElement('div');
-                logLine.className = 'console-log-entry';
-                
-                // Add specific styling based on log content
-                if (log.startsWith('>')) {
-                    logLine.className += ' command';
-                } else if (log.toLowerCase().includes('error') || log.toLowerCase().includes('exception')) {
-                    logLine.className += ' error';
-                } else if (log.toLowerCase().includes('info') || log.toLowerCase().includes('loaded') || log.toLowerCase().includes('started')) {
-                    logLine.className += ' info';
+                // Check if this line looks like part of a stack trace
+                // Starts with whitespace+at (Java) or Caused by
+                const isStackLine = /^\s+at\s/.test(log) || /^\s*Caused by:/.test(log) || /^\s+\.\.\.\s\d+\smore/.test(log);
+
+                if (isStackLine && previousEntry) {
+                    // This is a stack trace line and belongs to the previous entry
+                    
+                    if (!stackTraceContainer) {
+                        // Initialize container if it doesn't exist for this group
+                        stackTraceContainer = document.createElement('div');
+                        stackTraceContainer.className = 'console-stack-trace';
+                        stackTraceContainer.style.display = 'none';
+                        
+                        // Mark the parent entry as expandable
+                        previousEntry.classList.add('has-stack-trace');
+                        // Use a closure to capture the container
+                        const container = stackTraceContainer;
+                        previousEntry.onclick = function() {
+                            const isHidden = container.style.display === 'none';
+                            container.style.display = isHidden ? 'block' : 'none';
+                            this.classList.toggle('expanded', isHidden);
+                        };
+                        
+                        // Insert after the parent
+                        previousEntry.insertAdjacentElement('afterend', stackTraceContainer);
+                    }
+                    
+                    // Create and append the stack line
+                    const stackLine = document.createElement('div');
+                    stackLine.className = 'console-log-entry';
+                    stackLine.innerHTML = escapeHtml(log);
+                    stackTraceContainer.appendChild(stackLine);
+                    
+                } else {
+                    // Not a stack line, or no previous entry to attach to
+                    // This starts a new potential group
+                    stackTraceContainer = null;
+                    
+                    const logLine = document.createElement('div');
+                    logLine.className = 'console-log-entry';
+                    
+                    // Escape HTML content first
+                    let content = escapeHtml(log);
+                    
+                    // Extract and style timestamp if present (format [HH:mm:ss])
+                    const timeMatch = content.match(/^\[(\d{2}:\d{2}:\d{2})\]/);
+                    if (timeMatch) {
+                        content = content.replace(timeMatch[0], `<span class="console-log-timestamp">${timeMatch[0]}</span>`);
+                    }
+
+                    // Add specific styling based on log content
+                    const lowerLog = log.toLowerCase();
+                    
+                    if (log.trim().startsWith('>')) {
+                        logLine.classList.add('command');
+                    } else if (lowerLog.includes('error') || lowerLog.includes('exception') || lowerLog.includes('fail')) {
+                        logLine.classList.add('error');
+                    } else if (lowerLog.includes('warn')) {
+                        logLine.classList.add('warn');
+                    } else if (lowerLog.includes('success') || lowerLog.includes('loaded') || lowerLog.includes('connected')) {
+                        logLine.classList.add('success');
+                    } else if (lowerLog.includes('info')) {
+                        logLine.classList.add('info');
+                    }
+                    
+                    logLine.innerHTML = content;
+                    consoleLog.appendChild(logLine);
+                    previousEntry = logLine;
                 }
-                
-                logLine.textContent = log;
-                consoleLog.appendChild(logLine);
             });
             
             // Auto-scroll to bottom if enabled
             if (document.getElementById('auto-scroll-checkbox').checked) {
-                consoleLog.scrollTop = consoleLog.scrollHeight;
+                // Smooth scroll
+                consoleLog.scrollTo({
+                    top: consoleLog.scrollHeight,
+                    behavior: 'smooth'
+                });
             }
             
         } catch (error) {

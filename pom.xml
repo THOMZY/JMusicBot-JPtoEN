@@ -5,7 +5,7 @@
     <groupId>com.jagrosh</groupId>
     <artifactId>JMusicBot</artifactId>
     <!-- For reference on version qualifiers, see: https://kengotoda.gitbooks.io/what-is-maven/deploy/snapshot-and-stable.html -->
-    <version>2026.01.29</version>
+    <version>2026.02.06</version>
     <packaging>jar</packaging>
 
     <repositories>
@@ -157,6 +157,7 @@
     </dependencies>
 
     <build>
+        <finalName>JMusicBot</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -169,8 +170,7 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <shadedArtifactAttached>true</shadedArtifactAttached>
-                            <shadedClassifierName>All</shadedClassifierName>
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
                             <artifactSet>
                                 <includes>
                                     <include>*:*</include>

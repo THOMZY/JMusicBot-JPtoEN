@@ -150,6 +150,19 @@ public class MusicController {
         return ResponseEntity.ok(response);
     }
     
+    @PostMapping("/volume")
+    public ResponseEntity<Map<String, Object>> setVolume(@RequestParam(name = "volume") int volume) {
+        boolean success = musicService.setVolume(volume);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", success);
+        if (success) {
+            response.put("message", "Volume set to " + volume);
+        } else {
+            response.put("message", "Failed to set volume");
+        }
+        return ResponseEntity.ok(response);
+    }
+    
     @DeleteMapping("/queue/{index}")
     public ResponseEntity<Map<String, Object>> removeFromQueue(@PathVariable(name = "index") int index) {
         boolean success = musicService.removeTrack(index);

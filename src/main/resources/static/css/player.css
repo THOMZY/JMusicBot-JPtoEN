@@ -272,8 +272,8 @@ body.chapters-open .chapters-toggle {
     transition: all 0.3s ease;
     max-width: fit-content;
     position: absolute;
-    top: 15px;
-    right: 15px;
+    top: 5px;
+    right: 5px;
     z-index: 10;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
@@ -426,10 +426,12 @@ body.chapters-open .chapters-toggle {
 .time-display {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     font-size: 14px;
     color: var(--muted-text);
     margin: 0 20px 15px;
-    position: relative; /* Add position relative to host the live indicator */
+    position: relative;
+    height: 24px;
 }
 
 /* When both time and LIVE indicator are visible */
@@ -441,26 +443,29 @@ body.chapters-open .chapters-toggle {
 .live-indicator {
     color: var(--error-color);
     font-weight: bold;
+    font-size: 12px;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
+    gap: 6px;
     animation: pulse 2s infinite;
     position: absolute;
-    top: -8px;
+    top: 50%;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
     z-index: 10;
     background-color: var(--darkest-bg);
-    padding: 2px 8px;
+    padding: 3px 8px;
     border-radius: 4px;
     border: 1px solid var(--error-color);
+    line-height: 1;
 }
 
 .live-indicator::before {
     content: '';
-    display: inline-block;
-    width: 8px;
-    height: 8px;
+    display: block;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background-color: var(--error-color);
 }
@@ -529,6 +534,76 @@ body.chapters-open .chapters-toggle {
     border-color: transparent;
 }
 
+/* Volume Control */
+.volume-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: absolute;
+    bottom: 25px; /* Aligns with controls center roughly */
+    right: 30px;
+    z-index: 5;
+}
+
+.volume-icon-wrapper {
+    width: 20px;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+}
+
+.volume-text-wrapper {
+    width: 45px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.volume-slider-container {
+    display: flex;
+    align-items: center;
+    width: 100px;
+    margin: 0;
+}
+
+.volume-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--muted-text);
+    border-radius: 2px;
+    outline: none;
+    transition: background 0.2s;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.volume-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: none;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.volume-slider::-moz-range-thumb:hover {
+    transform: scale(1.2);
+}
+
 /* Responsive styles */
 @media (max-width: 1150px) {
     .player-container {
@@ -571,8 +646,8 @@ body.chapters-open .chapters-toggle {
     .status {
         font-size: 12px;
         padding: 4px 10px;
-        top: 10px;
-        right: 10px;
+        top: 5px;
+        right: 5px;
     }
     
     /* Progress bar */
@@ -606,9 +681,11 @@ body.chapters-open .chapters-toggle {
     
     /* Volume control */
     .volume-control {
+        position: static;
         width: 100%;
         justify-content: center;
-        margin-top: 8px;
+        margin-top: 15px;
+        margin-bottom: 5px;
     }
     
     .volume-slider {

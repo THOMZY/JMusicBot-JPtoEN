@@ -53,6 +53,11 @@ public class WebPanelConfig implements WebMvcConfigurer {
         String artworkDir = "file:local_artwork/";
         registry.addResourceHandler("/local_artwork/**")
                 .addResourceLocations(artworkDir);
+
+        // Add resource handler for discord avatars
+        String avatarsDir = "file:discord_avatars/";
+        registry.addResourceHandler("/discord_avatars/**")
+                .addResourceLocations(avatarsDir);
     }
 
     @Override

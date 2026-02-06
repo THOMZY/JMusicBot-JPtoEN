@@ -24,6 +24,7 @@ public class QueueTrack {
     private final String radioStationUrl;
     private final String radioCountry;
     private final String radioAlias;
+    private final String sourceIconUrl;
 
     public QueueTrack(
             int position,
@@ -40,7 +41,7 @@ public class QueueTrack {
             String radioStationUrl
     ) {
         this(position, title, author, uri, thumbnail, duration, source, sourceType, 
-            requester, requesterAvatar, spotifyInfo, radioStationUrl, null, null);
+            requester, requesterAvatar, spotifyInfo, radioStationUrl, null, null, null);
     }
     
     public QueueTrack(
@@ -57,7 +58,8 @@ public class QueueTrack {
             Map<String, Object> spotifyInfo,
             String radioStationUrl,
             String radioCountry,
-            String radioAlias
+            String radioAlias,
+            String sourceIconUrl
     ) {
         this.position = position;
         this.title = title;
@@ -73,6 +75,7 @@ public class QueueTrack {
         this.radioStationUrl = radioStationUrl;
         this.radioCountry = radioCountry;
         this.radioAlias = radioAlias;
+        this.sourceIconUrl = sourceIconUrl;
     }
 
     public int getPosition() {
@@ -129,5 +132,9 @@ public class QueueTrack {
     
     public String getRadioAlias() {
         return radioAlias;
+    }
+
+    public String getSourceIconUrl() {
+        return sourceIconUrl;
     }
 } 

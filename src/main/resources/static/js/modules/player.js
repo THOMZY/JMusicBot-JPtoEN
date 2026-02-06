@@ -299,6 +299,48 @@ const Player = (function() {
             stopBtn.parentNode.replaceChild(newStopBtn, stopBtn);
             newStopBtn.addEventListener('click', stopTrack);
         }
+        
+        setupVolumeControl();
+    }
+
+    // Setup volume control slider
+    function setupVolumeControl() {
+        const volumeSlider = document.getElementById('volume-slider');
+        const volumeText = document.getElementById('track-volume');
+        const volumeIcon = document.getElementById('volume-icon');
+        
+        if (!volumeSlider) return;
+        
+        // Update volume text while dragging
+        volumeSlider.addEventListener('input', (e) => {
+            const vol = e.target.value;
+            if (volumeText) volumeText.textContent = `${vol}%`;
+            
+            // Update icon based on volume
+            if (volumeIcon) {
+                volumeIcon.className = 'fas';
+                if (vol > 60) volumeIcon.classList.add('fa-volume-up');
+                else if (vol > 30) volumeIcon.classList.add('fa-volume-down');
+                else if (vol > 0) volumeIcon.classList.add('fa-volume-off');
+                else volumeIcon.classList.add('fa-volume-mute');
+            }
+        });
+        
+        // Send API request when slider is released or changed
+        volumeSlider.addEventListener('change', async (e) => {
+            const vol = e.target.value;
+            try {
+                const response = await fetch('/api/volume?volume=' + vol, { method: 'POST' });
+                const data = await response.json();
+                if (!data.success) {
+                     if (typeof UI !== 'undefined') UI.showToast('Failed to set volume', false);
+                     fetchStatus(); // Revert on failure
+                }
+            } catch (error) {
+                console.error('Error setting volume:', error);
+                if (typeof UI !== 'undefined') UI.showToast('Error setting volume', false);
+            }
+        });
     }
     
     // Fetch current status from the API
@@ -446,35 +488,65 @@ const Player = (function() {
             }
             
             // Update source icon based on the source type
-            const sourceIconElement = document.getElementById('track-source-icon');
-            if (sourceIconElement) {
-                // Remove all existing classes except 'fas' or 'fab'
-                sourceIconElement.className = '';
-                // Set the appropriate icon based on source type
-                const sourceIcon = UI.getSourceIcon(data.sourceType);
-                sourceIconElement.className = sourceIcon;
-                
-                // Add color class based on source type
-                const sourceType = data.sourceType || '';
-                const sourceTypeLower = sourceType.toLowerCase();
-                if (sourceTypeLower === 'youtube') {
-                    sourceIconElement.classList.add('source-icon-youtube');
-                } else if (sourceTypeLower === 'spotify') {
-                    sourceIconElement.classList.add('source-icon-spotify');
-                } else if (sourceTypeLower === 'soundcloud') {
-                    sourceIconElement.classList.add('source-icon-soundcloud');
-                } else if (sourceTypeLower === 'tiktok') {
-                    sourceIconElement.classList.add('source-icon-tiktok');
-                } else if (sourceTypeLower === 'instagram') {
-                    sourceIconElement.classList.add('source-icon-instagram');
-                } else if (sourceTypeLower === 'twitter') {
-                    sourceIconElement.classList.add('source-icon-twitter');
-                } else if (sourceTypeLower === 'gensokyo radio' || (sourceTypeLower === 'stream' && data.currentTrackUri && data.currentTrackUri.includes('stream.gensokyoradio.net'))) {
-                    sourceIconElement.classList.add('source-icon-gensokyoradio');
-                } else if (sourceTypeLower === 'radio') {
-                    sourceIconElement.classList.add('source-icon-radio');
-                } else if (sourceTypeLower === 'local file' || sourceTypeLower === 'local') {
-                    sourceIconElement.classList.add('source-icon-local');
+            let sourceIconElement = document.getElementById('track-source-icon');
+            
+            if (data.sourceIconUrl) {
+                // Handle custom icon URL
+                if (sourceIconElement && sourceIconElement.tagName !== 'IMG') {
+                    const img = document.createElement('img');
+                    img.id = 'track-source-icon';
+                    img.className = 'custom-source-icon';
+                    img.alt = data.source;
+                    img.style.width = '16px';
+                    img.style.height = '16px';
+                    img.style.marginRight = '5px';
+                    img.style.verticalAlign = 'text-bottom';
+                    sourceIconElement.replaceWith(img);
+                    sourceIconElement = img;
+                }
+                if (sourceIconElement) {
+                    sourceIconElement.src = data.sourceIconUrl;
+                    // Ensure it is visible if it was hidden
+                    sourceIconElement.style.display = 'inline-block';
+                }
+            } else {
+                // Fallback to FontAwesome icons
+                if (sourceIconElement && sourceIconElement.tagName !== 'I') {
+                    const i = document.createElement('i');
+                    i.id = 'track-source-icon';
+                    sourceIconElement.replaceWith(i);
+                    sourceIconElement = i;
+                }
+
+                if (sourceIconElement) {
+                    // Remove all existing classes except 'fas' or 'fab'
+                    sourceIconElement.className = '';
+                    // Set the appropriate icon based on source type
+                    const sourceIcon = UI.getSourceIcon(data.sourceType);
+                    sourceIconElement.className = sourceIcon;
+                    
+                    // Add color class based on source type
+                    const sourceType = data.sourceType || '';
+                    const sourceTypeLower = sourceType.toLowerCase();
+                    if (sourceTypeLower === 'youtube') {
+                        sourceIconElement.classList.add('source-icon-youtube');
+                    } else if (sourceTypeLower === 'spotify') {
+                        sourceIconElement.classList.add('source-icon-spotify');
+                    } else if (sourceTypeLower === 'soundcloud') {
+                        sourceIconElement.classList.add('source-icon-soundcloud');
+                    } else if (sourceTypeLower === 'tiktok') {
+                        sourceIconElement.classList.add('source-icon-tiktok');
+                    } else if (sourceTypeLower === 'instagram') {
+                        sourceIconElement.classList.add('source-icon-instagram');
+                    } else if (sourceTypeLower === 'twitter') {
+                        sourceIconElement.classList.add('source-icon-twitter');
+                    } else if (sourceTypeLower === 'gensokyo radio' || (sourceTypeLower === 'stream' && data.currentTrackUri && data.currentTrackUri.includes('stream.gensokyoradio.net'))) {
+                        sourceIconElement.classList.add('source-icon-gensokyoradio');
+                    } else if (sourceTypeLower === 'radio') {
+                        sourceIconElement.classList.add('source-icon-radio');
+                    } else if (sourceTypeLower === 'local file' || sourceTypeLower === 'local') {
+                        sourceIconElement.classList.add('source-icon-local');
+                    }
                 }
             }
             
@@ -494,7 +566,26 @@ const Player = (function() {
             }
             
             // Update volume from API data
-            document.getElementById('track-volume').textContent = `Volume: ${data.volume || 100}%`;
+            const volumeSlider = document.getElementById('volume-slider');
+            const volumeText = document.getElementById('track-volume');
+            const volumeIcon = document.getElementById('volume-icon');
+            const volume = data.volume !== undefined ? data.volume : 100;
+
+            if (volumeText) volumeText.textContent = `${volume}%`;
+            
+            // Only update slider if user is not currently dragging it
+            if (volumeSlider && !volumeSlider.matches(':active')) {
+                volumeSlider.value = volume;
+            }
+
+            // Update icon
+            if (volumeIcon) {
+                volumeIcon.className = 'fas';
+                if (volume > 60) volumeIcon.classList.add('fa-volume-up');
+                else if (volume > 30) volumeIcon.classList.add('fa-volume-down');
+                else if (volume > 0) volumeIcon.classList.add('fa-volume-off');
+                else volumeIcon.classList.add('fa-volume-mute');
+            }
             
             // Show Spotify information if available
             const spotifyInfoContainer = document.getElementById('spotify-info-container');
@@ -997,13 +1088,19 @@ const Player = (function() {
                     trackSourceUrl = track.uri;
                 }
                 
-                // Special handling for Stream type with Gensokyo Radio URL
+                // Overwrite source if special Gensokyo stream
                 if (track.sourceType === 'Stream' && track.uri && track.uri.includes('stream.gensokyoradio.net')) {
                     // Override source to display "Gensokyo Radio" instead of "Web Stream"
                     track.source = 'Gensokyo Radio';
                     trackSourceUrl = 'https://gensokyoradio.net/playing/';
                 }
                 
+                // Prepare source icon HTML
+                let sourceIconHtml = `<i class="${sourceIcon}"></i>`;
+                if (track.sourceIconUrl) {
+                    sourceIconHtml = `<img src="${track.sourceIconUrl}" alt="${track.source}" class="custom-source-icon" style="width: 1em; height: 1em; vertical-align: -0.125em; margin-right: 4px;">`;
+                }
+
                 // Create title element based on whether we have a source URL
                 const titleElement = trackSourceUrl ? 
                     `<div class="queue-item-title">${index + 1}. <a href="${trackSourceUrl}" target="_blank" class="track-title-link">${track.title}</a></div>` :
@@ -1025,7 +1122,7 @@ const Player = (function() {
                         ${titleElement}
                         <div class="queue-item-meta">
                             ${authorElement}
-                            <span class="queue-item-source"><i class="${sourceIcon}"></i> ${track.source}</span>
+                            <span class="queue-item-source">${sourceIconHtml} ${track.source}</span>
                             <span class="queue-item-requester">${requesterInfo}</span>
                         </div>
                     </div>

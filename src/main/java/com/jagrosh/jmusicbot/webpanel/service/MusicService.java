@@ -55,10 +55,12 @@ import net.dv8tion.jda.api.EmbedBuilder;
 public class MusicService {
 
     private final Bot bot;
+    private final AvatarCacheService avatarCacheService;
     private String selectedGuildId; // Currently selected guild ID
 
-    public MusicService(Bot bot) {
+    public MusicService(Bot bot, AvatarCacheService avatarCacheService) {
         this.bot = bot;
+        this.avatarCacheService = avatarCacheService;
         
         // Initialize the selectedGuildId safely
         try {
@@ -280,6 +282,7 @@ public class MusicService {
             String sourceType = "Unknown";
             String source = "Unknown";
             String thumbnailUrl = "";
+            String sourceIconUrl = null;
 
             dev.cosgy.jmusicbot.util.YtDlpManager.YtDlpMetadata ytMeta = PlayerManager.getYtDlpMetadata(track);
             FallbackPlatform ytPlatform = PlayerManager.getYtDlpPlatform(track);
@@ -302,6 +305,9 @@ public class MusicService {
                                 java.net.URI uri = new java.net.URI(ytMeta.webpageUrl());
                                 String host = uri.getHost();
                                 if (host != null) {
+                                    // Store the full domain for favicon before processing
+                                    String fullDomain = host;
+                                    
                                     host = host.startsWith("www.") ? host.substring(4) : host;
                                     int lastDot = host.lastIndexOf('.');
                                     if (lastDot > 0) {
@@ -309,6 +315,8 @@ public class MusicService {
                                     }
                                     if (!host.isEmpty()) {
                                         sourceType = source = host.substring(0, 1).toUpperCase() + host.substring(1);
+                                        // Set custom favicon URL
+                                        sourceIconUrl = "https://www.google.com/s2/favicons?domain=" + fullDomain + "&sz=64";
                                     }
                                 }
                             } catch (Exception ignored) {}
@@ -562,7 +570,16 @@ public class MusicService {
             String requesterAvatar = "";
             if (rm != null && rm.user != null) {
                 requesterName = rm.user.username;
-                requesterAvatar = rm.user.avatar;
+                // Use the cache service to get the avatar URL
+                String cachedAvatar = avatarCacheService.getAvatarUrl(String.valueOf(rm.getOwner()));
+                if (cachedAvatar != null) {
+                    requesterAvatar = cachedAvatar;
+                } else {
+                    requesterAvatar = rm.user.avatar;
+                }
+            } else if (bot.getJDA() != null) {
+                requesterName = bot.getJDA().getSelfUser().getName();
+                requesterAvatar = bot.getJDA().getSelfUser().getEffectiveAvatarUrl();
             }
             
             // Get volume
@@ -681,7 +698,8 @@ public class MusicService {
                     localAlbum,
                     localGenre,
                     localYear,
-                        isStreamFlag
+                    isStreamFlag,
+                    sourceIconUrl
             );
         }
         
@@ -711,7 +729,8 @@ public class MusicService {
                 null, // localAlbum
                 null, // localGenre
                 null, // localYear
-                false // isStream
+                false, // isStream
+                null // sourceIconUrl
         );
     }
     
@@ -754,6 +773,7 @@ public class MusicService {
                     String sourceType = "Unknown";
                     String source = "Unknown";
                     String thumbnailUrl = ""; // Initialize thumbnailUrl
+                    String sourceIconUrl = null;
 
                     dev.cosgy.jmusicbot.util.YtDlpManager.YtDlpMetadata ytMeta = PlayerManager.getYtDlpMetadata(track);
                     FallbackPlatform ytPlatform = PlayerManager.getYtDlpPlatform(track);
@@ -775,6 +795,7 @@ public class MusicService {
                                         java.net.URI uri = new java.net.URI(ytMeta.webpageUrl());
                                         String host = uri.getHost();
                                         if (host != null) {
+                                            String fullDomain = host;
                                             host = host.startsWith("www.") ? host.substring(4) : host;
                                             int lastDot = host.lastIndexOf('.');
                                             if (lastDot > 0) {
@@ -782,6 +803,7 @@ public class MusicService {
                                             }
                                             if (!host.isEmpty()) {
                                                 sourceType = source = host.substring(0, 1).toUpperCase() + host.substring(1);
+                                                sourceIconUrl = "https://www.google.com/s2/favicons?domain=" + fullDomain + "&sz=64";
                                             }
                                         }
                                     } catch (Exception ignored) {}
@@ -940,7 +962,13 @@ public class MusicService {
                     String requesterAvatar = "";
                     if (rm != null && rm.user != null) {
                         requesterName = rm.user.username;
-                        requesterAvatar = rm.user.avatar;
+                        // Use the cache service to get the avatar URL
+                        String cachedAvatar = avatarCacheService.getAvatarUrl(String.valueOf(rm.getOwner()));
+                        if (cachedAvatar != null) {
+                            requesterAvatar = cachedAvatar;
+                        } else {
+                            requesterAvatar = rm.user.avatar;
+                        }
                     }
                     
                     // For Spotify tracks, prepare info map
@@ -989,7 +1017,8 @@ public class MusicService {
                             spotifyInfoMap,
                             radioStationUrl,
                             radioCountry,
-                            radioAlias
+                            radioAlias,
+                            sourceIconUrl
                     );
                 })
                 .collect(Collectors.toList());
@@ -1535,6 +1564,38 @@ public class MusicService {
                 }
             default:
                 return releaseDate;
+        }
+    }
+    
+    /**
+     * Set the volume for the current player
+     * @param volume Volume level (0-150)
+     * @return true if successful
+     */
+    public boolean setVolume(int volume) {
+        if (selectedGuildId == null) return false;
+        
+        try {
+            net.dv8tion.jda.api.entities.Guild guild = bot.getJDA().getGuildById(selectedGuildId);
+            if (guild == null) return false;
+            
+            AudioHandler handler = (AudioHandler) guild.getAudioManager().getSendingHandler();
+            if (handler == null) return false;
+            
+            // Limit volume to 0-150
+            if (volume < 0) volume = 0;
+            if (volume > 150) volume = 150;
+            
+            handler.getPlayer().setVolume(volume);
+            
+            // Save setting
+            com.jagrosh.jmusicbot.settings.Settings settings = bot.getSettingsManager().getSettings(guild);
+            settings.setVolume(volume);
+            
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
         }
     }
 } 

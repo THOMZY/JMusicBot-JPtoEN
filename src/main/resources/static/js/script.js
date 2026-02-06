@@ -153,7 +153,7 @@ function setupModalButtons() {
         consoleBtn.addEventListener('click', function() {
             consoleModal.style.display = 'flex';
             if (typeof ConsoleManager !== 'undefined') {
-                ConsoleManager.refreshLogs();
+                ConsoleManager.loadConsoleLogs();
             }
         });
         

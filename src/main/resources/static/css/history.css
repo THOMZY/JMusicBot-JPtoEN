@@ -1359,3 +1359,122 @@
         min-width: 32px;
     }
 } 
+
+/* Custom requester dropdown with Avatars */
+.custom-requester-select {
+    position: relative;
+    width: 100%;
+    min-width: 150px; /* Restore minimum width */
+    user-select: none;
+    font-size: 13px;
+    color: var(--light-text);
+}
+
+.custom-requester-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 42px; /* Match previous height */
+    padding: 0 12px;
+    background-color: var(--dark-bg); /* Use dark-bg as safe default */
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.custom-requester-select-trigger span {
+    flex: 1;
+    text-align: center;
+}
+
+.custom-requester-select-trigger:hover {
+    border-color: var(--primary-color);
+}
+
+.custom-requester-select.open .custom-requester-select-trigger {
+    border-color: var(--primary-color);
+}
+
+.custom-requester-options {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 100%; /* At least as wide as parent */
+    width: max-content; /* Grow to fit content */
+    max-width: 350px; /* Prevent being absurdly wide */
+    max-height: 300px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background-color: var(--darkest-bg); /* Use solid dark color */
+    border: 1px solid var(--border-color); /* Match theme border */
+    border-radius: 4px;
+    z-index: 1000; /* Ensure it's on top */
+    display: none;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.5); /* Stronger shadow */
+    margin-top: 4px;
+}
+
+.custom-requester-select.open .custom-requester-options {
+    display: block;
+}
+
+.custom-requester-option {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05); /* Separator */
+    white-space: nowrap; /* Prevent wrapping */
+}
+
+.custom-requester-option:last-child {
+    border-bottom: none;
+}
+
+.custom-requester-option:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.custom-requester-option.selected {
+    background-color: rgba(114, 137, 218, 0.2); 
+    color: var(--primary-color);
+}
+
+.custom-requester-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    margin-right: 10px;
+    object-fit: cover;
+    background-color: #2c2f33;
+}
+
+.custom-requester-avatar.no-img {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #99aab5;
+}
+
+.arrow {
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 5px solid #99aab5;
+    transition: transform 0.2s;
+}
+
+.custom-requester-select.open .arrow {
+    transform: rotate(180deg);
+}
+
+/* Ensure container allows overflow */
+.requester-filter-container {
+    overflow: visible !important; 
+} 

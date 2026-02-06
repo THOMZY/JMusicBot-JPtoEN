@@ -168,6 +168,9 @@ public class SetgameCmd extends OwnerCommand {
         @Override
         protected void execute(SlashCommandEvent event) {
             String title = event.getOption("title").getAsString();
+            if(title.length() > 128) {
+                title = title.substring(0, 128);
+            }
             try {
                 event.getJDA().getPresence().setActivity(Activity.listening(title));
                 event.reply(event.getClient().getSuccess() + "**" + event.getJDA().getSelfUser().getName() + "** is now listening to `" + title + "`.").queue();
@@ -183,6 +186,9 @@ public class SetgameCmd extends OwnerCommand {
                 return;
             }
             String title = event.getArgs().toLowerCase().startsWith("to") ? event.getArgs().substring(2).trim() : event.getArgs();
+            if(title.length() > 128) {
+                title = title.substring(0, 128);
+            }
             try {
                 event.getJDA().getPresence().setActivity(Activity.listening(title));
                 event.replySuccess("**" + event.getSelfUser().getName() + "** is now listening to `" + title + "`.");

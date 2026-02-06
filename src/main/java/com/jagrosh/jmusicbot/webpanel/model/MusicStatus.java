@@ -37,6 +37,7 @@ public class MusicStatus {
     private final String localGenre;
     private final String localYear;
     private final boolean isStream;
+    private final String sourceIconUrl;
 
     public MusicStatus(
             String currentTrackTitle,
@@ -75,6 +76,7 @@ public class MusicStatus {
         this.localGenre = null;
         this.localYear = null;
         this.isStream = false;
+        this.sourceIconUrl = null;
     }
 
     public MusicStatus(
@@ -119,6 +121,7 @@ public class MusicStatus {
         this.localGenre = null;
         this.localYear = null;
         this.isStream = false;
+        this.sourceIconUrl = null;
     }
     
     public MusicStatus(
@@ -143,7 +146,7 @@ public class MusicStatus {
         this(currentTrackTitle, currentTrackAuthor, currentTrackUri, currentTrackThumbnail,
              currentTrackPosition, currentTrackDuration, playing, paused, hasNext,
              queueSize, source, requester, requesterAvatar, volume, sourceType,
-             inVoiceChannel, spotifyInfo, null, null, null, null, null, null, null, false);
+             inVoiceChannel, spotifyInfo, null, null, null, null, null, null, null, false, null);
     }
 
     public MusicStatus(
@@ -171,7 +174,8 @@ public class MusicStatus {
             String localAlbum,
             String localGenre,
             String localYear,
-            boolean isStream
+            boolean isStream,
+            String sourceIconUrl
     ) {
         this.currentTrackTitle = currentTrackTitle;
         this.currentTrackAuthor = currentTrackAuthor;
@@ -198,6 +202,7 @@ public class MusicStatus {
         this.localGenre = localGenre;
         this.localYear = localYear;
         this.isStream = isStream;
+        this.sourceIconUrl = sourceIconUrl;
     }
 
     public MusicStatus(
@@ -221,7 +226,7 @@ public class MusicStatus {
         this(currentTrackTitle, currentTrackAuthor, currentTrackUri, currentTrackThumbnail,
              currentTrackPosition, currentTrackDuration, playing, paused, hasNext,
              queueSize, source, requester, requesterAvatar, volume, sourceType,
-             inVoiceChannel, null, null, null, null, null, null, null, null, false);
+             inVoiceChannel, null, null, null, null, null, null, null, null, false, null);
     }
 
     // Getters and setters
@@ -324,5 +329,9 @@ public class MusicStatus {
 
     public boolean isStream() {
         return isStream;
+    }
+
+    public String getSourceIconUrl() {
+        return sourceIconUrl;
     }
 }

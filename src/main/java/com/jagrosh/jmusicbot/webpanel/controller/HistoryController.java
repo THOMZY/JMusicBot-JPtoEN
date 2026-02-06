@@ -6,6 +6,7 @@ package com.jagrosh.jmusicbot.webpanel.controller;
 
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.MusicHistory;
+import com.jagrosh.jmusicbot.webpanel.service.AvatarCacheService;
 import net.dv8tion.jda.api.entities.User;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,62 +25,14 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/history")
 public class HistoryController {
 
-    // Cache for user avatars to avoid rate limiting (1 hour cache)
-    private static final Map<String, CachedAvatar> avatarCache = new HashMap<>();
-    private static final long AVATAR_CACHE_DURATION = 60 * 60 * 1000L; // 1 hour
-    
-    private static class CachedAvatar {
-        final String url;
-        final long timestamp;
-        
-        CachedAvatar(String url) {
-            this.url = url;
-            this.timestamp = System.currentTimeMillis();
-        }
-        
-        boolean isExpired() {
-            return System.currentTimeMillis() - timestamp > AVATAR_CACHE_DURATION;
-        }
+    private final AvatarCacheService avatarCacheService;
+
+    public HistoryController(AvatarCacheService avatarCacheService) {
+        this.avatarCacheService = avatarCacheService;
     }
 
     private static boolean containsIgnoreCase(String value, String lowerNeedle) {
         return value != null && !value.isEmpty() && value.toLowerCase().contains(lowerNeedle);
-    }
-
-    /**
-     * Get avatar from cache or retrieve from Discord API
-     */
-    private String getAvatarUrl(String userId) {
-        if (userId == null || userId.isEmpty()) {
-            return null;
-        }
-        
-        // Check cache first
-        synchronized (avatarCache) {
-            CachedAvatar cached = avatarCache.get(userId);
-            if (cached != null && !cached.isExpired()) {
-                return cached.url;
-            }
-        }
-        
-        // Retrieve from Discord API
-        try {
-            User user = Bot.INSTANCE.getJDA().getUserById(userId);
-            if (user != null) {
-                String avatarUrl = user.getEffectiveAvatarUrl();
-                synchronized (avatarCache) {
-                    avatarCache.put(userId, new CachedAvatar(avatarUrl));
-                }
-                return avatarUrl;
-            }
-        } catch (Exception e) {
-            // If user not found or error, cache null to avoid repeated failures
-            synchronized (avatarCache) {
-                avatarCache.put(userId, new CachedAvatar(null));
-            }
-        }
-        
-        return null;
     }
 
     /**
@@ -102,8 +55,8 @@ public class HistoryController {
             enriched.put("formattedPlayedAt", record.getFormattedPlayedAt());
             enriched.put("formattedDuration", record.getFormattedDuration());
             
-            // Get avatar from cache or Discord API
-            String requesterAvatar = getAvatarUrl(record.getRequesterId());
+            // Get avatar from cache service
+            String requesterAvatar = avatarCacheService.getAvatarUrl(record.getRequesterId());
             enriched.put("requesterAvatar", requesterAvatar);
             
             // Copy all metadata fields
@@ -155,6 +108,7 @@ public class HistoryController {
             if (record.hasYtDlpData()) {
                 enriched.put("ytDlpSourceType", record.getYtDlpSourceType());
                 enriched.put("ytDlpThumbnailUrl", record.getYtDlpThumbnailUrl());
+                enriched.put("ytDlpSourceIconUrl", record.getYtDlpSourceIconUrl());
             }
             
             return enriched;
@@ -555,23 +509,36 @@ public class HistoryController {
             if (Bot.INSTANCE != null && Bot.INSTANCE.getMusicHistory() != null) {
                 MusicHistory musicHistory = Bot.INSTANCE.getMusicHistory();
                 List<MusicHistory.PlayRecord> allHistory = musicHistory.getHistory();
-                List<String> requesters;
+                
+                // Map name to ID to get avatar
+                Map<String, String> nameToIdMap = new HashMap<>();
+                
+                java.util.stream.Stream<MusicHistory.PlayRecord> stream = allHistory.stream();
                 
                 // Filter by guild if specified
                 if (guildId != null && !guildId.isEmpty() && !guildId.equals("all")) {
-                    requesters = allHistory.stream()
-                            .filter(record -> guildId.equals(record.getGuildId()))
-                            .map(MusicHistory.PlayRecord::getRequesterName)
-                            .filter(name -> name != null && !name.isEmpty())
-                            .distinct()
-                            .collect(Collectors.toList());
-                } else {
-                    requesters = allHistory.stream()
-                            .map(MusicHistory.PlayRecord::getRequesterName)
-                            .filter(name -> name != null && !name.isEmpty())
-                            .distinct()
-                            .collect(Collectors.toList());
+                    stream = stream.filter(record -> guildId.equals(record.getGuildId()));
                 }
+                
+                stream.forEach(record -> {
+                    String name = record.getRequesterName();
+                    String id = record.getRequesterId();
+                    if (name != null && !name.isEmpty()) {
+                        // Keep the ID associated with the name
+                        nameToIdMap.putIfAbsent(name, id);
+                    }
+                });
+
+                // Convert to list of objects with avatar
+                List<Map<String, String>> requesters = nameToIdMap.entrySet().stream()
+                        .map(entry -> {
+                            Map<String, String> req = new HashMap<>();
+                            req.put("name", entry.getKey());
+                            req.put("avatar", avatarCacheService.getAvatarUrl(entry.getValue()));
+                            return req;
+                        })
+                        .sorted((a, b) -> a.get("name").compareToIgnoreCase(b.get("name")))
+                        .collect(Collectors.toList());
                 
                 response.put("success", true);
                 response.put("requesters", requesters);

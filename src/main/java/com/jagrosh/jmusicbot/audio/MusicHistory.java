@@ -211,8 +211,8 @@ public class MusicHistory {
                 track.getDuration(),
                 info.uri,
                 System.currentTimeMillis(),
-                requester != null ? requester.getId() : "unknown",
-                requester != null ? requester.getName() : "Unknown User",
+                requester != null ? requester.getId() : bot.getJDA().getSelfUser().getId(),
+                requester != null ? requester.getName() : bot.getJDA().getSelfUser().getName(),
                 guildName,
                 guildId
             );
@@ -224,6 +224,7 @@ public class MusicHistory {
             if (ytPlatform != null && ytPlatform != FallbackPlatform.NONE) {
                 String sourceType = "Unknown";
                 String thumbnailUrl = "";
+                String sourceIconUrl = null;
 
                 switch (ytPlatform) {
                     case INSTAGRAM -> sourceType = "Instagram";
@@ -240,6 +241,7 @@ public class MusicHistory {
                                 java.net.URI uri = new java.net.URI(ytMeta.webpageUrl());
                                 String host = uri.getHost();
                                 if (host != null) {
+                                    String fullDomain = host;
                                     host = host.startsWith("www.") ? host.substring(4) : host;
                                     int lastDot = host.lastIndexOf('.');
                                     if (lastDot > 0) {
@@ -247,6 +249,7 @@ public class MusicHistory {
                                     }
                                     if (!host.isEmpty()) {
                                         sourceType = host.substring(0, 1).toUpperCase() + host.substring(1);
+                                        sourceIconUrl = "https://www.google.com/s2/favicons?domain=" + fullDomain + "&sz=64";
                                     }
                                 }
                             } catch (Exception ignored) {}
@@ -259,7 +262,7 @@ public class MusicHistory {
                 }
                 
                 if (!"Unknown".equals(sourceType)) {
-                    record.setYtDlpData(sourceType, thumbnailUrl);
+                    record.setYtDlpData(sourceType, thumbnailUrl, sourceIconUrl);
                 }
             }
 
@@ -477,7 +480,8 @@ public class MusicHistory {
                             ObjectNode ytDlpData = (ObjectNode) recordNode.get("ytDlpData");
                             record.setYtDlpData(
                                 ytDlpData.path("sourceType").asText(null),
-                                ytDlpData.path("thumbnailUrl").asText(null)
+                                ytDlpData.path("thumbnailUrl").asText(null),
+                                ytDlpData.path("sourceIconUrl").asText(null)
                             );
                         } else if (recordNode.has("youtubeData")) {
                             ObjectNode ytData = (ObjectNode) recordNode.get("youtubeData");
@@ -559,6 +563,7 @@ public class MusicHistory {
                     ObjectNode ytDlpData = recordNode.putObject("ytDlpData");
                     ytDlpData.put("sourceType", record.getYtDlpSourceType());
                     ytDlpData.put("thumbnailUrl", record.getYtDlpThumbnailUrl());
+                    ytDlpData.put("sourceIconUrl", record.getYtDlpSourceIconUrl());
                 } else if (record.hasYoutubeData()) {
                     ObjectNode ytData = recordNode.putObject("youtubeData");
                     ytData.put("videoId", record.getYoutubeVideoId());
@@ -680,6 +685,7 @@ public class MusicHistory {
         // YtDlp metadata
         private String ytDlpSourceType;
         private String ytDlpThumbnailUrl;
+        private String ytDlpSourceIconUrl;
 
         /**
          * Creates a new play record
@@ -823,13 +829,15 @@ public class MusicHistory {
         public String getSoundCloudArtworkUrl() { return soundCloudArtworkUrl; }
 
         // YtDlp metadata
-        public void setYtDlpData(String sourceType, String thumbnailUrl) {
+        public void setYtDlpData(String sourceType, String thumbnailUrl, String sourceIconUrl) {
             this.ytDlpSourceType = sourceType;
             this.ytDlpThumbnailUrl = thumbnailUrl;
+            this.ytDlpSourceIconUrl = sourceIconUrl;
         }
 
         public boolean hasYtDlpData() { return ytDlpSourceType != null; }
         public String getYtDlpSourceType() { return ytDlpSourceType; }
         public String getYtDlpThumbnailUrl() { return ytDlpThumbnailUrl; }
+        public String getYtDlpSourceIconUrl() { return ytDlpSourceIconUrl; }
     }
 } 

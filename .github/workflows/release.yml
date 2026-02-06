@@ -36,5 +36,5 @@ jobs:
           name: "Release v${{ env.PROJECT_VERSION }}"
           body: "Release version ${{ env.PROJECT_VERSION }}"
           files: |
-            target/*-All.jar
+            target/JMusicBot.jar
             config.txt

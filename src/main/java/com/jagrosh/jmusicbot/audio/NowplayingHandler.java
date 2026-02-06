@@ -167,7 +167,11 @@ public class NowplayingHandler {
                         if (info != null && info.getSonginfo() != null) {
                             // Format as Artist - Title for Gensokyo Radio
                             String artistTitle = info.getSonginfo().getArtist() + " - " + info.getSonginfo().getTitle();
-                            bot.getJDA().getPresence().setActivity(Activity.listening(artistTitle));
+                            String statusTitle = artistTitle;
+                            if(statusTitle.length() > 128) {
+                                statusTitle = statusTitle.substring(0, 128);
+                            }
+                            bot.getJDA().getPresence().setActivity(Activity.listening(statusTitle));
                             
                             // Update track title to include current song info
                             // This affects what's displayed in other places
@@ -231,6 +235,9 @@ public class NowplayingHandler {
                 }
                 
                 // Now set the activity with our guaranteed non-empty title
+                if(title.length() > 128) {
+                    title = title.substring(0, 128);
+                }
                 bot.getJDA().getPresence().setActivity(Activity.listening(title));
             } else {
                 bot.resetGame();
@@ -307,7 +314,11 @@ public class NowplayingHandler {
                     
                     // Update bot status if applicable
                     if (bot.getConfig().getSongInStatus()) {
-                        bot.getJDA().getPresence().setActivity(Activity.listening(artistTitle));
+                        String statusTitle = artistTitle;
+                        if(statusTitle.length() > 128) {
+                            statusTitle = statusTitle.substring(0, 128);
+                        }
+                        bot.getJDA().getPresence().setActivity(Activity.listening(statusTitle));
                     }
                     
                     // Update topics

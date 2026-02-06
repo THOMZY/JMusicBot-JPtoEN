@@ -50,9 +50,6 @@
                     <i id="track-source-icon" class="fas fa-music"></i> <span id="track-source-text">Source: Unknown</span>
                 </div>
                 <div class="metadata-item">
-                    <i class="fas fa-volume-up"></i> <span id="track-volume">Volume: 100%</span>
-                </div>
-                <div class="metadata-item">
                     <i class="fas fa-user"></i> <span id="track-requester">Requested by: Unknown</span>
                 </div>
             </div>
@@ -79,5 +76,18 @@
         <button id="chapters-toggle" class="chapters-toggle" type="button" aria-label="Toggle YouTube chapters" title="Show YouTube Chapters" aria-expanded="false" hidden disabled>
             <i class="fas fa-list-ul"></i>
         </button>
+    </div>
+    
+    <!-- Volume Control (positioned bottom-right via CSS) -->
+    <div class="volume-control" id="volume-control-container">
+        <div class="volume-icon-wrapper">
+            <i class="fas fa-volume-up" id="volume-icon"></i>
+        </div>
+        <div class="volume-slider-container">
+            <input type="range" id="volume-slider" min="0" max="150" value="100" class="volume-slider" title="Volume">
+        </div>
+        <div class="volume-text-wrapper">
+            <span id="track-volume">100%</span>
+        </div>
     </div>
 </div> 

@@ -108,14 +108,11 @@ public class PlayerManager extends DefaultAudioPlayerManager {
             }
         }
 
-        registerSourceManager(new YoutubeAudioSourceManager(ytOptions, new Client[] { new Music(),
-                new TvHtml5Embedded(),
-                new AndroidMusic(),
+        registerSourceManager(new YoutubeAudioSourceManager(ytOptions, new Client[] { 
+                new Tv(),
                 new Web(),
-                new WebEmbedded(),
-                new Android(),
-                new Ios()
-        }));
+                new MWeb()
+                }));
 
         TransformativeAudioSourceManager.createTransforms(bot.getConfig().getTransforms()).forEach(this::registerSourceManager);
         AudioSourceManagers.registerRemoteSources(this);
@@ -126,7 +123,7 @@ public class PlayerManager extends DefaultAudioPlayerManager {
         // YouTube OAuth2 integration with persistent refresh token
         String ytRefreshToken = bot.getConfig().getYouTubeRefreshToken();
         if (ytRefreshToken != null && !ytRefreshToken.isEmpty()) {
-            source(YoutubeAudioSourceManager.class).useOauth2(ytRefreshToken, false);
+            source(YoutubeAudioSourceManager.class).useOauth2(ytRefreshToken, true);
         } else {
             source(YoutubeAudioSourceManager.class).useOauth2(null, false);
         }

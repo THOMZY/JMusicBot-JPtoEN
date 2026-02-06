@@ -58,10 +58,12 @@ public class ChannelsService {
     private static final Logger log = LoggerFactory.getLogger(ChannelsService.class);
     
     private final Bot bot;
+    private final AvatarCacheService avatarCacheService;
     
     @Autowired
-    public ChannelsService(Bot bot) {
+    public ChannelsService(Bot bot, AvatarCacheService avatarCacheService) {
         this.bot = bot;
+        this.avatarCacheService = avatarCacheService;
     }
 
     /**
@@ -226,10 +228,15 @@ public class ChannelsService {
                 boolean isStreaming = member.getVoiceState() != null && member.getVoiceState().isSendingVideo(); // JDA uses isSendingVideo for streaming
                 boolean isVideoEnabled = member.getVoiceState() != null && member.getVoiceState().isSendingVideo(); // Same as streaming for this basic impl.
                 
+                String userAvatar = avatarCacheService.getAvatarUrl(user.getId());
+                if (userAvatar == null) {
+                    userAvatar = user.getEffectiveAvatarUrl();
+                }
+
                 connectedUsers.add(new ChannelMember(
                     user.getId(), 
                     member.getEffectiveName(), 
-                    user.getEffectiveAvatarUrl(), 
+                    userAvatar, 
                     user.isBot(),
                     isMuted, 
                     isDeafened,
@@ -425,10 +432,15 @@ public class ChannelsService {
                 }
 
                 // Process author
+                String authorAvatar = avatarCacheService.getAvatarUrl(authorUser.getId());
+                if (authorAvatar == null) {
+                    authorAvatar = authorUser.getEffectiveAvatarUrl();
+                }
+
                 DiscordMessage.MessageAuthor discordAuthor = new DiscordMessage.MessageAuthor(
                     authorUser.getId(),
                     authorUser.getName(),
-                    authorUser.getEffectiveAvatarUrl(),
+                    authorAvatar,
                     authorUser.isBot(),
                     highestRoleColor
                 );
@@ -665,7 +677,13 @@ public class ChannelsService {
             profile.setUsername(user.getName());
             profile.setDiscriminator(user.getDiscriminator());
             profile.setEffectiveName(member.getEffectiveName());
-            profile.setAvatarUrl(user.getEffectiveAvatarUrl());
+            
+            String userAvatar = avatarCacheService.getAvatarUrl(user.getId());
+            if (userAvatar == null) {
+                userAvatar = user.getEffectiveAvatarUrl();
+            }
+            profile.setAvatarUrl(userAvatar);
+            
             profile.setBannerUrl(userProfile.getBannerUrl());
             if (userProfile.getAccentColor() != null) {
                 profile.setAccentColorHex(String.format("#%06x", userProfile.getAccentColor().getRGB() & 0xFFFFFF));

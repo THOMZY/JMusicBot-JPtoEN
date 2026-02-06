@@ -196,6 +196,11 @@ const Router = (() => {
         const config = views[viewName];
         if (!config) return;
 
+        // Reset server dropdown to normal (remove "All Servers") if leaving history
+        if (viewName !== 'history' && typeof ServerManager !== 'undefined' && typeof ServerManager.refreshDropdown === 'function') {
+            ServerManager.refreshDropdown();
+        }
+
         // Hide the floating chapters sidebar whenever we leave the player view
         if (viewName !== 'player' && typeof YouTubeChapters !== 'undefined') {
             YouTubeChapters.hideChaptersContainer();

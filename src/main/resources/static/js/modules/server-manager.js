@@ -34,37 +34,7 @@ const ServerManager = (function() {
             // Make servers available globally
             window.servers = servers;
             
-            serverDropdownContent.innerHTML = '';
-            
-            if (servers.length === 0) {
-                serverDropdownContent.innerHTML = '<div class="server-item">No servers available</div>';
-                selectedServerName.textContent = 'No servers available';
-                return;
-            }
-            
-            servers.forEach(guild => {
-                const item = document.createElement('div');
-                item.className = 'server-item';
-                item.setAttribute('data-id', guild.id);
-                
-                // Create icon element (using default if none provided)
-                const iconUrl = guild.iconUrl || 'https://cdn.discordapp.com/embed/avatars/0.png';
-                
-                item.innerHTML = `
-                    <img class="server-icon" src="${iconUrl}" alt="${guild.name}">
-                    <span class="server-name">${guild.name}</span>
-                `;
-                
-                // Add debug log to verify the click event
-                item.addEventListener('click', (event) => {
-                    console.log('Server clicked:', guild.name, guild.id);
-                    event.stopPropagation(); // Prevent event bubbling
-                    changeServer(guild.id);
-                    document.getElementById('server-dropdown-content').classList.remove('show');
-                });
-                
-                serverDropdownContent.appendChild(item);
-            });
+            renderServerList();
         } catch (error) {
             console.error('Error loading servers:', error);
             UI.showToast('Error loading servers', false);
@@ -75,6 +45,56 @@ const ServerManager = (function() {
             if (serverDropdownContent) serverDropdownContent.innerHTML = '<div class="server-item">Error loading servers</div>';
             if (selectedServerName) selectedServerName.textContent = 'Error loading servers';
         }
+    }
+
+    // Render server list to dropdown
+    function renderServerList() {
+        // Check if we are on history page - let HistoryModule handle the dropdown to include "All Servers"
+        if (window.location.pathname.endsWith('/history.html') || window.location.pathname === '/history') {
+             console.log('ServerManager: Skipping dropdown render on history page to avoid overwriting HistoryModule');
+             return;
+        }
+
+        // Check if DOM elements exist
+        const serverDropdownContent = document.getElementById('server-dropdown-content');
+        const selectedServerName = document.getElementById('selected-server-name');
+        
+        if (!serverDropdownContent || !selectedServerName) {
+            console.warn('ServerManager: DOM elements not found for render');
+            return;
+        }
+
+        serverDropdownContent.innerHTML = '';
+        
+        if (servers.length === 0) {
+            serverDropdownContent.innerHTML = '<div class="server-item">No servers available</div>';
+            selectedServerName.textContent = 'No servers available';
+            return;
+        }
+        
+        servers.forEach(guild => {
+            const item = document.createElement('div');
+            item.className = 'server-item';
+            item.setAttribute('data-id', guild.id);
+            
+            // Create icon element (using default if none provided)
+            const iconUrl = guild.iconUrl || 'https://cdn.discordapp.com/embed/avatars/0.png';
+            
+            item.innerHTML = `
+                <img class="server-icon" src="${iconUrl}" alt="${guild.name}">
+                <span class="server-name">${guild.name}</span>
+            `;
+            
+            // Add debug log to verify the click event
+            item.addEventListener('click', (event) => {
+                console.log('Server clicked:', guild.name, guild.id);
+                event.stopPropagation(); // Prevent event bubbling
+                changeServer(guild.id);
+                document.getElementById('server-dropdown-content').classList.remove('show');
+            });
+            
+            serverDropdownContent.appendChild(item);
+        });
     }
 
     // Get currently selected guild
@@ -171,6 +191,7 @@ const ServerManager = (function() {
     return {
         initialize,
         loadServers,
+        refreshDropdown: renderServerList,
         getSelectedGuild,
         getSelectedGuildId,
         updateServerDisplay,

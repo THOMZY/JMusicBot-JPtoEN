@@ -901,35 +901,132 @@ const HistoryModule = (() => {
      * Update the requester dropdown with the provided list of requesters
      */
     const updateRequesterDropdown = (requesters) => {
-        // Sort alphabetically
-        const sortedRequesters = [...requesters].sort();
-        uniqueRequesters = sortedRequesters;
+        // Store requesters (now objects {name, avatar})
+        uniqueRequesters = requesters;
         
-        // Update the dropdown
+        // Get the native dropdown
         const select = historyElements.requesterSelect;
-        
-        // Save current selection
         const currentSelection = select.value;
         
-        // Clear existing options and ensure default "Anyone" option
+        // Populate native select for compatibility
         select.innerHTML = '<option value="all">Anyone</option>';
-        
-        // Add requester options
-        sortedRequesters.forEach(requester => {
+        requesters.forEach(requester => {
             const option = document.createElement('option');
-            option.value = requester;
-            option.textContent = requester;
+            // Check if requester is object or string (backward compatibility)
+            const name = typeof requester === 'string' ? requester : requester.name;
+            option.value = name;
+            option.textContent = name;
             select.appendChild(option);
         });
-        
-        // Restore selection if it still exists
-        if (currentSelection && currentSelection !== 'all' && sortedRequesters.includes(currentSelection)) {
-            select.value = currentSelection;
-            return;
-        }
 
-        // Default selection
-        select.value = 'all';
+        // Initialize Custom Dropdown if needed
+        let customSelect = document.getElementById('custom-requester-select');
+        let optionsContainer, triggerSpan;
+        
+        if (!customSelect) {
+            // Create wrapper
+            const wrapper = document.createElement('div');
+            wrapper.id = 'custom-requester-select';
+            wrapper.className = 'custom-requester-select';
+            
+            // Insert custom select after the original select and hide original
+            select.parentNode.insertBefore(wrapper, select.nextSibling);
+            select.style.display = 'none';
+            
+            // Create Trigger
+            const trigger = document.createElement('div');
+            trigger.className = 'custom-requester-select-trigger';
+            trigger.innerHTML = '<span>Anyone</span><div class="arrow"></div>';
+            triggerSpan = trigger.querySelector('span');
+            
+            // Create Options Container
+            optionsContainer = document.createElement('div');
+            optionsContainer.className = 'custom-requester-options';
+            
+            wrapper.appendChild(trigger);
+            wrapper.appendChild(optionsContainer);
+            
+            customSelect = wrapper;
+            
+            // Event Listeners
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                customSelect.classList.toggle('open');
+            });
+            
+            document.addEventListener('click', (e) => {
+                if (!customSelect.contains(e.target)) {
+                    customSelect.classList.remove('open');
+                }
+            });
+        } else {
+            select.style.display = 'none';
+            optionsContainer = customSelect.querySelector('.custom-requester-options');
+            triggerSpan = customSelect.querySelector('.custom-requester-select-trigger span');
+        }
+        
+        // Decide Current Selection
+        let selectedValue = 'all';
+        if (currentSelection && currentSelection !== 'all') {
+            const name = typeof requesters[0] === 'string' ? currentSelection : currentSelection; 
+            // Simplified check: just check if value exists in options
+            if (Array.from(select.options).some(o => o.value === currentSelection)) {
+                selectedValue = currentSelection;
+            }
+        }
+        select.value = selectedValue;
+
+        // Update Custom Options
+        optionsContainer.innerHTML = '';
+        
+        const createOption = (val, label, avatar) => {
+            const div = document.createElement('div');
+            div.className = 'custom-requester-option';
+            div.dataset.value = val;
+            if (val === selectedValue) div.classList.add('selected');
+            
+            if (val === 'all') {
+                 div.innerHTML = `<span style="width: 100%; text-align: center;">${label}</span>`;
+            } else {
+                 const avatarHtml = avatar 
+                    ? `<img src="${avatar}" class="custom-requester-avatar" alt="">` 
+                    : `<div class="custom-requester-avatar no-img"><i class="fas fa-user"></i></div>`;
+                 div.innerHTML = `${avatarHtml}<span>${label}</span>`;
+            }
+            
+            div.addEventListener('click', () => {
+                select.value = val;
+                triggerSpan.textContent = label;
+                
+                // Update active state
+                customSelect.querySelectorAll('.custom-requester-option').forEach(el => {
+                    if (el.dataset.value === val) el.classList.add('selected');
+                    else el.classList.remove('selected');
+                });
+                
+                customSelect.classList.remove('open');
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            
+            return div;
+        };
+
+        // Add 'Anyone'
+        optionsContainer.appendChild(createOption('all', 'Anyone', null));
+        
+        // Add Requesters
+        requesters.forEach(r => {
+            const name = typeof r === 'string' ? r : r.name;
+            const avatar = typeof r === 'string' ? null : r.avatar;
+            optionsContainer.appendChild(createOption(name, name, avatar));
+        });
+
+        // Set initial trigger text
+        if (selectedValue === 'all') {
+            triggerSpan.textContent = 'Anyone';
+        } else {
+            triggerSpan.textContent = selectedValue;
+        }
     };
 
     /**
@@ -1435,36 +1532,41 @@ const HistoryModule = (() => {
                 }
                 
                 sourceType = record.ytDlpData?.sourceType || record.ytDlpSourceType || 'Unknown';
-                
-                // Set icon based on source type
-                switch(sourceType.toLowerCase()) {
-                    case 'instagram':
-                        sourceIcon = '<i class="fab fa-instagram source-icon-instagram"></i>';
-                        break;
-                    case 'tiktok':
-                        sourceIcon = '<i class="fab fa-tiktok source-icon-tiktok"></i>';
-                        break;
-                    case 'twitter':
-                    case 'x':
-                        sourceIcon = '<i class="fab fa-twitter source-icon-twitter"></i>';
-                        break;
-                    case 'bilibili':
-                        sourceIcon = '<i class="fas fa-tv source-icon-bilibili"></i>';
-                        break;
-                    case 'vimeo':
-                        sourceIcon = '<i class="fab fa-vimeo source-icon-vimeo"></i>';
-                        break;
-                    case 'twitch':
-                        sourceIcon = '<i class="fab fa-twitch source-icon-twitch"></i>';
-                        break;
-                    case 'soundcloud':
-                        sourceIcon = '<i class="fab fa-soundcloud source-icon-soundcloud"></i>';
-                        break;
-                    case 'youtube':
-                        sourceIcon = '<i class="fab fa-youtube source-icon-youtube"></i>';
-                        break;
-                    default:
-                        sourceIcon = '<i class="fas fa-globe source-icon-web"></i>';
+                const customIconUrl = record.ytDlpData?.sourceIconUrl || record.ytDlpSourceIconUrl;
+
+                if (customIconUrl) {
+                    sourceIcon = `<img src="${customIconUrl}" alt="${sourceType}" style="width: 1em; height: 1em; vertical-align: -0.125em;">`;
+                } else {
+                    // Set icon based on source type
+                    switch(sourceType.toLowerCase()) {
+                        case 'instagram':
+                            sourceIcon = '<i class="fab fa-instagram source-icon-instagram"></i>';
+                            break;
+                        case 'tiktok':
+                            sourceIcon = '<i class="fab fa-tiktok source-icon-tiktok"></i>';
+                            break;
+                        case 'twitter':
+                        case 'x':
+                            sourceIcon = '<i class="fab fa-twitter source-icon-twitter"></i>';
+                            break;
+                        case 'bilibili':
+                            sourceIcon = '<i class="fas fa-tv source-icon-bilibili"></i>';
+                            break;
+                        case 'vimeo':
+                            sourceIcon = '<i class="fab fa-vimeo source-icon-vimeo"></i>';
+                            break;
+                        case 'twitch':
+                            sourceIcon = '<i class="fab fa-twitch source-icon-twitch"></i>';
+                            break;
+                        case 'soundcloud':
+                            sourceIcon = '<i class="fab fa-soundcloud source-icon-soundcloud"></i>';
+                            break;
+                        case 'youtube':
+                            sourceIcon = '<i class="fab fa-youtube source-icon-youtube"></i>';
+                            break;
+                        default:
+                            sourceIcon = '<i class="fas fa-globe source-icon-web"></i>';
+                    }
                 }
             }
             // Check for Spotify
@@ -1645,25 +1747,6 @@ const HistoryModule = (() => {
                     </button>
                 </div>
             `;
-            
-            // Add filter by requester event
-            const requesterItem = historyItem.querySelector('.requester-item');
-            if (requesterItem) {
-                requesterItem.addEventListener('click', function() {
-                    const requesterName = this.getAttribute('data-requester');
-                    if (requesterName) {
-                        // Update filter
-                        activeFilters.requester = requesterName;
-                        
-                        // Update select dropdown
-                        historyElements.requesterSelect.value = requesterName;
-                        
-                        // Reload history
-                        currentPage = 1;
-                        loadHistory();
-                    }
-                });
-            }
             
             // Add play again event listener
             historyItem.querySelector('.play-again-btn').addEventListener('click', function() {

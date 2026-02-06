@@ -2002,6 +2002,9 @@ public class RadioCmd extends MusicCommand {
                     .filter(g -> g.getSelfMember().getVoiceState() != null && 
                             g.getSelfMember().getVoiceState().inAudioChannel())
                     .count() <= 1) {
+                if(newTitle.length() > 128) {
+                    newTitle = newTitle.substring(0, 128);
+                }
                 bot.getJDA().getPresence().setActivity(Activity.listening(newTitle));
             }
         }

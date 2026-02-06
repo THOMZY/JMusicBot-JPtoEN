@@ -1643,6 +1643,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         TrackType trackType = getTrackType(track);
         String sourcePlatform = "Unknown Source";
         String sourceKey = null;
+        String customIconUrl = null;
 
         if (ytPlatform != null && ytPlatform != FallbackPlatform.NONE) {
             switch (ytPlatform) {
@@ -1654,7 +1655,27 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                 case TWITCH -> { sourcePlatform = "Twitch"; sourceKey = "twitch"; }
                 case SOUNDCLOUD -> { sourcePlatform = "SoundCloud"; sourceKey = "soundcloud"; }
                 case YOUTUBE -> { sourcePlatform = "YouTube"; sourceKey = "youtube"; }
-                default -> { }
+                default -> {
+                    if (ytMeta != null && ytMeta.webpageUrl() != null) {
+                        try {
+                            java.net.URI uri = new java.net.URI(ytMeta.webpageUrl());
+                            String host = uri.getHost();
+                            if (host != null) {
+                                String fullDomain = host;
+                                host = host.startsWith("www.") ? host.substring(4) : host;
+                                int lastDot = host.lastIndexOf('.');
+                                if (lastDot > 0) {
+                                    host = host.substring(0, lastDot);
+                                }
+                                if (!host.isEmpty()) {
+                                    sourcePlatform = host.substring(0, 1).toUpperCase() + host.substring(1);
+                                    sourceKey = sourcePlatform.toLowerCase();
+                                    customIconUrl = "https://www.google.com/s2/favicons?domain=" + fullDomain + "&sz=64";
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
             }
         }
 
@@ -1699,7 +1720,8 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         appendProgressBar(descBuilder, track);
         eb.setDescription(descBuilder.toString());
 
-        eb.setFooter("Source: " + sourcePlatform, getSourceIconUrl(sourceKey != null ? sourceKey : sourcePlatform.toLowerCase()));
+        String finalIconUrl = customIconUrl != null ? customIconUrl : getSourceIconUrl(sourceKey != null ? sourceKey : sourcePlatform.toLowerCase());
+        eb.setFooter("Source: " + sourcePlatform, finalIconUrl);
     }
     
     /**

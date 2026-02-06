@@ -198,8 +198,7 @@ const YouTubeChapters = (function() {
      */
     async function seekToChapter(timeMs) {
         try {
-            const seconds = Math.floor(timeMs / 1000);
-            const response = await fetch(`/api/player/seek/${seconds}`, {
+            const response = await fetch(`/api/seek?position=${timeMs}`, {
                 method: 'POST'
             });
             

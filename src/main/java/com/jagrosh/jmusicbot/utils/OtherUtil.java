@@ -126,14 +126,26 @@ public class OtherUtil {
             return null;
         String lower = game.toLowerCase();
 
-        if (lower.startsWith("playing"))
-            return Activity.playing(makeNonEmpty(game.substring(7).trim()));
-        if (lower.startsWith("listening to"))
-            return Activity.listening(makeNonEmpty(game.substring(12).trim()));
-        if (lower.startsWith("listening"))
-            return Activity.listening(makeNonEmpty(game.substring(9).trim()));
-        if (lower.startsWith("watching"))
-            return Activity.watching(makeNonEmpty(game.substring(8).trim()));
+        if (lower.startsWith("playing")) {
+            String currGame = makeNonEmpty(game.substring(7).trim());
+            if(currGame != null && currGame.length() > 128) currGame = currGame.substring(0, 128);
+            return Activity.playing(currGame);
+        }
+        if (lower.startsWith("listening to")) {
+            String currGame = makeNonEmpty(game.substring(12).trim());
+            if(currGame != null && currGame.length() > 128) currGame = currGame.substring(0, 128);
+            return Activity.listening(currGame);
+        }
+        if (lower.startsWith("listening")) {
+            String currGame = makeNonEmpty(game.substring(9).trim());
+            if(currGame != null && currGame.length() > 128) currGame = currGame.substring(0, 128);
+            return Activity.listening(currGame);
+        }
+        if (lower.startsWith("watching")) {
+            String currGame = makeNonEmpty(game.substring(8).trim());
+            if(currGame != null && currGame.length() > 128) currGame = currGame.substring(0, 128);
+            return Activity.watching(currGame);
+        }
         if (lower.startsWith("streaming")) {
             String[] parts = game.substring(9).trim().split("\\s+", 2);
             if (parts.length == 2) {

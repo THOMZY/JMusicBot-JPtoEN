@@ -819,12 +819,30 @@ const Player = (function() {
                     currentTime.style.display = 'none';
                     totalTime.style.display = 'none';
                     
-                    // Add special class to position the indicator correctly when times are hidden
-                    // This adds margin and relative positioning to the indicator
+                    // Use the same approach as Radio: create a separate container for the live indicator
                     const timeDisplay = document.querySelector('.time-display');
                     timeDisplay.classList.add('time-display-hidden');
-                    timeDisplay.classList.remove('with-live-indicator');
-                    timeDisplay.style.justifyContent = 'center';
+                    timeDisplay.style.display = 'none';
+                    
+                    const progressContainer = document.querySelector('.progress-container');
+                    const controlsContainer = document.querySelector('.controls');
+                    
+                    // Create or use an existing container for the live indicator
+                    let liveIndicatorContainer = document.getElementById('live-indicator-container');
+                    if (!liveIndicatorContainer) {
+                        liveIndicatorContainer = document.createElement('div');
+                        liveIndicatorContainer.id = 'live-indicator-container';
+                        liveIndicatorContainer.className = 'time-display time-display-hidden';
+                        progressContainer.parentNode.insertBefore(liveIndicatorContainer, controlsContainer);
+                    }
+                    
+                    // Move the live indicator to the container if it's not already there
+                    if (liveIndicator.parentNode !== liveIndicatorContainer) {
+                        liveIndicatorContainer.innerHTML = '';
+                        liveIndicatorContainer.appendChild(liveIndicator);
+                    }
+                    
+                    liveIndicatorContainer.style.display = 'flex';
                     
                     // Special handling for Gensokyo Radio streams that are showing as 'Stream' type
                     if (data.currentTrackUri && data.currentTrackUri.includes('stream.gensokyoradio.net')) {

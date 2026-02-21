@@ -22,6 +22,7 @@ import com.jagrosh.jdautilities.command.CommandClientBuilder;
 import com.jagrosh.jdautilities.command.SlashCommand;
 import com.jagrosh.jdautilities.commons.waiter.EventWaiter;
 import com.jagrosh.jmusicbot.entities.Prompt;
+import com.jagrosh.jmusicbot.gui.DelegatingPrintStream;
 import com.jagrosh.jmusicbot.gui.GUI;
 import com.jagrosh.jmusicbot.settings.SettingsManager;
 import com.jagrosh.jmusicbot.utils.OtherUtil;
@@ -67,6 +68,9 @@ public class JMusicBot {
     public final static GatewayIntent[] INTENTS = {GatewayIntent.DIRECT_MESSAGES, GatewayIntent.GUILD_MESSAGES, GatewayIntent.GUILD_MESSAGE_REACTIONS, GatewayIntent.GUILD_VOICE_STATES, GatewayIntent.MESSAGE_CONTENT}; // , GatewayIntent.MESSAGE_CONTENT
     public static boolean CHECK_UPDATE = true;
     public static boolean COMMAND_AUDIT_ENABLED = false;
+    
+    // Delegating PrintStream for OAuth2 logs - can be updated when GUI is initialized
+    private static DelegatingPrintStream originalOut;
 
     /**
      * @param args the command line arguments
@@ -135,9 +139,25 @@ public class JMusicBot {
         if (!config.isValid())
             return;
 
+        // Initialize GUI early if not in nogui mode to capture all logs
+        GUI gui = null;
+        if (!prompt.isNoGUI()) {
+            try {
+                gui = new GUI();
+                // Don't call gui.init() yet - just create it to redirect System.out
+                log.info("GUI console initialized - all logs will appear in the GUI");
+            } catch (Exception e) {
+                log.error("Could not create the GUI. The following factors may be causing this:\n"
+                        + "Running on a server\n"
+                        + "Running in an environment without a display\n"
+                        + "To hide this error, use the -Dnogui=true flag to run in GUI-less mode.");
+            }
+        }
+
         // --- YouTube OAuth2: Log Listener for Refresh Token ---
         // Redirect System.out to capture refresh token log and update config.txt automatically.
-        PrintStream originalOut = System.out;
+        // Use DelegatingPrintStream so we can update the destination when GUI is initialized
+        originalOut = new DelegatingPrintStream(System.out);
         System.setOut(new PrintStream(new OutputStream() {
             private final StringBuilder buffer = new StringBuilder();
             @Override
@@ -182,6 +202,12 @@ public class JMusicBot {
         SettingsManager settings = new SettingsManager();
         Bot bot = new Bot(waiter, config, settings);
         Bot.INSTANCE = bot;
+        
+        // If GUI was created earlier, now set the bot and initialize the window
+        final GUI finalGui = gui;
+        if (finalGui != null) {
+            finalGui.setBot(bot);
+        }
 
         AboutCommand aboutCommand = new AboutCommand(Color.BLUE.brighter(),
                 "[JMusicBot (v" + version + ")](https://github.com/THOMZY/JMusicBot-JPtoEN)",
@@ -227,7 +253,6 @@ public class JMusicBot {
             add(new SpotifyCmd(bot));
             add(new PlaylistsCmd(bot));
             add(new MylistCmd(bot));
-            //add(new QueueCmd(bot));
             add(new QueueCmd(bot));
             add(new RemoveCmd(bot));
             add(new SearchCmd(bot));
@@ -245,15 +270,12 @@ public class JMusicBot {
             add(new MoveTrackCmd(bot));
             add(new PauseCmd(bot));
             add(new PlaynextCmd(bot));
-            //add(new RepeatCmd(bot));
             add(new RepeatCmd(bot));
             add(new SkipToCmd(bot));
             add(new ForceToEnd(bot));
             add(new StopCmd(bot));
             add(new HistoryCmd(bot));
-            //add(new VolumeCmd(bot));
             // Admin
-            //add(new ActivateCmd(bot));
             add(new PrefixCmd(bot));
             add(new SetdjCmd(bot));
             add(new SkipratioCmd(bot));
@@ -271,7 +293,7 @@ public class JMusicBot {
             add(new SetstatusCmd(bot));
             add(new PublistCmd(bot));
             add(new ShutdownCmd(bot));
-            //add(new LeaveCmd(bot));
+            add(new LeaveCmd(bot));
         }};
 
         cb.addCommands(slashCommandList.toArray(new Command[0]));
@@ -289,16 +311,14 @@ public class JMusicBot {
             nogame = true;
         } else
             cb.setActivity(config.getGame());
-        if (!prompt.isNoGUI()) {
+        // Initialize the GUI window if it was created earlier
+        if (finalGui != null) {
             try {
-                GUI gui = new GUI(bot);
-                bot.setGUI(gui);
-                gui.init();
+                bot.setGUI(finalGui);
+                finalGui.init();
+                log.info("GUI window initialized and visible");
             } catch (Exception e) {
-                log.error("Could not open the GUI. The following factors may be causing this:\n"
-                        + "Running on a server\n"
-                        + "Running in an environment without a display\n"
-                        + "To hide this error, use the -Dnogui=true flag to run in GUI-less mode.");
+                log.error("Could not initialize the GUI window: " + e.getMessage());
             }
         }
 

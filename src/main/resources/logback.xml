@@ -48,6 +48,10 @@
     <!-- Suppress noisy logs when an HTTPS/TLS handshake hits the HTTP port -->
     <logger name="org.apache.coyote.http11.Http11Processor" level="WARN"/>
 
+    <!-- IPv6 Rotation Debugging: Uncomment to see detailed IPv6 address selection -->
+    <!-- <logger name="com.sedmelluq.lava.extensions.youtuberotator" level="DEBUG"/> -->
+    <!-- <logger name="com.jagrosh.jmusicbot.audio.PlayerManager" level="DEBUG"/> -->
+
     <root level="INFO">
         <appender-ref ref="Simple"/>
         <appender-ref ref="File"/>

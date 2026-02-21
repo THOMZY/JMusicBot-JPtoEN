@@ -364,7 +364,9 @@ public final class YtDlpManager {
         if (os.contains("mac") || os.contains("darwin")) {
             return "yt-dlp_macos";
         }
-        return "yt-dlp_linux";
+        // Use the platform-independent zipimport binary for Linux/BSD (recommended by yt-dlp)
+        // This requires Python but is more portable and compatible than yt-dlp_linux
+        return "yt-dlp";
     }
 
     private static String assetNameForLocal(String asset) {

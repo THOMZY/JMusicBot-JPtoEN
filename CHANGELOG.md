@@ -2,6 +2,21 @@
 
 ---
 
+# 21 February 2026
+
+### 🚀 New Features
+- IPv6 rotation implementation.
+
+### 🔧 Changes
+- Better console in webpanel.
+- Fixed yt-dlp for linux download.
+
+### 📦 Dependency Updates
+- **dev.arbjerg-lavaplayer**: `2.2.4` → `2.2.6`
++ **dev.arbjerg-lavaplayer-ext-youtube-rotator**: `2.2.6`
+
+---
+
 # 06 February 2026
 
 ### 🔧 Changes

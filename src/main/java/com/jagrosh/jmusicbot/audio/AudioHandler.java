@@ -710,20 +710,23 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
             }
         }
         
-        // Handle YouTube livestreams that ended prematurely
-        // Only replay if the stream crashed within the first 30 seconds (premature end)
-        // If it played longer, it's likely a normal stream end, so continue to next track
+        // Handle YouTube livestreams that ended unexpectedly
+        // Always attempt to replay YouTube streams that end with FINISHED or LOAD_FAILED
+        // If the stream is truly ended, the replay attempt will fail naturally and move to next track
         if (track != null && track.getInfo().isStream && track.getInfo().uri.contains("youtube.com") 
             && (endReason == AudioTrackEndReason.FINISHED || endReason == AudioTrackEndReason.LOAD_FAILED)) {
             
-            // Check if the stream ended prematurely (less than 30 seconds of playback)
-            long playbackDuration = track.getPosition();
-            if (playbackDuration < 30000) { // 30 seconds in milliseconds
-                // This is a premature crash, replay the stream
-                player.playTrack(track.makeClone());
-                return;
+            // Attempt to replay the stream - if it's truly ended, this will fail and skip to next track
+            AudioTrack clonedTrack = track.makeClone();
+            
+            // Preserve the RequestMetadata
+            RequestMetadata rm = extractRequestMetadata(track);
+            if (rm != null) {
+                clonedTrack.setUserData(rm);
             }
-            // If played for more than 30 seconds, treat as normal end and continue to next track
+            
+            player.playTrack(clonedTrack);
+            return;
         }
 
         // Handle track repetition based on RepeatMode setting
@@ -841,6 +844,31 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (manager.getBot().getConfig().isHistoryEnabled()) {
             manager.getBot().getMusicHistory().addTrack(track, this);
         }
+    }
+    
+    @Override
+    public void onTrackException(AudioPlayer player, AudioTrack track, com.sedmelluq.discord.lavaplayer.tools.FriendlyException exception) {
+        // Handle exceptions during playback of YouTube streams
+        // This allows for faster recovery than waiting for onTrackEnd
+        if (track != null && track.getInfo().isStream && track.getInfo().uri.contains("youtube.com")) {
+            // Check if the exception is recoverable (network issues, temporary failures)
+            if (exception.severity != com.sedmelluq.discord.lavaplayer.tools.FriendlyException.Severity.FAULT) {
+                // Attempt immediate replay to minimize audio interruption
+                AudioTrack clonedTrack = track.makeClone();
+                
+                // Preserve the RequestMetadata
+                RequestMetadata rm = extractRequestMetadata(track);
+                if (rm != null) {
+                    clonedTrack.setUserData(rm);
+                }
+                
+                // Replay immediately - this happens faster than waiting for onTrackEnd
+                player.playTrack(clonedTrack);
+                return;
+            }
+        }
+        
+        // For other cases, let the default behavior handle it (will trigger onTrackEnd)
     }
     
     /**

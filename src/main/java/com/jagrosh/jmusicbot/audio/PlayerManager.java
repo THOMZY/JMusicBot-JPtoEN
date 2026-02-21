@@ -27,6 +27,9 @@ import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
+import com.sedmelluq.lava.extensions.youtuberotator.planner.AbstractRoutePlanner;
+import com.sedmelluq.lava.extensions.youtuberotator.planner.NanoIpRoutePlanner;
+import com.sedmelluq.lava.extensions.youtuberotator.tools.ip.Ipv6Block;
 import dev.cosgy.jmusicbot.util.YtDlpManager;
 import dev.cosgy.jmusicbot.util.YtDlpManager.FallbackPlatform;
 import dev.cosgy.jmusicbot.util.YtDlpManager.YtDlpMetadata;
@@ -36,10 +39,18 @@ import dev.lavalink.youtube.YoutubeSourceOptions;
 import dev.lavalink.youtube.clients.*;
 import dev.lavalink.youtube.clients.skeleton.Client;
 import net.dv8tion.jda.api.entities.Guild;
+import org.apache.http.HttpException;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpRequest;
+import org.apache.http.conn.routing.HttpRoute;
+import org.apache.http.conn.routing.HttpRoutePlanner;
+import org.apache.http.impl.conn.DefaultRoutePlanner;
+import org.apache.http.protocol.HttpContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -51,6 +62,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -61,12 +73,33 @@ public class PlayerManager extends DefaultAudioPlayerManager {
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private Path ytDlpPath;
     private YtDlpManager ytDlpManager;
+    private AbstractRoutePlanner ipv6RoutePlanner;
 
     public PlayerManager(Bot bot) {
         this.bot = bot;
     }
 
     public void init() {
+        // Initialize IPv6 rotation using LavaPlayer's official youtube-rotator extension
+        if (bot.getConfig().isIPv6RotationEnabled()) {
+            try {
+                String ipv6Block = bot.getConfig().getIPv6RotationBlock();
+                if (ipv6Block == null || ipv6Block.isEmpty()) {
+                    logger.warn("IPv6 rotation enabled but no IPv6 block configured. Please set ipv6rotation.block in config.");
+                    this.ipv6RoutePlanner = null;
+                } else {
+                    Ipv6Block block = new Ipv6Block(ipv6Block);
+                    this.ipv6RoutePlanner = new NanoIpRoutePlanner(java.util.Collections.singletonList(block), true);
+                    logger.info("IPv6 rotation initialized with block: {}", ipv6Block);
+                }
+            } catch (Exception e) {
+                logger.error("Failed to initialize IPv6 rotation: {}", e.getMessage());
+                this.ipv6RoutePlanner = null;
+            }
+        } else {
+            this.ipv6RoutePlanner = null;
+        }
+        
         // Prepare yt-dlp for YouTube fallback
         try {
             Path botDir = Paths.get("").toAbsolutePath();
@@ -108,25 +141,32 @@ public class PlayerManager extends DefaultAudioPlayerManager {
             }
         }
 
-        registerSourceManager(new YoutubeAudioSourceManager(ytOptions, new Client[] { 
+        // Client priority: TV for OAuth playback (doesn't support loading), 
+        // then robust fallbacks for loading and non-OAuth scenarios
+        YoutubeAudioSourceManager youtubeSource = new YoutubeAudioSourceManager(ytOptions, new Client[] { 
+                new Music(),
                 new Tv(),
-                new Web(),
-                new MWeb()
-                }));
+                new AndroidVr(),
+                new MWeb(),
+                new Web()
+                });
+        
+        // Configure OAuth2.
+        String ytRefreshToken = bot.getConfig().getYouTubeRefreshToken();
+        if (ytRefreshToken != null && !ytRefreshToken.isEmpty()) {
+            youtubeSource.useOauth2(ytRefreshToken, true);
+            logger.info("YouTube OAuth2 enabled.");
+        } else {
+            youtubeSource.useOauth2(null, false);
+            logger.warn("YouTube OAuth2 not configured.");
+        }
+        
+        youtubeSource.setPlaylistPageCount(10);
+        registerSourceManager(youtubeSource);
 
         TransformativeAudioSourceManager.createTransforms(bot.getConfig().getTransforms()).forEach(this::registerSourceManager);
         AudioSourceManagers.registerRemoteSources(this);
         AudioSourceManagers.registerLocalSource(this);
-
-        source(YoutubeAudioSourceManager.class).setPlaylistPageCount(10);
-
-        // YouTube OAuth2 integration with persistent refresh token
-        String ytRefreshToken = bot.getConfig().getYouTubeRefreshToken();
-        if (ytRefreshToken != null && !ytRefreshToken.isEmpty()) {
-            source(YoutubeAudioSourceManager.class).useOauth2(ytRefreshToken, true);
-        } else {
-            source(YoutubeAudioSourceManager.class).useOauth2(null, false);
-        }
 
         if (getConfiguration().getOpusEncodingQuality() != 10) {
             logger.debug("OpusEncodingQuality is {}, setting quality to 10.", getConfiguration().getOpusEncodingQuality());
@@ -137,10 +177,56 @@ public class PlayerManager extends DefaultAudioPlayerManager {
             logger.debug("ResamplingQuality is {} (not HIGH), setting quality to HIGH.", getConfiguration().getResamplingQuality().name());
             getConfiguration().setResamplingQuality(AudioConfiguration.ResamplingQuality.HIGH);
         }
+        
+        // Configure IPv6 rotation for all HTTP-based source managers
+        configureIPv6Rotation();
+    }
+    
+    /**
+     * Configures IPv6 rotation using LavaPlayer's official youtube-rotator extension.
+     * This applies to all HTTP-based source managers that support HttpConfigurable.
+     */
+    private void configureIPv6Rotation() {
+        if (ipv6RoutePlanner == null) {
+            return;
+        }
+        
+        try {
+            // The AbstractRoutePlanner from youtube-rotator already implements HttpRoutePlanner
+            // So we can use it directly!
+            Consumer<org.apache.http.impl.client.HttpClientBuilder> ipv6Configurator = httpClientBuilder -> {
+                httpClientBuilder.setRoutePlanner(ipv6RoutePlanner);
+            };
+            
+            // Configure NicoNico source manager if registered
+            if (bot.getConfig().isNicoNicoEnabled()) {
+                try {
+                    NicoAudioSourceManager nicoSource = source(NicoAudioSourceManager.class);
+                    if (nicoSource != null) {
+                        nicoSource.configureBuilder(ipv6Configurator);
+                        logger.debug("IPv6 rotation configured for NicoNico source");
+                    }
+                } catch (Exception e) {
+                    logger.debug("NicoNico source not available for IPv6 configuration");
+                }
+            }
+            
+            // Note: YoutubeAudioSourceManager and other sources from dev.lavalink.youtube
+            // use their own HTTP client configuration. IPv6 rotation for YouTube would require
+            // modifications to the youtube-source library itself or using a system-wide network configuration.
+            
+            logger.info("IPv6 rotation configured using official LavaPlayer youtube-rotator extension");
+        } catch (Exception e) {
+            logger.error("Failed to configure IPv6 rotation: {}", e.getMessage());
+        }
     }
 
     public Bot getBot() {
         return bot;
+    }
+
+    public AbstractRoutePlanner getIPv6RoutePlanner() {
+        return ipv6RoutePlanner;
     }
 
     public boolean hasHandler(Guild guild) {

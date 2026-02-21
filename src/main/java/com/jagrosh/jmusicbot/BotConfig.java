@@ -69,6 +69,9 @@ public class BotConfig {
     private String ytDlpDenoPath;
     // Optional cookies for yt-dlp auth/bot-check bypass
     private String ytDlpCookiesPath;
+    // IPv6 rotation settings
+    private boolean ipv6RotationEnabled;
+    private String ipv6RotationBlock;
     // WebPanel settings
     private int webPanelPort;
     // [JMusicBot-JP] added useNicoNico, changeNickName, pauseNoUsers, resumeJoined, stopNoUsers, cosgyDevHost, helpToDm, officialInvite
@@ -160,6 +163,9 @@ public class BotConfig {
             // Optional cookies for yt-dlp
             ytDlpCookiesPath = config.hasPath("ytdlp.cookies") ? config.getString("ytdlp.cookies") : "";
 
+            // IPv6 rotation settings
+            ipv6RotationEnabled = config.hasPath("ipv6rotation.enabled") ? config.getBoolean("ipv6rotation.enabled") : false;
+            ipv6RotationBlock = config.hasPath("ipv6rotation.block") ? config.getString("ipv6rotation.block") : "";
 
             cosgyDevHost = false;
             // [JMusicBot-JP] End
@@ -480,5 +486,13 @@ public class BotConfig {
 
     public boolean isHistoryEnabled() {
         return enableHistory;
+    }
+
+    public boolean isIPv6RotationEnabled() {
+        return ipv6RotationEnabled;
+    }
+
+    public String getIPv6RotationBlock() {
+        return ipv6RotationBlock;
     }
 }

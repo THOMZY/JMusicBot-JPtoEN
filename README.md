@@ -65,6 +65,8 @@ To help with this, you can use a remote cipher server to handle signature deciph
 Follow instructions to setup a simple Deno server for those pesky Youtube errors :  
 https://github.com/kikkia/yt-cipher ( Thx Kikkia )
 
+You can either use the [public instance](https://github.com/kikkia/yt-cipher?tab=readme-ov-file#public-instance) provided by Kikkia or [host the server yourself](https://github.com/kikkia/yt-cipher?tab=readme-ov-file#hosting-yourself).
+
 # Setup Using Docker :
 
 You can start this bot yourself using Docker without having to install Java and other dependencies.

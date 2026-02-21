@@ -264,7 +264,35 @@ const UI = (function() {
             clearConsoleBtn.addEventListener('click', () => {
                 const consoleLog = document.getElementById('console-log');
                 if (consoleLog) {
-                    consoleLog.innerHTML = '<div style="color: #B9BBBE;">Console cleared (only in view, logs still exist on server)</div>';
+                    consoleLog.innerHTML = '<div style="color: #B9BBBE;">Console view cleared (logs still exist on server)</div>';
+                }
+            });
+        }
+        
+        // Delete server logs button
+        const deleteLogsBtn = document.getElementById('delete-logs-btn');
+        if (deleteLogsBtn) {
+            deleteLogsBtn.addEventListener('click', async () => {
+                if (confirm('Are you sure you want to DELETE ALL LOGS from the server? This action cannot be undone!')) {
+                    try {
+                        const response = await fetch('/api/console/logs', {
+                            method: 'DELETE'
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            alert('Server logs have been successfully deleted!');
+                            if (typeof ConsoleManager !== 'undefined') {
+                                ConsoleManager.loadConsoleLogs();
+                            }
+                        } else {
+                            alert('Failed to delete logs: ' + (result.message || 'Unknown error'));
+                        }
+                    } catch (error) {
+                        console.error('Error deleting logs:', error);
+                        alert('Error deleting logs: ' + error.message);
+                    }
                 }
             });
         }

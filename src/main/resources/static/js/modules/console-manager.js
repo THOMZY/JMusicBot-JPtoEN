@@ -4,6 +4,9 @@
 
 const ConsoleManager = (function() {
     
+    let autoRefreshInterval = null;
+    const REFRESH_INTERVAL = 2000; // Refresh every 2 seconds
+    
     // Helper to escape HTML to prevent XSS
     function escapeHtml(unsafe) {
         return unsafe
@@ -119,8 +122,35 @@ const ConsoleManager = (function() {
         }
     }
 
+    // Start auto-refresh when console modal is opened
+    function startAutoRefresh() {
+        // Stop any existing interval first
+        stopAutoRefresh();
+        
+        // Load logs immediately
+        loadConsoleLogs();
+        
+        // Set up interval to refresh logs
+        autoRefreshInterval = setInterval(() => {
+            loadConsoleLogs();
+        }, REFRESH_INTERVAL);
+        
+        console.log('Console auto-refresh started');
+    }
+
+    // Stop auto-refresh when console modal is closed
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+            console.log('Console auto-refresh stopped');
+        }
+    }
+
     // Public API
     return {
-        loadConsoleLogs
+        loadConsoleLogs,
+        startAutoRefresh,
+        stopAutoRefresh
     };
 })(); 

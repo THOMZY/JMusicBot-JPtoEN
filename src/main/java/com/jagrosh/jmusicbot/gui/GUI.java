@@ -28,12 +28,23 @@ import java.awt.event.WindowListener;
  */
 public class GUI extends JFrame {
     private final ConsolePanel console;
-    private final Bot bot;
+    private Bot bot;
 
-    public GUI(Bot bot) {
+    public GUI() {
         super();
-        this.bot = bot;
         console = new ConsolePanel();
+    }
+    
+    public GUI(Bot bot) {
+        this();
+        this.bot = bot;
+    }
+    
+    /**
+     * Set the bot instance after GUI creation
+     */
+    public void setBot(Bot bot) {
+        this.bot = bot;
     }
 
     public void init() {

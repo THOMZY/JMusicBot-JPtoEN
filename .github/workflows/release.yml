@@ -23,10 +23,8 @@ jobs:
       - name: Build with Maven
         run: mvn --batch-mode --update-snapshots package
 
-      - name: Download and rename reference.conf
-        run: |
-          curl -o reference.conf https://raw.githubusercontent.com/THOMZY/JMusicBot-JPtoEN/develop/src/main/resources/reference.conf
-          mv reference.conf config.txt
+      - name: Copy and rename reference.conf
+        run: cp src/main/resources/reference.conf config.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -34,7 +32,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: "v${{ env.PROJECT_VERSION }}"
           name: "Release v${{ env.PROJECT_VERSION }}"
-          body: "Release version ${{ env.PROJECT_VERSION }}"
+          body: ${{ github.event.head_commit.message }}
           files: |
             target/JMusicBot.jar
             config.txt

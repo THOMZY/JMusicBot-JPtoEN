@@ -153,15 +153,28 @@ function setupModalButtons() {
         consoleBtn.addEventListener('click', function() {
             consoleModal.style.display = 'flex';
             if (typeof ConsoleManager !== 'undefined') {
-                ConsoleManager.loadConsoleLogs();
+                ConsoleManager.startAutoRefresh();
             }
         });
         
         if (consoleClose) {
             consoleClose.addEventListener('click', function() {
                 consoleModal.style.display = 'none';
+                if (typeof ConsoleManager !== 'undefined') {
+                    ConsoleManager.stopAutoRefresh();
+                }
             });
         }
+        
+        // Also stop auto-refresh when clicking outside the modal
+        window.addEventListener('click', function(event) {
+            if (event.target === consoleModal) {
+                consoleModal.style.display = 'none';
+                if (typeof ConsoleManager !== 'undefined') {
+                    ConsoleManager.stopAutoRefresh();
+                }
+            }
+        });
     }
     
     // Config modal

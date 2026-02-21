@@ -268,4 +268,50 @@ public class ConsoleService {
             return "Error executing command: " + e.getMessage();
         }
     }
+
+    /**
+     * Clear all console logs (in memory and delete log files)
+     */
+    public boolean clearAllLogs() {
+        try {
+            // Clear in-memory logs
+            consoleLog.clear();
+            addLogMessage("Console logs cleared by user from web panel");
+            
+            // Delete log file in root directory
+            File logFile = new File(LOG_FILE_PATH);
+            if (logFile.exists()) {
+                if (logFile.delete()) {
+                    addLogMessage("Deleted log file: " + LOG_FILE_PATH);
+                }
+            }
+            
+            // Delete log file in logs directory
+            File logFileInDir = new File(LOG_DIR_PATH, LOG_FILE_PATH);
+            if (logFileInDir.exists()) {
+                if (logFileInDir.delete()) {
+                    addLogMessage("Deleted log file: " + LOG_DIR_PATH + "/" + LOG_FILE_PATH);
+                }
+            }
+            
+            // Delete all log files in logs directory
+            File logsDir = new File(LOG_DIR_PATH);
+            if (logsDir.exists() && logsDir.isDirectory()) {
+                File[] logFiles = logsDir.listFiles((dir, name) -> name.endsWith(".log"));
+                if (logFiles != null) {
+                    for (File file : logFiles) {
+                        if (file.delete()) {
+                            addLogMessage("Deleted log file: " + file.getName());
+                        }
+                    }
+                }
+            }
+            
+            return true;
+        } catch (Exception e) {
+            addLogMessage("Error clearing logs: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
 } 

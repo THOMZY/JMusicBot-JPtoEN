@@ -68,4 +68,19 @@ public class ConsoleController {
         
         return ResponseEntity.ok(response);
     }
+
+    @DeleteMapping("/logs")
+    public ResponseEntity<Map<String, Object>> clearLogs() {
+        boolean success = consoleService.clearAllLogs();
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", success);
+        if (success) {
+            response.put("message", "All logs have been deleted from the server");
+        } else {
+            response.put("message", "Failed to delete logs");
+        }
+        
+        return ResponseEntity.ok(response);
+    }
 } 

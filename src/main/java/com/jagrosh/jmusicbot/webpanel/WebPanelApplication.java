@@ -7,7 +7,9 @@ package com.jagrosh.jmusicbot.webpanel;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.JMusicBot;
 import com.jagrosh.jmusicbot.webpanel.service.ConsoleService;
+import org.slf4j.bridge.SLF4JBridgeHandler;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -39,7 +41,10 @@ public class WebPanelApplication {
     public static void start(Bot bot, int port) {
         // Start the Spring Boot application
         String[] args = new String[]{"--server.port=" + port};
-        context = SpringApplication.run(WebPanelApplication.class, args);
+        installJulBridge();
+        SpringApplication app = new SpringApplication(WebPanelApplication.class);
+        app.setWebApplicationType(WebApplicationType.SERVLET);
+        context = app.run(args);
         
         // Get the ConsoleService from the ApplicationContext
         consoleService = context.getBean(ConsoleService.class);
@@ -170,6 +175,13 @@ public class WebPanelApplication {
         // Replace the system streams
         System.setOut(customOut);
         System.setErr(customErr);
+    }
+
+    private static void installJulBridge() {
+        if (!SLF4JBridgeHandler.isInstalled()) {
+            SLF4JBridgeHandler.removeHandlersForRootLogger();
+            SLF4JBridgeHandler.install();
+        }
     }
     
     // Method to restore original streams if needed

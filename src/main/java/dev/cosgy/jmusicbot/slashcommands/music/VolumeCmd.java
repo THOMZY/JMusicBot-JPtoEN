@@ -66,6 +66,7 @@ public class VolumeCmd extends MusicCommand {
             else {
                 handler.getPlayer().setVolume(nvolume);
                 settings.setVolume(nvolume);
+                bot.getNowplayingHandler().onTrackUpdate(event.getGuild().getIdLong(), handler.getPlayer().getPlayingTrack(), handler);
                 event.reply(FormatUtil.volumeIcon(nvolume) + " Changed volume from `" + volume + "` to `" + nvolume + "`.");
                 log.info("The volume in " + event.getGuild().getName() + " has been changed from " + volume + " to " + nvolume + ".");
             }
@@ -89,6 +90,7 @@ public class VolumeCmd extends MusicCommand {
         else {
             handler.getPlayer().setVolume(nvolume);
             settings.setVolume(nvolume);
+            bot.getNowplayingHandler().onTrackUpdate(event.getGuild().getIdLong(), handler.getPlayer().getPlayingTrack(), handler);
             event.reply(FormatUtil.volumeIcon(nvolume) + " Changed volume from `" + volume + "` to `" + nvolume + "`.").queue();
             log.info("The volume in " + event.getGuild().getName() + " has been changed from " + volume + " to " + nvolume + ".");
         }

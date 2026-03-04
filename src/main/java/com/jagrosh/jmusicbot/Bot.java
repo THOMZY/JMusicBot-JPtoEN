@@ -189,7 +189,10 @@ public class Bot {
     public void closeAudioConnection(long guildId) {
         Guild guild = jda.getGuildById(guildId);
         if (guild != null)
-            threadpool.submit(() -> guild.getAudioManager().closeAudioConnection());
+            threadpool.submit(() -> {
+                nowplaying.clearVoiceChannelStatus(guildId, false);
+                guild.getAudioManager().closeAudioConnection();
+            });
     }
 
     public void resetGame() {
@@ -304,6 +307,7 @@ public class Bot {
         // Then close audio connections and cleanup audio resources
         if (jda != null && jda.getStatus() != JDA.Status.SHUTTING_DOWN) {
             jda.getGuilds().forEach((g) -> {
+                nowplaying.clearVoiceChannelStatus(g.getIdLong(), true);
                 g.getAudioManager().closeAudioConnection();
                 AudioHandler ah = (AudioHandler) g.getAudioManager().getSendingHandler();
                 if (ah != null) {

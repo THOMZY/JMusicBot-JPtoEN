@@ -21,7 +21,9 @@ import com.jagrosh.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.settings.Settings;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import net.dv8tion.jda.api.entities.GuildVoiceState;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
@@ -59,7 +61,10 @@ public abstract class MusicCommand extends SlashCommand {
             return;
         }
         if (beListening) {
-            AudioChannelUnion current = event.getGuild().getSelfMember().getVoiceState().getChannel();
+            Member selfMember = DiscordCompat.getSelfMember(event.getGuild());
+            AudioChannelUnion current = selfMember != null && selfMember.getVoiceState() != null
+                    ? selfMember.getVoiceState().getChannel()
+                    : null;
 
             if (current == null)
                 current = (AudioChannelUnion) settings.getVoiceChannel(event.getGuild());
@@ -69,7 +74,7 @@ public abstract class MusicCommand extends SlashCommand {
                 event.reply(event.getClient().getError() + String.format("To use this command, you need to be in %s!", (current == null ? "a voice channel" : "**" + current.getAsMention() + "**"))).queue();
                 return;
             }
-            if (!event.getGuild().getSelfMember().getVoiceState().inAudioChannel()) {
+            if (selfMember == null || selfMember.getVoiceState() == null || !selfMember.getVoiceState().inAudioChannel()) {
                 try {
                     event.getGuild().getAudioManager().openAudioConnection(userState.getChannel());
                     //event.getGuild().getAudioManager().setSelfDeafened(true);
@@ -79,7 +84,8 @@ public abstract class MusicCommand extends SlashCommand {
                     return;
                 }
                 if (userState.getChannel().getType() == ChannelType.STAGE) {
-                    event.getTextChannel().sendMessage(event.getClient().getWarning() + String.format("Joined a stage channel. You need to manually invite as a speaker to use %s in a stage channel.", event.getGuild().getSelfMember().getNickname())).queue();
+                    String nickname = selfMember != null ? selfMember.getNickname() : null;
+                    event.getTextChannel().sendMessage(event.getClient().getWarning() + String.format("Joined a stage channel. You need to manually invite as a speaker to use %s in a stage channel.", nickname == null ? event.getJDA().getSelfUser().getName() : nickname)).queue();
                 }
             }
         }
@@ -107,7 +113,10 @@ public abstract class MusicCommand extends SlashCommand {
             return;
         }
         if (beListening) {
-            AudioChannelUnion current = event.getGuild().getSelfMember().getVoiceState().getChannel();
+            Member selfMember = DiscordCompat.getSelfMember(event.getGuild());
+            AudioChannelUnion current = selfMember != null && selfMember.getVoiceState() != null
+                    ? selfMember.getVoiceState().getChannel()
+                    : null;
 
             if (current == null)
                 current = (AudioChannelUnion) settings.getVoiceChannel(event.getGuild());
@@ -116,7 +125,7 @@ public abstract class MusicCommand extends SlashCommand {
                 event.replyError(String.format("To use this command, you need to be in %s!", (current == null ? "a voice channel" : "**" + current.getName() + "**")));
                 return;
             }
-            if (!event.getGuild().getSelfMember().getVoiceState().inAudioChannel()) {
+            if (selfMember == null || selfMember.getVoiceState() == null || !selfMember.getVoiceState().inAudioChannel()) {
                 try {
                     event.getGuild().getAudioManager().openAudioConnection(userState.getChannel());
                 } catch (PermissionException ex) {
@@ -124,7 +133,8 @@ public abstract class MusicCommand extends SlashCommand {
                     return;
                 }
                 if (userState.getChannel().getType() == ChannelType.STAGE) {
-                    event.getTextChannel().sendMessage(event.getClient().getWarning() + String.format("Joined a stage channel. You need to manually invite as a speaker to use %s in a stage channel.", event.getGuild().getSelfMember().getNickname())).queue();
+                    String nickname = selfMember != null ? selfMember.getNickname() : null;
+                    event.getTextChannel().sendMessage(event.getClient().getWarning() + String.format("Joined a stage channel. You need to manually invite as a speaker to use %s in a stage channel.", nickname == null ? event.getJDA().getSelfUser().getName() : nickname)).queue();
                 }
             }
         }

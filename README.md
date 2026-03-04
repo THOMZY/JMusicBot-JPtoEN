@@ -52,10 +52,10 @@ Check the [CHANGELOG](https://github.com/THOMZY/JMusicBot-JPtoEN/blob/main/CHANG
 
 # Setting up :
 
-This bot requires Java version 17 or higher.
-If Java is not installed, download it from [here](https://www.oracle.com/jp/java/technologies/downloads/#java17).  
+This bot requires Java version 25 or higher.
+If Java is not installed, download it from [here](https://www.oracle.com/jp/java/technologies/downloads/).  
 To start this bot yourself, refer to the [official Jagrosh website](https://jmusicbot.com/setup/).  
-You can check the [Cosgy Dev Official Page](https://www.cosgy.dev/2019/09/06/jmusicbot-setup/) too.  
+You can check the [Cosgy Dev Official Page](https://www.cosgy.dev/2019/09/06/jmusicbot-setup/) too.
 You can find the raw 'config.txt' file [here](https://raw.githubusercontent.com/THOMZY/JMusicBot-JPtoEN/refs/heads/main/src/main/resources/reference.conf) or in release tab.  
 
 # Youtube cipher server :
@@ -85,7 +85,23 @@ mvn clean package
 You will find ```JMusicBot-XXXX.XX.XX-All.jar``` in the "target" folder. 
    
 Or just download the latest working provided .jar [here](https://github.com/THOMZY/JMusicBot-JPtoEN/releases/latest).  
-  
+
+
+Because this build uses DAVE, use the recommanded launch arguments below:
+
+```bash
+java --enable-native-access=ALL-UNNAMED -Djava.net.preferIPv6Addresses=true -Dnogui=true -jar JMusicBot.jar
+```
+
+| Argument | Description |
+|---|---|
+| `java` | Runs the Java runtime. |
+| `--enable-native-access=ALL-UNNAMED` | Enables native access required by DAVE. |
+| `-Djava.net.preferIPv6Addresses=true` | Prefers IPv6 addresses when available. |
+| `-Dnogui=true` | Starts the bot without GUI (server/headless mode). |
+| `-jar JMusicBot.jar` | Launches the JAR file. |
+
+
 # Note :
 
 This bot cannot be used as a public bot.

@@ -22,6 +22,7 @@ import com.jagrosh.jdautilities.menu.OrderedMenu;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import dev.cosgy.jmusicbot.slashcommands.DJCommand;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.User;
@@ -82,7 +83,7 @@ public class ForceRemoveCmd extends DJCommand {
             builder
                     .setSelection((msg, i) -> removeAllEntries(found.get(i - 1).getUser(), event))
                     .setText("Multiple users found:")
-                    .setColor(event.getSelfMember().getColor())
+                    .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
                     .useNumbers()
                     .setUsers(event.getAuthor())
                     .useCancelButton(true)

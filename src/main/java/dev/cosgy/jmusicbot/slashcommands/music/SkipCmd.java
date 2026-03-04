@@ -22,7 +22,9 @@ import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.audio.RequestMetadata;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import dev.cosgy.jmusicbot.util.LocalAudioMetadata;
+import net.dv8tion.jda.api.entities.Member;
 
 /**
  * @author John Grosh <john.a.grosh@gmail.com>
@@ -55,8 +57,9 @@ public class SkipCmd extends MusicCommand {
             handler.updateStatsOnSkip();
             handler.getPlayer().stopTrack();
         } else {
+            Member selfMember = DiscordCompat.getSelfMember(event.getGuild());
             // Number of people in voice chat (excluding bots and those who are deafened)
-            int listeners = (int) event.getSelfMember().getVoiceState().getChannel().getMembers().stream()
+            int listeners = (int) selfMember.getVoiceState().getChannel().getMembers().stream()
                     .filter(m -> !m.getUser().isBot() && !m.getVoiceState().isDeafened() && m.getUser().getIdLong() != handler.getRequestMetadata().getOwner()).count();
 
             // Message to send
@@ -71,7 +74,7 @@ public class SkipCmd extends MusicCommand {
             }
 
             // Number of votes to skip from users in voice chat
-            int skippers = (int) event.getSelfMember().getVoiceState().getChannel().getMembers().stream()
+                int skippers = (int) selfMember.getVoiceState().getChannel().getMembers().stream()
                     .filter(m -> handler.getVotes().contains(m.getUser().getId())).count();
 
             int required = (int) Math.ceil(listeners * bot.getSettingsManager().getSettings(event.getGuild()).getSkipRatio());
@@ -120,8 +123,9 @@ public class SkipCmd extends MusicCommand {
             handler.updateStatsOnSkip();
             handler.getPlayer().stopTrack();
         } else {
+            Member selfMember = DiscordCompat.getSelfMember(event.getGuild());
             // Number of people in voice chat (excluding bots and those who are deafened)
-            int listeners = (int) event.getGuild().getSelfMember().getVoiceState().getChannel().getMembers().stream()
+            int listeners = (int) selfMember.getVoiceState().getChannel().getMembers().stream()
                     .filter(m -> !m.getUser().isBot() && !m.getVoiceState().isDeafened() && m.getUser().getIdLong() != handler.getRequestMetadata().getOwner()).count();
 
             // Message to send
@@ -136,7 +140,7 @@ public class SkipCmd extends MusicCommand {
             }
 
             // Number of votes to skip from users in voice chat
-            int skippers = (int) event.getGuild().getSelfMember().getVoiceState().getChannel().getMembers().stream()
+                int skippers = (int) selfMember.getVoiceState().getChannel().getMembers().stream()
                     .filter(m -> handler.getVotes().contains(m.getUser().getId())).count();
 
             // Required number of votes (55% of voice chat participants)

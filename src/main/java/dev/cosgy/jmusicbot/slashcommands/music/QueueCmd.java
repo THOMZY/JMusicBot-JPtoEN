@@ -27,6 +27,7 @@ import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
 import dev.cosgy.jmusicbot.settings.RepeatMode;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.exceptions.PermissionException;
 import net.dv8tion.jda.api.interactions.InteractionHook;
@@ -110,7 +111,7 @@ public class QueueCmd extends MusicCommand {
         builder.setText((i1, i2) -> getQueueTitle(ah, event.getClient().getSuccess(), songs.length, finTotal, settings.getRepeatMode()))
                 .setItems(songs)
                 .setUsers(event.getAuthor())
-                .setColor(event.getSelfMember().getColor());
+            .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor());
         builder.build().paginate(event.getChannel(), pagenum);
     }
 
@@ -145,7 +146,7 @@ public class QueueCmd extends MusicCommand {
         builder.setText((i1, i2) -> getQueueTitle(ah, event.getClient().getSuccess(), songs.length, finTotal, settings.getRepeatMode()))
                 .setItems(songs)
                 .setUsers(event.getUser())
-                .setColor(event.getGuild().getSelfMember().getColor());
+            .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor());
         builder.build().paginate(event.getChannel(), pagenum);
         m.deleteOriginal().queue();
     }

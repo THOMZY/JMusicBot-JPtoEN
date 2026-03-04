@@ -28,14 +28,15 @@ import com.sedmelluq.discord.lavaplayer.tools.FriendlyException.Severity;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -107,7 +108,7 @@ public class SearchCmd extends MusicCommand {
         @Override
         public void playlistLoaded(AudioPlaylist playlist) {
             EmbedBuilder embed = new EmbedBuilder()
-                    .setColor(event.getGuild().getSelfMember().getColor())
+                    .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
                     .setTitle(FormatUtil.filter(event.getClient().getSuccess() + " Search results for `" + event.getOption("input").getAsString() + "`:"));
                     
             StringBuilder description = new StringBuilder();
@@ -156,7 +157,7 @@ public class SearchCmd extends MusicCommand {
                                     // Disable all buttons and indicate cancellation
                                     e.editMessage("Selection canceled.")
                                         .setComponents(
-                                            e.getMessage().getActionRows().stream()
+                                            e.getMessage().getComponents().stream().map(component -> component.asActionRow())
                                                 .map(row -> ActionRow.of(
                                                     row.getButtons().stream()
                                                         .map(Button::asDisabled)
@@ -181,7 +182,7 @@ public class SearchCmd extends MusicCommand {
                                     // Disable all buttons and indicate selection
                                     e.editMessage("Track **" + track.getInfo().title + "** selected!")
                                         .setComponents(
-                                            e.getMessage().getActionRows().stream()
+                                            e.getMessage().getComponents().stream().map(component -> component.asActionRow())
                                                 .map(row -> ActionRow.of(
                                                     row.getButtons().stream()
                                                         .map(Button::asDisabled)
@@ -203,7 +204,7 @@ public class SearchCmd extends MusicCommand {
                             () -> {
                                 // If the wait timeout expires, disable all buttons
                                 message.editMessageComponents(
-                                    message.getActionRows().stream()
+                                    message.getComponents().stream().map(component -> component.asActionRow())
                                         .map(row -> ActionRow.of(
                                             row.getButtons().stream()
                                                 .map(Button::asDisabled)
@@ -257,7 +258,7 @@ public class SearchCmd extends MusicCommand {
         @Override
         public void playlistLoaded(AudioPlaylist playlist) {
             EmbedBuilder embed = new EmbedBuilder()
-                    .setColor(event.getSelfMember().getColor())
+                    .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
                     .setTitle(FormatUtil.filter(event.getClient().getSuccess() + " Search results for `" + event.getArgs() + "`:"));
                     
             StringBuilder description = new StringBuilder();
@@ -306,7 +307,7 @@ public class SearchCmd extends MusicCommand {
                                     // Disable all buttons and indicate cancellation
                                     e.editMessage("Selection canceled.")
                                         .setComponents(
-                                            e.getMessage().getActionRows().stream()
+                                            e.getMessage().getComponents().stream().map(component -> component.asActionRow())
                                                 .map(row -> ActionRow.of(
                                                     row.getButtons().stream()
                                                         .map(Button::asDisabled)
@@ -331,7 +332,7 @@ public class SearchCmd extends MusicCommand {
                                     // Disable all buttons and indicate selection
                                     e.editMessage("Track **" + track.getInfo().title + "** selected!")
                                         .setComponents(
-                                            e.getMessage().getActionRows().stream()
+                                            e.getMessage().getComponents().stream().map(component -> component.asActionRow())
                                                 .map(row -> ActionRow.of(
                                                     row.getButtons().stream()
                                                         .map(Button::asDisabled)
@@ -353,7 +354,7 @@ public class SearchCmd extends MusicCommand {
                             () -> {
                                 // If the wait timeout expires, disable all buttons
                                 message.editMessageComponents(
-                                    message.getActionRows().stream()
+                                    message.getComponents().stream().map(component -> component.asActionRow())
                                         .map(row -> ActionRow.of(
                                             row.getButtons().stream()
                                                 .map(Button::asDisabled)

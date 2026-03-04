@@ -2,6 +2,21 @@
 
 ---
 
+# 04 March 2026
+
+## ▶️ Fixed bot join/quit loop.
+
+### 🔧 Changes
+- Added DAVE (jdave) dependencies.
+- Updated to Java 25.
+
+### 📦 Dependency Updates
+- **dev.arbjerg-lavaplayer**: `2.2.4` → `2.2.6`
+- **net.dv8tion-JDA**: `5.6.1` → `6.3.1`
+- **spring-boot-starter-web**: `3.3.0` → `4.1.0-M2`
+- **spring-boot-starter-websocket**: `3.3.0` → `4.1.0-M2`
+---
+
 # 21 February 2026
 
 ### 🚀 New Features

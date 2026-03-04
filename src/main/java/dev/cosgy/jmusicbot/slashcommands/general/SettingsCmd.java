@@ -22,6 +22,7 @@ import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
 import dev.cosgy.jmusicbot.settings.RepeatMode;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
@@ -65,7 +66,10 @@ public class SettingsCmd extends SlashCommand {
                 .setFooter(String.format(
                                 "%s servers | %s voice channels connected",
                                 event.getJDA().getGuilds().size(),
-                                event.getJDA().getGuilds().stream().filter(g -> Objects.requireNonNull(g.getSelfMember().getVoiceState()).inAudioChannel()).count()),
+                                                                event.getJDA().getGuilds().stream().filter(g -> {
+                                                                        var selfMember = DiscordCompat.getSelfMember(g);
+                                                                        return selfMember != null && selfMember.getVoiceState() != null && selfMember.getVoiceState().inAudioChannel();
+                                                                }).count()),
                         null);
         event.reply(builder.addEmbeds(ebuilder.build()).build()).queue();
     }
@@ -81,7 +85,7 @@ public class SettingsCmd extends SlashCommand {
         VoiceChannel vChan = s.getVoiceChannel(event.getGuild());
         Role role = s.getRole(event.getGuild());
         EmbedBuilder ebuilder = new EmbedBuilder()
-                .setColor(event.getSelfMember().getColor())
+                .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
                 .setDescription("Command channel: " + (tChan == null ? "None" : "**#" + tChan.getName() + "**")
                         + "\nDedicated voice channel: " + (vChan == null ? "None" : "**" + vChan.getName() + "**")
                         + "\nDJ role: " + (role == null ? "Not set" : "**" + role.getName() + "**")
@@ -92,7 +96,10 @@ public class SettingsCmd extends SlashCommand {
                 .setFooter(String.format(
                                 "%s servers | %s voice channels connected",
                                 event.getJDA().getGuilds().size(),
-                                event.getJDA().getGuilds().stream().filter(g -> Objects.requireNonNull(g.getSelfMember().getVoiceState()).inAudioChannel()).count()),
+                                                                event.getJDA().getGuilds().stream().filter(g -> {
+                                                                        var selfMember = DiscordCompat.getSelfMember(g);
+                                                                        return selfMember != null && selfMember.getVoiceState() != null && selfMember.getVoiceState().inAudioChannel();
+                                                                }).count()),
                         null);
         event.getChannel().sendMessage(builder.addEmbeds(ebuilder.build()).build()).queue();
     }

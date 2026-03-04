@@ -21,6 +21,7 @@ import com.jagrosh.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jdautilities.commons.JDAUtilitiesInfo;
 import com.jagrosh.jdautilities.doc.standard.CommandInfo;
 import com.jagrosh.jdautilities.examples.doc.Author;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.JDAInfo;
 import net.dv8tion.jda.api.Permission;
@@ -82,7 +83,7 @@ public class AboutCommand extends SlashCommand {
             }
         }
         EmbedBuilder builder = new EmbedBuilder();
-        builder.setColor(event.getGuild() == null ? color : event.getGuild().getSelfMember().getColor());
+        builder.setColor(event.getGuild() == null ? color : DiscordCompat.getSelfMember(event.getGuild()).getColor());
         builder.setAuthor("" + event.getJDA().getSelfUser().getName() + " Information", null, event.getJDA().getSelfUser().getAvatarUrl());
         String CosgyOwner = "Operated and developed by THOMZY.";
         String author = event.getJDA().getUserById(event.getClient().getOwnerId()) == null ? "<@" + event.getClient().getOwnerId() + ">"
@@ -128,7 +129,7 @@ public class AboutCommand extends SlashCommand {
             }
         }
         EmbedBuilder builder = new EmbedBuilder();
-        builder.setColor(event.isFromType(ChannelType.TEXT) ? event.getGuild().getSelfMember().getColor() : color);
+        builder.setColor(event.isFromType(ChannelType.TEXT) ? DiscordCompat.getSelfMember(event.getGuild()).getColor() : color);
         builder.setAuthor("" + event.getSelfUser().getName() + " Information", null, event.getSelfUser().getAvatarUrl());
         String CosgyOwner = "Operated and developed by THOMZY.";
         String author = event.getJDA().getUserById(event.getClient().getOwnerId()) == null ? "<@" + event.getClient().getOwnerId() + ">"

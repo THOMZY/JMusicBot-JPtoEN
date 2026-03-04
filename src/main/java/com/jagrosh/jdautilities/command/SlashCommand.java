@@ -25,6 +25,7 @@ import net.dv8tion.jda.api.entities.channel.middleman.AudioChannel;
 import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.interactions.DiscordLocale;
+import net.dv8tion.jda.api.interactions.InteractionContextType;
 import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.build.*;
 
@@ -461,7 +462,10 @@ public abstract class SlashCommand extends Command
         else
             data.setDefaultPermissions(DefaultMemberPermissions.enabledFor(this.getUserPermissions()));
 
-        data.setGuildOnly(this.guildOnly != null && this.guildOnly);
+        if (this.guildOnly != null && this.guildOnly)
+            data.setContexts(InteractionContextType.GUILD);
+        else
+            data.setContexts(InteractionContextType.ALL);
 
         return data;
     }

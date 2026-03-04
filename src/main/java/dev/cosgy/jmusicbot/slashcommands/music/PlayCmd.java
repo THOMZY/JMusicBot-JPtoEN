@@ -41,6 +41,7 @@ import dev.cosgy.jmusicbot.playlist.PubliclistLoader;
 import dev.cosgy.jmusicbot.slashcommands.DJCommand;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
 import dev.cosgy.jmusicbot.util.Cache;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import dev.cosgy.jmusicbot.util.StackTraceUtil;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.Permission;
@@ -130,8 +131,9 @@ public class PlayCmd extends MusicCommand {
                 if (DJCommand.checkDJPermission(event)) {
                     handler.getPlayer().setPaused(false);
                     event.replySuccess("Resumed playing **" + handler.getPlayer().getPlayingTrack().getInfo().title + "**.");
+                    bot.getNowplayingHandler().onTrackUpdate(event.getGuild().getIdLong(), handler.getPlayer().getPlayingTrack(), handler);
 
-                    Bot.updatePlayStatus(event.getGuild(), event.getGuild().getSelfMember(), PlayStatus.PLAYING);
+                    Bot.updatePlayStatus(event.getGuild(), DiscordCompat.getSelfMember(event.getGuild()), PlayStatus.PLAYING);
                 } else
                     event.replyError("Only DJs can resume playback!");
                 return;
@@ -267,8 +269,10 @@ public class PlayCmd extends MusicCommand {
 
                     handler.getPlayer().setPaused(false);
                     event.reply(event.getClient().getSuccess() + "Resumed playing **" + handler.getPlayer().getPlayingTrack().getInfo().title + "**.").queue();
+                    bot.getNowplayingHandler().onTrackUpdate(event.getGuild().getIdLong(), handler.getPlayer().getPlayingTrack(), handler);
+                        bot.getNowplayingHandler().onTrackUpdate(event.getGuild().getIdLong(), handler.getPlayer().getPlayingTrack(), handler);
 
-                    Bot.updatePlayStatus(event.getGuild(), event.getGuild().getSelfMember(), PlayStatus.PLAYING);
+                    Bot.updatePlayStatus(event.getGuild(), DiscordCompat.getSelfMember(event.getGuild()), PlayStatus.PLAYING);
                 } else
                     event.reply(event.getClient().getError() + "Only DJs can resume playback!").queue();
                 return;
@@ -419,7 +423,7 @@ public class PlayCmd extends MusicCommand {
             String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
                     + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue. "));
             
-            if (playlist == null || !event.getGuild().getSelfMember().hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION))
+            if (playlist == null || !DiscordCompat.getSelfMember(event.getGuild()).hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION))
                 m.editOriginal(addMsg).queue();
             else {
                 new ButtonMenu.Builder()
@@ -590,7 +594,7 @@ public class PlayCmd extends MusicCommand {
             String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
                     + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue. "));
             
-            if (playlist == null || !event.getSelfMember().hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION))
+            if (playlist == null || !DiscordCompat.getSelfMember(event.getGuild()).hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION))
                 m.editMessage(addMsg).queue();
             else {
                 new ButtonMenu.Builder()
@@ -762,7 +766,7 @@ public class PlayCmd extends MusicCommand {
                         handler.getPlayer().setPaused(false);
                         event.reply(event.getClient().getSuccess() + "**Resumed playing " + handler.getPlayer().getPlayingTrack().getInfo().title + "**.").queue();
 
-                        Bot.updatePlayStatus(event.getGuild(), event.getGuild().getSelfMember(), PlayStatus.PLAYING);
+                        Bot.updatePlayStatus(event.getGuild(), DiscordCompat.getSelfMember(event.getGuild()), PlayStatus.PLAYING);
                     } else
                         event.reply(event.getClient().getError() + "Only the DJ can resume playback!").queue();
                     return;

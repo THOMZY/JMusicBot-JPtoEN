@@ -22,14 +22,15 @@ import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
 import java.util.stream.Collectors;
 
 import java.io.BufferedReader;
@@ -748,16 +749,29 @@ public class RadioCmd extends MusicCommand {
     private EmbedBuilder createSearchResultsEmbed(CommandEvent cmdEvent, SlashCommandEvent slashEvent, String description) {
         EmbedBuilder embed = new EmbedBuilder();
         if (cmdEvent != null) {
-            embed.setColor(cmdEvent.getSelfMember().getColor());
+            Member selfMember = resolveSelfMember(cmdEvent.getGuild());
+            if (selfMember != null && selfMember.getColor() != null) {
+                embed.setColor(selfMember.getColor());
+            }
             embed.setTitle(FormatUtil.filter(cmdEvent.getClient().getSuccess() + " Radio station search results:"));
         } else if (slashEvent != null) {
-            embed.setColor(slashEvent.getGuild().getSelfMember().getColor());
+            Member selfMember = resolveSelfMember(slashEvent.getGuild());
+            if (selfMember != null && selfMember.getColor() != null) {
+                embed.setColor(selfMember.getColor());
+            }
             embed.setTitle(FormatUtil.filter(slashEvent.getClient().getSuccess() + " Radio station search results:"));
         }
         embed.setDescription(description);
         // Add footer with "Powered by Online Radio Box"
         embed.setFooter("\n\nPowered by Online Radio Box", "https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png");
         return embed;
+    }
+
+    private Member resolveSelfMember(Guild guild) {
+        if (guild == null || guild.getJDA() == null || guild.getJDA().getSelfUser() == null) {
+            return null;
+        }
+        return guild.getMember(guild.getJDA().getSelfUser());
     }
 
     /**
@@ -956,7 +970,7 @@ public class RadioCmd extends MusicCommand {
     private void handleCancelButton(net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent event) {
         // Disable all buttons and indicate cancellation
         event.editMessage("Selection canceled.")
-            .setComponents(disableAllButtons(event.getMessage().getActionRows()))
+            .setComponents(disableAllButtons(event.getMessage().getComponents().stream().map(component -> component.asActionRow()).collect(Collectors.toList())))
             .queue();
     }
 
@@ -1101,13 +1115,13 @@ public class RadioCmd extends MusicCommand {
             } else {
                 // No more stations found
                 event.getMessage().editMessage("No more stations found.")
-                    .setComponents(disableAllButtons(event.getMessage().getActionRows()))
+                    .setComponents(disableAllButtons(event.getMessage().getComponents().stream().map(component -> component.asActionRow()).collect(Collectors.toList())))
                     .queue();
             }
         } catch (Exception ex) {
             // Handle errors
             event.getMessage().editMessage("Error loading more results: " + ex.getMessage())
-                .setComponents(disableAllButtons(event.getMessage().getActionRows()))
+                .setComponents(disableAllButtons(event.getMessage().getComponents().stream().map(component -> component.asActionRow()).collect(Collectors.toList())))
                 .queue();
         }
     }
@@ -1129,7 +1143,7 @@ public class RadioCmd extends MusicCommand {
         
         // Disable all buttons and indicate selection
         event.editMessage("Station **" + station.title + "** selected!")
-            .setComponents(disableAllButtons(event.getMessage().getActionRows()))
+            .setComponents(disableAllButtons(event.getMessage().getComponents().stream().map(component -> component.asActionRow()).collect(Collectors.toList())))
             .queue();
         
         // Load and play radio
@@ -1141,7 +1155,7 @@ public class RadioCmd extends MusicCommand {
      */
     private void handleButtonTimeoutExpired(Message message) {
         // If the wait timeout expires, disable all buttons
-        message.editMessageComponents(disableAllButtons(message.getActionRows())).queue();
+        message.editMessageComponents(disableAllButtons(message.getComponents().stream().map(component -> component.asActionRow()).collect(Collectors.toList()))).queue();
     }
 
     private void loadAndPlayRadio(RadioStation station, CommandEvent cmdEvent, net.dv8tion.jda.api.entities.User slashUser) {
@@ -1279,7 +1293,10 @@ public class RadioCmd extends MusicCommand {
             net.dv8tion.jda.api.entities.channel.middleman.MessageChannel channel = guild.getTextChannelById(guild.getTextChannelCache().asList().get(0).getId());
             if (channel != null) {
                 EmbedBuilder embed = new EmbedBuilder();
-                embed.setColor(guild.getSelfMember().getColor());
+                Member selfMember = resolveSelfMember(guild);
+                if (selfMember != null && selfMember.getColor() != null) {
+                    embed.setColor(selfMember.getColor());
+                }
                 embed.setTitle("Radio added to queue");
                 embed.setDescription("**" + station.title + "** has been added to the queue!");
                 embed.setThumbnail(station.logoUrl);
@@ -1727,7 +1744,10 @@ public class RadioCmd extends MusicCommand {
          */
         private void displayRichEmbedResponse(TrackInfo trackInfo, String guildId) {
             EmbedBuilder embed = new EmbedBuilder();
-            embed.setColor(event.getSelfMember().getColor());
+            Member selfMember = resolveSelfMember(event.getGuild());
+            if (selfMember != null && selfMember.getColor() != null) {
+                embed.setColor(selfMember.getColor());
+            }
             embed.setTitle(FormatUtil.filter(event.getClient().getSuccess() + " Radio added to queue"));
             
             // Description with more information
@@ -1779,7 +1799,10 @@ public class RadioCmd extends MusicCommand {
             MessageChannel channel = guild.getTextChannelById(guild.getTextChannelCache().asList().get(0).getId());
             if (channel != null) {
                 EmbedBuilder embed = new EmbedBuilder();
-                embed.setColor(guild.getSelfMember().getColor());
+                Member selfMember = resolveSelfMember(guild);
+                if (selfMember != null && selfMember.getColor() != null) {
+                    embed.setColor(selfMember.getColor());
+                }
                 embed.setTitle("Radio added to queue");
                 
                 // Description with more information
@@ -1999,8 +2022,12 @@ public class RadioCmd extends MusicCommand {
         private void updateBotActivity(Guild guild, String newTitle) {
             if (bot.getConfig().getSongInStatus() && 
                     bot.getJDA().getGuilds().stream()
-                    .filter(g -> g.getSelfMember().getVoiceState() != null && 
-                            g.getSelfMember().getVoiceState().inAudioChannel())
+                    .filter(g -> {
+                        Member selfMember = resolveSelfMember(g);
+                        return selfMember != null
+                                && selfMember.getVoiceState() != null
+                                && selfMember.getVoiceState().inAudioChannel();
+                    })
                     .count() <= 1) {
                 if(newTitle.length() > 128) {
                     newTitle = newTitle.substring(0, 128);
@@ -2023,7 +2050,10 @@ public class RadioCmd extends MusicCommand {
                     tchan.retrieveMessageById(messageId).queue(message -> {
                         // Create a new embed with updated info
                         EmbedBuilder embed = new EmbedBuilder();
-                        embed.setColor(guild.getSelfMember().getColor());
+                        Member selfMember = resolveSelfMember(guild);
+                        if (selfMember != null && selfMember.getColor() != null) {
+                            embed.setColor(selfMember.getColor());
+                        }
                         
                         // Create a clickable link for the station
                         String stationUrl = "https://onlineradiobox.com/" + stationPath;
@@ -2876,13 +2906,13 @@ public class RadioCmd extends MusicCommand {
             } else {
                 // No more stations found
                 event.getMessage().editMessage("No more substations found.")
-                    .setComponents(disableAllButtons(event.getMessage().getActionRows()))
+                    .setComponents(disableAllButtons(event.getMessage().getComponents().stream().map(component -> component.asActionRow()).collect(Collectors.toList())))
                     .queue();
             }
         } catch (Exception ex) {
             // Handle errors
             event.getMessage().editMessage("Error loading more results: " + ex.getMessage())
-                .setComponents(disableAllButtons(event.getMessage().getActionRows()))
+                .setComponents(disableAllButtons(event.getMessage().getComponents().stream().map(component -> component.asActionRow()).collect(Collectors.toList())))
                 .queue();
         }
     }

@@ -8,6 +8,7 @@ import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
 import dev.cosgy.jmusicbot.slashcommands.DJCommand;
 import dev.cosgy.jmusicbot.util.Cache;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.exceptions.PermissionException;
 
@@ -76,7 +77,7 @@ public class CashCmd extends SlashCommand {
         builder.setText((i1, i2) -> getQueueTitle(event.getClient().getSuccess(), songs.length, finTotal))
                 .setItems(songs)
                 .setUsers(event.getAuthor())
-                .setColor(event.getSelfMember().getColor())
+            .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
         ;
         builder.build().paginate(event.getChannel(), pagenum);
     }

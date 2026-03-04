@@ -22,6 +22,7 @@ import com.jagrosh.jlyrics.LyricsClient;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
@@ -268,7 +269,7 @@ public class LyricsCmd extends MusicCommand {
             if (lyricsText != null && !lyricsText.isEmpty()) {
                 EmbedBuilder eb = new EmbedBuilder()
                         .setAuthor("Lyrics for: " + finalTitle)
-                        .setColor(event.getSelfMember().getColor())
+                    .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
                         .setTitle(finalTitle, null);
                 
                 if (lyricsText.length() > 2000) {
@@ -297,7 +298,7 @@ public class LyricsCmd extends MusicCommand {
                     if (simplifiedLyrics != null && !simplifiedLyrics.isEmpty()) {
                         EmbedBuilder eb = new EmbedBuilder()
                                 .setAuthor("Lyrics for: " + finalTitle)
-                                .setColor(event.getSelfMember().getColor())
+                            .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
                                 .setTitle(finalTitle, null);
                                 
                         if (simplifiedLyrics.length() > 2000) {
@@ -332,7 +333,7 @@ public class LyricsCmd extends MusicCommand {
     private void sendLyricsEmbed(CommandEvent event, com.jagrosh.jlyrics.Lyrics lyrics, String title) {
         EmbedBuilder eb = new EmbedBuilder()
                 .setAuthor(lyrics.getAuthor())
-                .setColor(event.getSelfMember().getColor())
+            .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
                 .setTitle(lyrics.getTitle(), lyrics.getURL());
         if (lyrics.getContent().length() > 15000) {
             event.replyWarning(" Lyrics found for `" + title + "` but they might be incorrect: " + lyrics.getURL());

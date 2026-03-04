@@ -29,6 +29,7 @@ import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import dev.cosgy.niconicoSearchAPI.nicoSearchAPI;
 import dev.cosgy.niconicoSearchAPI.nicoVideoSearchResult;
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -37,8 +38,8 @@ import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.interactions.components.ActionRow;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
 
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -85,7 +86,7 @@ public class NicoSearchCmd extends MusicCommand {
             }
 
             EmbedBuilder embed = new EmbedBuilder()
-                    .setColor(event.getSelfMember().getColor())
+                    .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
                     .setTitle(FormatUtil.filter(event.getClient().getSuccess() + "`" + event.getArgs() + "` search results:"));
                     
             StringBuilder description = new StringBuilder();
@@ -134,7 +135,7 @@ public class NicoSearchCmd extends MusicCommand {
                                     // Disable all buttons and indicate cancellation
                                     e.editMessage("Selection canceled.")
                                         .setComponents(
-                                            e.getMessage().getActionRows().stream()
+                                            e.getMessage().getComponents().stream().map(component -> component.asActionRow())
                                                 .map(row -> ActionRow.of(
                                                     row.getButtons().stream()
                                                         .map(Button::asDisabled)
@@ -153,7 +154,7 @@ public class NicoSearchCmd extends MusicCommand {
                                     // Disable all buttons and indicate selection
                                     e.editMessage("Video **" + selectedResultVideo.getTitle() + "** selected!")
                                         .setComponents(
-                                            e.getMessage().getActionRows().stream()
+                                            e.getMessage().getComponents().stream().map(component -> component.asActionRow())
                                                 .map(row -> ActionRow.of(
                                                     row.getButtons().stream()
                                                         .map(Button::asDisabled)
@@ -171,7 +172,7 @@ public class NicoSearchCmd extends MusicCommand {
                             () -> {
                                 // If the wait timeout expires, disable all buttons
                                 message.editMessageComponents(
-                                    message.getActionRows().stream()
+                                    message.getComponents().stream().map(component -> component.asActionRow())
                                         .map(row -> ActionRow.of(
                                             row.getButtons().stream()
                                                 .map(Button::asDisabled)
@@ -205,7 +206,7 @@ public class NicoSearchCmd extends MusicCommand {
             }
 
             EmbedBuilder embed = new EmbedBuilder()
-                    .setColor(event.getGuild().getSelfMember().getColor())
+                    .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
                     .setTitle(FormatUtil.filter(event.getClient().getSuccess() + "`" + input + "` search results:"));
                     
             StringBuilder description = new StringBuilder();
@@ -254,7 +255,7 @@ public class NicoSearchCmd extends MusicCommand {
                                     // Disable all buttons and indicate cancellation
                                     e.editMessage("Selection canceled.")
                                         .setComponents(
-                                            e.getMessage().getActionRows().stream()
+                                            e.getMessage().getComponents().stream().map(component -> component.asActionRow())
                                                 .map(row -> ActionRow.of(
                                                     row.getButtons().stream()
                                                         .map(Button::asDisabled)
@@ -273,7 +274,7 @@ public class NicoSearchCmd extends MusicCommand {
                                     // Disable all buttons and indicate selection
                                     e.editMessage("Video **" + selectedResultVideo.getTitle() + "** selected!")
                                         .setComponents(
-                                            e.getMessage().getActionRows().stream()
+                                            e.getMessage().getComponents().stream().map(component -> component.asActionRow())
                                                 .map(row -> ActionRow.of(
                                                     row.getButtons().stream()
                                                         .map(Button::asDisabled)
@@ -291,7 +292,7 @@ public class NicoSearchCmd extends MusicCommand {
                             () -> {
                                 // If the wait timeout expires, disable all buttons
                                 message.editMessageComponents(
-                                    message.getActionRows().stream()
+                                    message.getComponents().stream().map(component -> component.asActionRow())
                                         .map(row -> ActionRow.of(
                                             row.getButtons().stream()
                                                 .map(Button::asDisabled)

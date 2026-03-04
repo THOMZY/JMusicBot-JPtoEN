@@ -36,6 +36,7 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.audio.AudioModuleConfig;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.exceptions.InvalidTokenException;
 import net.dv8tion.jda.api.requests.GatewayIntent;
@@ -48,6 +49,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.lang.reflect.Method;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,6 +73,42 @@ public class JMusicBot {
     
     // Delegating PrintStream for OAuth2 logs - can be updated when GUI is initialized
     private static DelegatingPrintStream originalOut;
+
+    private static AudioModuleConfig createDaveAudioModuleConfig(Logger log, Prompt prompt) {
+        try {
+            AudioModuleConfig config = new AudioModuleConfig();
+            Class<?> factoryClass = Class.forName("club.minnced.discord.jdave.interop.JDaveSessionFactory");
+            Object factory = factoryClass.getDeclaredConstructor().newInstance();
+
+            Method withDaveMethod = null;
+            for (Method method : AudioModuleConfig.class.getMethods()) {
+                if (!"withDaveSessionFactory".equals(method.getName()) || method.getParameterCount() != 1) {
+                    continue;
+                }
+                if (method.getParameterTypes()[0].isAssignableFrom(factoryClass)) {
+                    withDaveMethod = method;
+                    break;
+                }
+            }
+
+            if (withDaveMethod == null) {
+                throw new NoSuchMethodException("AudioModuleConfig.withDaveSessionFactory not found");
+            }
+
+            Object configured = withDaveMethod.invoke(config, factory);
+            if (configured instanceof AudioModuleConfig) {
+                config = (AudioModuleConfig) configured;
+            }
+            log.info("DAVE voice encryption enabled.");
+            return config;
+        } catch (Throwable t) {
+            log.warn("DAVE initialization failed. Falling back to default encryption: {}", t.toString());
+            prompt.alert(Prompt.Level.WARNING, "DAVE",
+                    "Failed to initialize DAVE. Continuing with default voice encryption. Details: "
+                            + t.getClass().getSimpleName());
+            return null;
+        }
+    }
 
     /**
      * @param args the command line arguments
@@ -297,7 +335,6 @@ public class JMusicBot {
         }};
 
         cb.addCommands(slashCommandList.toArray(new Command[0]));
-        cb.addSlashCommands(slashCommandList.toArray(new SlashCommand[0]));
 
         if (config.useEval())
             cb.addCommand(new EvalCmd(bot));
@@ -327,15 +364,22 @@ public class JMusicBot {
         // attempt to log in and start
         final JDA[] jdaRef = new JDA[1];
         try {
-            JDA jda = JDABuilder.create(config.getToken(), Arrays.asList(INTENTS))
+            JDABuilder jdaBuilder = JDABuilder.create(config.getToken(), Arrays.asList(INTENTS))
                     .enableCache(CacheFlag.MEMBER_OVERRIDES, CacheFlag.VOICE_STATE)
                     .disableCache(CacheFlag.ACTIVITY, CacheFlag.CLIENT_STATUS, CacheFlag.EMOJI, CacheFlag.ONLINE_STATUS, CacheFlag.STICKER, CacheFlag.SCHEDULED_EVENTS)
                     .setActivity(nogame ? null : Activity.playing("Loading..."))
                     .setStatus(config.getStatus() == OnlineStatus.INVISIBLE || config.getStatus() == OnlineStatus.OFFLINE
-                            ? OnlineStatus.INVISIBLE : OnlineStatus.DO_NOT_DISTURB)
-                    .addEventListeners(cb.build(), waiter, new Listener(bot))
-                    .setBulkDeleteSplittingEnabled(true)
-                    .build();
+                    ? OnlineStatus.INVISIBLE : OnlineStatus.DO_NOT_DISTURB);
+
+            AudioModuleConfig daveConfig = createDaveAudioModuleConfig(log, prompt);
+            if (daveConfig != null) {
+            jdaBuilder.setAudioModuleConfig(daveConfig);
+            }
+
+            JDA jda = jdaBuilder
+                .addEventListeners(cb.build(), waiter, new Listener(bot))
+                .setBulkDeleteSplittingEnabled(true)
+                .build();
             jdaRef[0] = jda;
             bot.setJDA(jda);
 

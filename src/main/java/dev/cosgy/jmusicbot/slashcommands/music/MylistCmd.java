@@ -1,12 +1,11 @@
 package dev.cosgy.jmusicbot.slashcommands.music;
 
-import com.jagrosh.jdautilities.command.Command;
-import com.jagrosh.jdautilities.command.CommandEvent;
-import com.jagrosh.jdautilities.command.SlashCommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.Command;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.audio.QueuedTrack;
-import com.jagrosh.jmusicbot.utils.FormatUtil;
 import dev.cosgy.jmusicbot.playlist.MylistLoader;
 import dev.cosgy.jmusicbot.slashcommands.DJCommand;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
@@ -120,7 +119,7 @@ public class MylistCmd extends MusicCommand {
         }
     }
 
-    public class PlayCmd extends MusicCommand {
+    public static class PlayCmd extends MusicCommand {
         public PlayCmd(Bot bot) {
             super(bot);
             this.name = "play";
@@ -147,23 +146,7 @@ public class MylistCmd extends MusicCommand {
                 event.replyError("Could not find `" + event.getArgs() + ".txt`");
                 return;
             }
-            event.getChannel().sendMessage(":calling: Loading mylist **" + event.getArgs() + "**... (" + playlist.getItems().size() + " tracks)").queue(m ->
-            {
-                AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-                playlist.loadTracks(bot.getPlayerManager(), (at) -> handler.addTrack(new QueuedTrack(at, event.getAuthor())), () -> {
-                    StringBuilder builder = new StringBuilder(playlist.getTracks().isEmpty()
-                            ? event.getClient().getWarning() + " No tracks were loaded."
-                            : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks.");
-                    if (!playlist.getErrors().isEmpty())
-                        builder.append("\nThe following tracks could not be loaded:");
-                    playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
-                            .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
-                    String str = builder.toString();
-                    if (str.length() > 2000)
-                        str = str.substring(0, 1994) + " (truncated)";
-                    m.editMessage(FormatUtil.filter(str)).queue();
-                });
-            });
+            MylistLoadUtil.loadMylistForCommand(bot, event, playlist, event.getArgs());
         }
 
         @Override
@@ -177,23 +160,7 @@ public class MylistCmd extends MusicCommand {
                 event.reply(event.getClient().getError() + "Could not find `" + name + ".txt`").queue();
                 return;
             }
-            event.reply(":calling: Loading mylist **" + name + "**... (" + playlist.getItems().size() + " tracks)").queue(m ->
-            {
-                AudioHandler handler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-                playlist.loadTracks(bot.getPlayerManager(), (at) -> handler.addTrack(new QueuedTrack(at, event.getUser())), () -> {
-                    StringBuilder builder = new StringBuilder(playlist.getTracks().isEmpty()
-                            ? event.getClient().getWarning() + " No tracks were loaded."
-                            : event.getClient().getSuccess() + " Loaded **" + playlist.getTracks().size() + "** tracks.");
-                    if (!playlist.getErrors().isEmpty())
-                        builder.append("\nThe following tracks could not be loaded:");
-                    playlist.getErrors().forEach(err -> builder.append("\n`[").append(err.getIndex() + 1)
-                            .append("]` **").append(err.getItem()).append("**: ").append(err.getReason()));
-                    String str = builder.toString();
-                    if (str.length() > 2000)
-                        str = str.substring(0, 1994) + " (truncated)";
-                    m.editOriginal(FormatUtil.filter(str)).queue();
-                });
-            });
+            MylistLoadUtil.loadMylistForSlash(bot, event, playlist, name);
         }
     }
 

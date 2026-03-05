@@ -16,7 +16,7 @@
  */
 package com.jagrosh.jmusicbot.settings;
 
-import com.jagrosh.jdautilities.command.GuildSettingsManager;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.GuildSettingsManager;
 import com.jagrosh.jmusicbot.utils.OtherUtil;
 import dev.cosgy.jmusicbot.settings.RepeatMode;
 import net.dv8tion.jda.api.entities.Guild;
@@ -39,53 +39,68 @@ public class SettingsManager implements GuildSettingsManager {
     public SettingsManager() {
         this.settings = new HashMap<>();
         try {
-            JSONObject loadedSettings = new JSONObject(new String(Files.readAllBytes(OtherUtil.getPath("serversettings.json"))));
-            loadedSettings.keySet().forEach((id) -> {
-                JSONObject o = loadedSettings.getJSONObject(id);
-
-                // to support previous (boolean type) versions.
-                try {
-                    if (o.getBoolean("repeat")) {
-                        o.put("repeat", RepeatMode.ALL);
-                    } else {
-                        o.put("repeat", RepeatMode.OFF);
-                    }
-                    // I had entered an incorrect value due to a bug,
-                    // so I wanted to change that value to the correct value.
-                    if (o.getInt("announce") == 50) {
-                        o.put("announce", 0);
-                    }
-                } catch (JSONException ignored) { /* ignored */ }
-
-                settings.put(Long.parseLong(id), new Settings(this,
-                        o.has("text_channel_id") ? o.getString("text_channel_id") : null,
-                        o.has("voice_channel_id") ? o.getString("voice_channel_id") : null,
-                        o.has("dj_role_id") ? o.getString("dj_role_id") : null,
-                        o.has("volume") ? o.getInt("volume") : 10,
-                        o.has("default_playlist") ? o.getString("default_playlist") : null,
-                        o.has("repeat") ? o.getEnum(RepeatMode.class, "repeat") : RepeatMode.OFF,
-                        o.has("prefix") ? o.getString("prefix") : null,
-                        o.has("bitrate_warnings_readied") && o.getBoolean("bitrate_warnings_readied"),
-                        o.has("announce") ? o.getInt("announce") : 0,
-                        o.has("skip_ratio") ? o.getDouble("skip_ratio") : SKIP_RATIO,
-                        o.has("vc_status") ? o.getBoolean("vc_status") : false,
-                        o.has("topic_status") ? o.getBoolean("topic_status") : false,
-                        o.has("force_to_end_que") && o.getBoolean("force_to_end_que"),
-                        o.has("songs_played") ? o.getInt("songs_played") : 0,
-                        o.has("playtime_millis") ? o.getLong("playtime_millis") : 0));
-            });
+            loadSavedSettings();
         } catch (NoSuchFileException e) {
             // ignore, it just means no settings have been saved yet
             // create an empty json file
-            try {
-                LoggerFactory.getLogger("Settings").info("Created serversettings.json at " + OtherUtil.getPath("serversettings.json").toAbsolutePath() + ".");
-                Files.write(OtherUtil.getPath("serversettings.json"), new JSONObject().toString(4).getBytes());
-            } catch(IOException ex) {
-                LoggerFactory.getLogger("Settings").warn("Failed to create server configuration file: " + ex);
-            }
+            createInitialSettingsFile();
             return;
         } catch(IOException | JSONException e) {
             LoggerFactory.getLogger("Settings").warn("Failed to load server configuration file: " + e);
+        }
+    }
+
+    private void loadSavedSettings() throws IOException {
+        JSONObject loadedSettings = new JSONObject(new String(Files.readAllBytes(OtherUtil.getPath("serversettings.json"))));
+        loadedSettings.keySet().forEach((id) -> {
+            JSONObject o = loadedSettings.getJSONObject(id);
+            migrateLegacyValues(o);
+            settings.put(Long.parseLong(id), parseSettings(o));
+        });
+    }
+
+    private void migrateLegacyValues(JSONObject o) {
+        // to support previous (boolean type) versions.
+        try {
+            if (o.getBoolean("repeat")) {
+                o.put("repeat", RepeatMode.ALL);
+            } else {
+                o.put("repeat", RepeatMode.OFF);
+            }
+            // Normalize an old incorrect announce value.
+            if (o.getInt("announce") == 50) {
+                o.put("announce", 0);
+            }
+        } catch (JSONException ignored) {
+            // Keep existing values when migration keys are not present.
+        }
+    }
+
+    private Settings parseSettings(JSONObject o) {
+        return new Settings(this,
+                o.has("text_channel_id") ? o.getString("text_channel_id") : null,
+                o.has("voice_channel_id") ? o.getString("voice_channel_id") : null,
+                o.has("dj_role_id") ? o.getString("dj_role_id") : null,
+                o.has("volume") ? o.getInt("volume") : 10,
+                o.has("default_playlist") ? o.getString("default_playlist") : null,
+                o.has("repeat") ? o.getEnum(RepeatMode.class, "repeat") : RepeatMode.OFF,
+                o.has("prefix") ? o.getString("prefix") : null,
+                o.has("bitrate_warnings_readied") && o.getBoolean("bitrate_warnings_readied"),
+                o.has("announce") ? o.getInt("announce") : 0,
+                o.has("skip_ratio") ? o.getDouble("skip_ratio") : SKIP_RATIO,
+                o.has("vc_status") && o.getBoolean("vc_status"),
+                o.has("topic_status") && o.getBoolean("topic_status"),
+                o.has("force_to_end_que") && o.getBoolean("force_to_end_que"),
+                o.has("songs_played") ? o.getInt("songs_played") : 0,
+                o.has("playtime_millis") ? o.getLong("playtime_millis") : 0);
+    }
+
+    private void createInitialSettingsFile() {
+        try {
+            LoggerFactory.getLogger("Settings").info("Created serversettings.json at " + OtherUtil.getPath("serversettings.json").toAbsolutePath() + ".");
+            Files.write(OtherUtil.getPath("serversettings.json"), new JSONObject().toString(4).getBytes());
+        } catch(IOException ex) {
+            LoggerFactory.getLogger("Settings").warn("Failed to create server configuration file: " + ex);
         }
     }
 

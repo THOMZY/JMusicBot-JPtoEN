@@ -422,64 +422,21 @@ public class IcyMetadataHandler {
     private boolean fetchIcyMetadata(String streamUrl, StreamMetadata metadata) {
         HttpURLConnection connection = null;
         InputStream in = null;
-        
+
         try {
-            URL url = new URL(streamUrl);
-            connection = (HttpURLConnection) url.openConnection();
-            
-            // Set up headers for ICY metadata
-            connection.setRequestProperty("Icy-MetaData", "1");
-            connection.setRequestProperty("User-Agent", "JMusicBot ICY Client/1.0");
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(5000);
-            
-            // Connect and check for ICY metadata interval
+            connection = openIcyConnection(streamUrl);
             connection.connect();
-            
-            // Check headers for station info
-            String contentType = connection.getContentType();
-            if (contentType != null && !contentType.isEmpty()) {
-                if (contentType.contains("audio/")) {
-                    // This is confirmed to be an audio stream
-                    if (contentType.contains(";")) {
-                        String[] parts = contentType.split(";");
-                        for (String part : parts) {
-                            part = part.trim();
-                            if (part.startsWith("charset=")) {
-                                // Found charset information
-                            }
-                        }
-                    }
-                }
-            }
-            
+
+            // Read content-type once to force header parsing on some streams.
+            connection.getContentType();
             // Extract ICY headers for station information
             extractIcyHeaders(connection, metadata);
-            
-            // Check if we can get stream metadata
+
             String icyMetaInt = connection.getHeaderField("icy-metaint");
             if (icyMetaInt != null) {
                 int metaInt = Integer.parseInt(icyMetaInt);
                 in = connection.getInputStream();
-                
-                // Skip to the first metadata
-                in.skip(metaInt);
-                
-                // Read the metadata
-                int metaLength = in.read() * 16;
-                
-                if (metaLength > 0) {
-                    byte[] metaData = new byte[metaLength];
-                    in.read(metaData);
-                    
-                    // Convert to string and extract stream title
-                    String metaString = new String(metaData, StandardCharsets.UTF_8).trim();
-                    Matcher matcher = STREAM_TITLE_PATTERN.matcher(metaString);
-                    if (matcher.find()) {
-                        String streamTitle = matcher.group(1);
-                        metadata.updateFromStreamTitle(streamTitle);
-                    }
-                }
+                readIcyMetadataBlock(in, metaInt, metadata);
             } else {
                 // If no ICY metadata, check if we received a redirect
                 String location = connection.getHeaderField("Location");
@@ -494,12 +451,46 @@ public class IcyMetadataHandler {
             metadata.setFailed(true);
             return false;
         } finally {
-            try {
-                if (in != null) in.close();
-                if (connection != null) connection.disconnect();
-            } catch (IOException e) {
-                // Ignore close errors
+            closeConnection(in, connection);
+        }
+    }
+
+    private HttpURLConnection openIcyConnection(String streamUrl) throws IOException {
+        URL url = new URL(streamUrl);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestProperty("Icy-MetaData", "1");
+        connection.setRequestProperty("User-Agent", "JMusicBot ICY Client/1.0");
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(5000);
+        return connection;
+    }
+
+    private void readIcyMetadataBlock(InputStream in, int metaInt, StreamMetadata metadata) throws IOException {
+        in.skip(metaInt);
+        int metaLength = in.read() * 16;
+        if (metaLength <= 0) {
+            return;
+        }
+
+        byte[] metaData = new byte[metaLength];
+        in.read(metaData);
+        String metaString = new String(metaData, StandardCharsets.UTF_8).trim();
+        Matcher matcher = STREAM_TITLE_PATTERN.matcher(metaString);
+        if (matcher.find()) {
+            metadata.updateFromStreamTitle(matcher.group(1));
+        }
+    }
+
+    private void closeConnection(InputStream in, HttpURLConnection connection) {
+        try {
+            if (in != null) {
+                in.close();
             }
+            if (connection != null) {
+                connection.disconnect();
+            }
+        } catch (IOException e) {
+            // Ignore close errors
         }
     }
     

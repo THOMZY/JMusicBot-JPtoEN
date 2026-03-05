@@ -104,55 +104,73 @@ public class NowplayingHandler {
 
     public void updateTopic(long guildId, AudioHandler handler, boolean wait) {
         Guild guild = bot.getJDA().getGuildById(guildId);
-        if (guild == null)
+        if (guild == null) {
             return;
+        }
+
         Settings settings = bot.getSettingsManager().getSettings(guildId);
-        TextChannel tchan = settings.getTextChannel(guild);
-        if (settings.getTopicStatus() && tchan != null && guild.getSelfMember().hasPermission(tchan, Permission.MANAGE_CHANNEL)) {
-            String otherText;
-            String topic = tchan.getTopic();
-            if (topic == null || topic.isEmpty())
-                otherText = "\u200B";
-            else if (topic.contains("\u200B"))
-                otherText = topic.substring(topic.lastIndexOf("\u200B"));
-            else
-                otherText = "\u200B\n " + topic;
-            String text = handler.getTopicFormat(bot.getJDA()) + otherText;
-            if (!text.equals(tchan.getTopic())) {
-                try {
-                    tchan.getManager().setTopic(text).complete(wait);
-                } catch (PermissionException | RateLimitedException ignore) {
-                }
-            }
-        }
 
-        // Voice channel status updates
-        GuildVoiceState vChan = guild.getSelfMember().getVoiceState();
-
-        if(vChan == null || !vChan.inAudioChannel()){
+        updateTextChannelTopic(guild, settings, handler, wait);
+        VoiceChannel voiceChannel = getCurrentVoiceChannel(guild);
+        if (voiceChannel == null) {
             return;
         }
-
-        AudioChannelUnion chan = vChan.getChannel();
-        if (!(chan instanceof VoiceChannel)) {
-            return;
-        }
-
-        VoiceChannel voiceChannel = (VoiceChannel) chan;
-
-        if(settings.getVCStatus() && guild.getSelfMember().hasPermission(voiceChannel, Permission.VOICE_SET_STATUS)){
-            String text = handler.getTopicFormat(bot.getJDA());
-            if (!text.equals(voiceChannel.getStatus())) {
-                try {
-                    voiceChannel.modifyStatus(text).complete(wait);
-                } catch (PermissionException | RateLimitedException ignore) {
-                }
-            }
+        if (settings.getVCStatus() && guild.getSelfMember().hasPermission(voiceChannel, Permission.VOICE_SET_STATUS)) {
+            updateVoiceChannelStatus(voiceChannel, handler, wait);
         } else {
             clearVoiceChannelStatus(voiceChannel, guild, wait);
         }
+    }
 
+    private void updateTextChannelTopic(Guild guild, Settings settings, AudioHandler handler, boolean wait) {
+        TextChannel tchan = settings.getTextChannel(guild);
+        if (!settings.getTopicStatus() || tchan == null || !guild.getSelfMember().hasPermission(tchan, Permission.MANAGE_CHANNEL)) {
+            return;
+        }
 
+        String topic = tchan.getTopic();
+        String otherText;
+        if (topic == null || topic.isEmpty()) {
+            otherText = "\u200B";
+        } else if (topic.contains("\u200B")) {
+            otherText = topic.substring(topic.lastIndexOf("\u200B"));
+        } else {
+            otherText = "\u200B\n " + topic;
+        }
+
+        String text = handler.getTopicFormat(bot.getJDA()) + otherText;
+        if (text.equals(tchan.getTopic())) {
+            return;
+        }
+
+        try {
+            tchan.getManager().setTopic(text).complete(wait);
+        } catch (PermissionException | RateLimitedException ignore) {
+        }
+    }
+
+    private VoiceChannel getCurrentVoiceChannel(Guild guild) {
+        GuildVoiceState vChan = guild.getSelfMember().getVoiceState();
+        if (vChan == null || !vChan.inAudioChannel()) {
+            return null;
+        }
+        AudioChannelUnion chan = vChan.getChannel();
+        if (!(chan instanceof VoiceChannel)) {
+            return null;
+        }
+        return (VoiceChannel) chan;
+    }
+
+    private void updateVoiceChannelStatus(VoiceChannel voiceChannel, AudioHandler handler, boolean wait) {
+        String text = handler.getTopicFormat(bot.getJDA());
+        if (text.equals(voiceChannel.getStatus())) {
+            return;
+        }
+
+        try {
+            voiceChannel.modifyStatus(text).complete(wait);
+        } catch (PermissionException | RateLimitedException ignore) {
+        }
     }
 
     public void clearVoiceChannelStatus(long guildId, boolean wait) {
@@ -199,97 +217,111 @@ public class NowplayingHandler {
 
     // "event"-based methods
     public void onTrackUpdate(long guildId, AudioTrack track, AudioHandler handler) {
-        // Update bot status if applicable
         if (bot.getConfig().getSongInStatus()) {
-            if (track != null && bot.getJDA().getGuilds().stream().filter(g -> Objects.requireNonNull(g.getSelfMember().getVoiceState()).inAudioChannel()).count() <= 1) {
-                // Check if this is a Gensokyo Radio track
-                if (handler instanceof AudioHandler && ((AudioHandler) handler).isGensokyoRadioTrack(track)) {
-                    try {
-                        // Get current track info from GensokyoInfoAgent
-                        dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-                        
-                        if (info != null && info.getSonginfo() != null) {
-                            // Format as Artist - Title for Gensokyo Radio
-                            String artistTitle = info.getSonginfo().getArtist() + " - " + info.getSonginfo().getTitle();
-                            String statusTitle = artistTitle;
-                            if(statusTitle.length() > 128) {
-                                statusTitle = statusTitle.substring(0, 128);
-                            }
-                            bot.getJDA().getPresence().setActivity(Activity.listening(statusTitle));
-                            
-                            // Update track title to include current song info
-                            // This affects what's displayed in other places
-                            try {
-                                java.lang.reflect.Field titleField = track.getInfo().getClass().getDeclaredField("title");
-                                titleField.setAccessible(true);
-                                titleField.set(track.getInfo(), artistTitle);
-                                track.setUserData(artistTitle);
-                                
-                                // Add a listener to update the status when Gensokyo Radio track changes
-                                setupGensokyoTrackUpdateListener(guildId, track, handler);
-                            } catch (Exception e) {
-                                // Ignore field access errors
-                            }
-                            
-                            // Update topics immediately
-                            updateTopic(guildId, handler, false);
-                            return; // Skip the rest of the method
-                        }
-                    } catch (Exception e) {
-                        // If there was an error, fall back to default behavior
-                    }
-                }
-                
-                // Check if title is empty or null, provide a default if needed
-                AudioTrackInfo info = PlayerManager.getDisplayInfo(track);
-                String title = info != null ? info.title : track.getInfo().title;
-                if (title == null || title.trim().isEmpty() || title.equals("Unknown title")) {
-                    // Try to get a better title from different sources
-                    if (handler instanceof AudioHandler) {
-                        AudioHandler audioHandler = (AudioHandler) handler;
-                        
-                        // Check if it's a radio stream with ICY metadata
-                        IcyMetadataHandler.StreamMetadata icyMetadata = 
-                            bot.getIcyMetadataHandler().getMetadata(String.valueOf(guildId));
-                        
-                        if (icyMetadata != null) {
-                            // First try current track if available
-                            if (icyMetadata.getCurrentTrack() != null && !icyMetadata.getCurrentTrack().trim().isEmpty()) {
-                                title = icyMetadata.getCurrentTrack();
-                            } 
-                            // Otherwise use station name
-                            else if (icyMetadata.getStationName() != null && !icyMetadata.getStationName().trim().isEmpty()) {
-                                title = icyMetadata.getStationName();
-                            }
-                        }
-                    }
-                    
-                    // If still empty, try to extract filename from URL for local files
-                    if (title == null || title.trim().isEmpty() || title.equals("Unknown title")) {
-                        String uri = info != null && info.uri != null ? info.uri : track.getInfo().uri;
-                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri);
-                        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(title);
-                    }
-                    
-                    // If still empty after all attempts, use a generic title
-                    if (title == null || title.trim().isEmpty()) {
-                        boolean isStream = info != null ? info.isStream : track.getInfo().isStream;
-                        title = isStream ? "Live Stream" : "Music";
-                    }
-                }
-                
-                // Now set the activity with our guaranteed non-empty title
-                if(title.length() > 128) {
-                    title = title.substring(0, 128);
-                }
-                bot.getJDA().getPresence().setActivity(Activity.listening(title));
-            } else {
-                bot.resetGame();
-            }
+            updatePresenceFromTrack(guildId, track, handler);
         }
 
-        // Update channel topic if applicable
         updateTopic(guildId, handler, false);
+    }
+
+    private void updatePresenceFromTrack(long guildId, AudioTrack track, AudioHandler handler) {
+        if (!shouldUseTrackInStatus(track)) {
+            bot.resetGame();
+            return;
+        }
+
+        if (tryHandleGensokyoTrack(guildId, track, handler)) {
+            return;
+        }
+
+        String title = resolvePresenceTitle(guildId, track);
+        bot.getJDA().getPresence().setActivity(Activity.listening(trimToDiscordLimit(title)));
+    }
+
+    private boolean shouldUseTrackInStatus(AudioTrack track) {
+        return track != null && bot.getJDA().getGuilds().stream()
+                .filter(g -> Objects.requireNonNull(g.getSelfMember().getVoiceState()).inAudioChannel())
+                .count() <= 1;
+    }
+
+    private boolean tryHandleGensokyoTrack(long guildId, AudioTrack track, AudioHandler handler) {
+        if (!handler.isGensokyoRadioTrack(track)) {
+            return false;
+        }
+
+        try {
+            dev.cosgy.agent.objects.ResultSet info = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+            if (info == null || info.getSonginfo() == null) {
+                return false;
+            }
+
+            String artistTitle = info.getSonginfo().getArtist() + " - " + info.getSonginfo().getTitle();
+            bot.getJDA().getPresence().setActivity(Activity.listening(trimToDiscordLimit(artistTitle)));
+            applyTitleToTrack(track, artistTitle);
+            setupGensokyoTrackUpdateListener(guildId, track, handler);
+            updateTopic(guildId, handler, false);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private String resolvePresenceTitle(long guildId, AudioTrack track) {
+        AudioTrackInfo info = PlayerManager.getDisplayInfo(track);
+        String title = info != null ? info.title : track.getInfo().title;
+        if (!isMissingTitle(title)) {
+            return title;
+        }
+
+        title = resolveTitleFromIcyMetadata(guildId);
+        if (!isMissingTitle(title)) {
+            return title;
+        }
+
+        String uri = info != null && info.uri != null ? info.uri : track.getInfo().uri;
+        title = dev.cosgy.jmusicbot.util.LocalAudioMetadata.cleanupFilename(
+                dev.cosgy.jmusicbot.util.LocalAudioMetadata.extractFilenameFromUrl(uri));
+        if (!isMissingTitle(title)) {
+            return title;
+        }
+
+        boolean isStream = info != null ? info.isStream : track.getInfo().isStream;
+        return isStream ? "Live Stream" : "Music";
+    }
+
+    private String resolveTitleFromIcyMetadata(long guildId) {
+        IcyMetadataHandler.StreamMetadata icyMetadata = bot.getIcyMetadataHandler().getMetadata(String.valueOf(guildId));
+        if (icyMetadata == null) {
+            return null;
+        }
+        if (!isMissingTitle(icyMetadata.getCurrentTrack())) {
+            return icyMetadata.getCurrentTrack();
+        }
+        if (!isMissingTitle(icyMetadata.getStationName())) {
+            return icyMetadata.getStationName();
+        }
+        return null;
+    }
+
+    private boolean isMissingTitle(String title) {
+        return title == null || title.trim().isEmpty() || "Unknown title".equals(title);
+    }
+
+    private String trimToDiscordLimit(String text) {
+        if (text == null) {
+            return "Music";
+        }
+        return text.length() > 128 ? text.substring(0, 128) : text;
+    }
+
+    private void applyTitleToTrack(AudioTrack track, String title) {
+        try {
+            java.lang.reflect.Field titleField = track.getInfo().getClass().getDeclaredField("title");
+            titleField.setAccessible(true);
+            titleField.set(track.getInfo(), title);
+            track.setUserData(title);
+        } catch (Exception ignored) {
+        }
     }
     
     /**

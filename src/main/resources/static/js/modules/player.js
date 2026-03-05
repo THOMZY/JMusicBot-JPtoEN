@@ -54,6 +54,121 @@ const Player = (function() {
         return url;
     }
 
+    function resolveSpotifyTrackUrl(track) {
+        if (track.uri && track.uri.includes('spotify')) {
+            return track.uri;
+        }
+        if (track.spotifyInfo && track.spotifyInfo.trackId) {
+            return 'https://open.spotify.com/track/' + track.spotifyInfo.trackId;
+        }
+        return '';
+    }
+
+    function resolveRadioAuthorUrl(track) {
+        if (track.radioCountry && track.radioAlias) {
+            return `https://onlineradiobox.com/${track.radioCountry}/${track.radioAlias}/`;
+        }
+        return track.radioStationUrl || '';
+    }
+
+    function resolveQueueTrackLinks(track) {
+        let trackSourceUrl = track.uri || '';
+        let queueAuthorSourceUrl = '';
+
+        switch (track.sourceType) {
+            case 'Spotify':
+                trackSourceUrl = resolveSpotifyTrackUrl(track);
+                break;
+            case 'Radio':
+                trackSourceUrl = '';
+                queueAuthorSourceUrl = resolveRadioAuthorUrl(track);
+                break;
+            case 'Gensokyo Radio':
+                trackSourceUrl = 'https://gensokyoradio.net/playing/';
+                break;
+            default:
+                break;
+        }
+
+        if (track.sourceType === 'Stream' && track.uri && track.uri.includes('stream.gensokyoradio.net')) {
+            trackSourceUrl = 'https://gensokyoradio.net/playing/';
+        }
+
+        return { trackSourceUrl, queueAuthorSourceUrl };
+    }
+
+    function buildQueueItemElement(track, index) {
+        const item = document.createElement('div');
+        item.className = 'queue-item';
+        item.setAttribute('data-index', index);
+        item.setAttribute('draggable', 'true');
+
+        let thumbnailUrl = makeSafeThumbnail(track.thumbnail);
+        if (!thumbnailUrl) {
+            thumbnailUrl = makeSafeThumbnail(getDefaultThumbnail(track.sourceType));
+        } else if (track.sourceType === 'Local File' && !thumbnailUrl.startsWith('local_artwork/')) {
+            console.warn('[fetchQueue] Local File track.thumbnail does not seem to be a local_artwork path:', thumbnailUrl);
+            thumbnailUrl = makeSafeThumbnail('https://cdn-icons-png.flaticon.com/512/4725/4725478.png');
+        }
+
+        const thumbnailClass = track.sourceType
+            ? `queue-item-thumbnail ${track.sourceType.toLowerCase().replace(/\s+/g, '-')}-thumbnail`
+            : 'queue-item-thumbnail';
+
+        const sourceIcon = UI.getSourceIcon(track.sourceType);
+        const sourceIconHtml = track.sourceIconUrl
+            ? `<img src="${track.sourceIconUrl}" alt="${track.source}" class="custom-source-icon" style="width: 1em; height: 1em; vertical-align: -0.125em; margin-right: 4px;">`
+            : `<i class="${sourceIcon}"></i>`;
+
+        const requesterInfo = track.requester
+            ? ` • ${track.requesterAvatar ? `<img src="${track.requesterAvatar}" class="requester-avatar" alt="" style="width:16px;height:16px;margin:0 4px;vertical-align:text-bottom;">` : ''}Requested by: ${track.requester}`
+            : '';
+
+        const { trackSourceUrl, queueAuthorSourceUrl } = resolveQueueTrackLinks(track);
+        const displaySource = (track.sourceType === 'Stream' && track.uri && track.uri.includes('stream.gensokyoradio.net'))
+            ? 'Gensokyo Radio'
+            : track.source;
+
+        const titleElement = trackSourceUrl
+            ? `<div class="queue-item-title">${index + 1}. <a href="${trackSourceUrl}" target="_blank" class="track-title-link">${track.title}</a></div>`
+            : `<div class="queue-item-title">${index + 1}. ${track.title}</div>`;
+
+        const authorElement = queueAuthorSourceUrl
+            ? `<span class="queue-item-author"><a href="${queueAuthorSourceUrl}" target="_blank" class="track-author-link">${track.author}</a></span>`
+            : `<span class="queue-item-author">${track.author}</span>`;
+
+        item.innerHTML = `
+            <div class="drag-handle" title="Drag to reorder">
+                <i class="fas fa-grip-lines"></i>
+            </div>
+            <div class="${thumbnailClass}">
+                <img src="${thumbnailUrl}" alt="${track.title}" referrerpolicy="no-referrer" onerror="handleImageError(this)">
+            </div>
+            <div class="queue-item-info">
+                ${titleElement}
+                <div class="queue-item-meta">
+                    ${authorElement}
+                    <span class="queue-item-source">${sourceIconHtml} ${displaySource}</span>
+                    <span class="queue-item-requester">${requesterInfo}</span>
+                </div>
+            </div>
+            <div class="queue-item-duration">${UI.formatTime(track.duration)}</div>
+            <div class="queue-item-actions">
+                <button class="move-top-btn" data-index="${index}" title="Move to top">
+                    <i class="fas fa-arrow-up"></i>
+                </button>
+                <button class="move-bottom-btn" data-index="${index}" title="Move to bottom">
+                    <i class="fas fa-arrow-down"></i>
+                </button>
+                <button class="remove-btn" data-index="${index}" title="Remove from queue">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `;
+
+        return item;
+    }
+
     // Centralized default thumbnails per source.
     function getDefaultThumbnail(sourceType) {
         if (!sourceType || sourceType === 'Unknown') {
@@ -88,71 +203,63 @@ const Player = (function() {
         // Bail if player view is gone (SPA navigation)
         if (!isPlayerViewActive()) return;
 
-        const { progressBar, currentTime, totalTime } = getPlayerEls();
+        const { progressBar, currentTime } = getPlayerEls();
         if (!progressBar || !currentTime) return;
-        
-        // Handle Gensokyo Radio tracks separately since they have their own timing
-        if ((window.currentStatus.sourceType === 'Gensokyo Radio' || 
-            (window.currentStatus.sourceType === 'Stream' && 
-             window.currentStatus.currentTrackUri && 
-             window.currentStatus.currentTrackUri.includes('stream.gensokyoradio.net'))) && 
-            window.currentStatus.spotifyInfo && 
-            window.currentStatus.spotifyInfo.gensokyoDuration) {
-            
-            // For Gensokyo Radio, we increment the time smoothly between server updates
-            // but we don't modify the base value that comes from the server
-            
-            // Only update the display if we have valid timing data
-            if (window.currentStatus.spotifyInfo.gensokyoPlayed !== undefined) {
-                // Store the last server value if not already stored
-                if (window.currentStatus.spotifyInfo.lastServerGensokyoPlayed === undefined) {
-                    window.currentStatus.spotifyInfo.lastServerGensokyoPlayed = window.currentStatus.spotifyInfo.gensokyoPlayed;
-                    window.currentStatus.spotifyInfo.localOffset = 0;
-                }
-                
-                // Increment local offset by 100ms
-                window.currentStatus.spotifyInfo.localOffset += 100;
-                
-                // Calculate the current display time based on the last server value plus our local offset
-                const displayTime = window.currentStatus.spotifyInfo.lastServerGensokyoPlayed + 
-                                    window.currentStatus.spotifyInfo.localOffset;
-                
-                // Update the display with the calculated time
-                currentTime.textContent = UI.formatTime(displayTime);
-                
-                // Calculate progress percentage based on the display time
-                const progressPercentage = 
-                    (displayTime / window.currentStatus.spotifyInfo.gensokyoDuration) * 100;
-                
-                // Update progress bar
-                if (progressPercentage <= 100 && progressBar) {
-                    progressBar.style.width = `${progressPercentage}%`;
-                }
-            }
-            
-            // Return early since we've handled the update
+        if (isGensokyoTimedTrack(window.currentStatus)) {
+            updateGensokyoProgress(progressBar, currentTime);
             return;
         }
-        
-        // Regular track handling
-        // Calculate current position based on time elapsed since last server update
+
+        updateRegularProgress(progressBar, currentTime);
+    }
+
+    function isGensokyoTimedTrack(status) {
+        const isGensokyoSource = status.sourceType === 'Gensokyo Radio';
+        const isGensokyoStream = status.sourceType === 'Stream'
+            && status.currentTrackUri
+            && status.currentTrackUri.includes('stream.gensokyoradio.net');
+        return (isGensokyoSource || isGensokyoStream)
+            && status.spotifyInfo
+            && status.spotifyInfo.gensokyoDuration;
+    }
+
+    function updateGensokyoProgress(progressBar, currentTime) {
+        if (window.currentStatus.spotifyInfo.gensokyoPlayed === undefined) {
+            return;
+        }
+
+        if (window.currentStatus.spotifyInfo.lastServerGensokyoPlayed === undefined) {
+            window.currentStatus.spotifyInfo.lastServerGensokyoPlayed = window.currentStatus.spotifyInfo.gensokyoPlayed;
+            window.currentStatus.spotifyInfo.localOffset = 0;
+        }
+
+        window.currentStatus.spotifyInfo.localOffset += 100;
+        const displayTime = window.currentStatus.spotifyInfo.lastServerGensokyoPlayed
+            + window.currentStatus.spotifyInfo.localOffset;
+        currentTime.textContent = UI.formatTime(displayTime);
+
+        const progressPercentage = (displayTime / window.currentStatus.spotifyInfo.gensokyoDuration) * 100;
+        if (progressPercentage <= 100) {
+            progressBar.style.width = `${progressPercentage}%`;
+        }
+    }
+
+    function updateRegularProgress(progressBar, currentTime) {
         const now = Date.now();
         const timeElapsed = now - lastServerUpdateTime;
         const calculatedPosition = lastServerPosition + timeElapsed;
-        
-        // Update currentStatus with calculated position
+
         window.currentStatus.currentTrackPosition = calculatedPosition;
-        
-        // Calculate percentage
         const progressPercentage = (window.currentStatus.currentTrackPosition / window.currentStatus.currentTrackDuration) * 100;
-        if (progressPercentage <= 100) {
-            progressBar.style.width = `${progressPercentage}%`;
-            currentTime.textContent = UI.formatTime(window.currentStatus.currentTrackPosition);
-            
-            // Update current chapter
-            if (window.currentStatus.sourceType === 'YouTube' && typeof YouTubeChapters !== 'undefined') {
-                YouTubeChapters.updateCurrentChapter();
-            }
+        if (progressPercentage > 100) {
+            return;
+        }
+
+        progressBar.style.width = `${progressPercentage}%`;
+        currentTime.textContent = UI.formatTime(window.currentStatus.currentTrackPosition);
+
+        if (window.currentStatus.sourceType === 'YouTube' && typeof YouTubeChapters !== 'undefined') {
+            YouTubeChapters.updateCurrentChapter();
         }
     }
     
@@ -345,666 +452,12 @@ const Player = (function() {
     
     // Fetch current status from the API
     async function fetchStatus() {
+        return fetchStatusInternal();
+    }
+
+    async function fetchStatusInternal() {
         try {
-            // Skip work when the player view is not mounted (SPA navigation)
-            if (!isPlayerViewActive()) {
-                if (progressInterval) {
-                    clearInterval(progressInterval);
-                    progressInterval = null;
-                }
-                return;
-            }
-
-            const response = await fetch('/api/status');
-            const data = await response.json();
-            console.log('[fetchStatus] Data received from /api/status:', JSON.parse(JSON.stringify(data))); // Log a deep copy
-
-            // If player view is not active (SPA navigation), skip DOM updates
-            if (!isPlayerViewActive()) return;
-
-            // Ensure critical elements exist before manipulating
-            const requiredIds = [
-                'track-title', 'track-author', 'queue-info', 'track-source-text', 'track-source-icon',
-                'track-requester', 'track-volume', 'spotify-info-container', 'gensokyo-info-container',
-                'localfile-info-container', 'track-thumbnail', 'progress-bar', 'status-message',
-                'radio-logo-container', 'station-logo', 'live-indicator', 'progress-container'
-            ];
-            const missingEl = requiredIds.find(id => !document.getElementById(id));
-            if (missingEl) {
-                console.warn('[fetchStatus] Missing expected element:', missingEl);
-                return;
-            }
-
-            const previousSourceType = window.currentStatus.sourceType;
-            const previousTrackId = window.currentStatus.currentTrackUri; // Store previous track ID
-            
-            // Store the previous position if we just performed a seek
-            const justSeeked = (Date.now() - lastSeekTime) < 1000; // Within 1 second of seek
-            const preservedPosition = justSeeked ? lastSeekPosition : null;
-            
-            window.currentStatus = data;
-            
-            // If we just seeked, use the local position instead of server position
-            // This prevents the progress bar from jumping back to the old position
-            if (preservedPosition !== null) {
-                window.currentStatus.currentTrackPosition = preservedPosition;
-                // Also update the server tracking variables to use the seek position
-                lastServerPosition = preservedPosition;
-                lastServerUpdateTime = Date.now();
-            } else {
-                // Update tracking variables with server data
-                lastServerPosition = data.currentTrackPosition || 0;
-                lastServerUpdateTime = Date.now();
-            }
-            
-            // For Radio tracks, clean up the title by removing the station name
-            let displayTitle = data.currentTrackTitle || 'No track playing';
-            let displayAuthor = data.currentTrackAuthor || '';
-            
-            if (data.sourceType === 'Radio') {
-                // Remove station name from title if it exists (format: "Title | STATION NAME")
-                const titleParts = displayTitle.split('|');
-                if (titleParts.length > 1) {
-                    displayTitle = titleParts[0].trim();
-                }
-            }
-            
-            // Get the appropriate source URL for the track link
-            let trackSourceUrl = '';
-            let authorSourceUrl = '';
-            
-            if (data.sourceType === 'YouTube' && data.currentTrackUri) {
-                trackSourceUrl = data.currentTrackUri;
-            } else if (data.sourceType === 'Spotify') {
-                // For Spotify tracks, check if we have the original Spotify URL
-                if (data.currentTrackUri && data.currentTrackUri.includes('spotify')) {
-                    // If the currentTrackUri already contains a Spotify URL, use it directly
-                    trackSourceUrl = data.currentTrackUri;
-                } else if (data.spotifyInfo && data.spotifyInfo.trackId) {
-                    // Otherwise construct a Spotify URL from the track ID
-                    trackSourceUrl = 'https://open.spotify.com/track/' + data.spotifyInfo.trackId;
-                }
-            } else if (data.sourceType === 'Radio') {
-                // For Radio tracks, don't make the title clickable, but make the author (station name) clickable
-                trackSourceUrl = ''; // Remove track title link for radio
-                
-                // Create proper OnlineRadioBox URL for the station
-                if (data.radioCountry && data.radioAlias) {
-                    // Construct the correct URL using country and alias format: https://onlineradiobox.com/country/alias/
-                    authorSourceUrl = `https://onlineradiobox.com/${data.radioCountry}/${data.radioAlias}/`;
-                } else if (data.radioStationUrl) {
-                    // Fallback to radioStationUrl if provided
-                    authorSourceUrl = data.radioStationUrl;
-                }
-            } else if (data.sourceType === 'Gensokyo Radio') {
-                // Use Gensokyo Radio official "now playing" page URL
-                trackSourceUrl = 'https://gensokyoradio.net/playing/';
-            } else if (data.sourceType === 'SoundCloud' && data.currentTrackUri) {
-                trackSourceUrl = data.currentTrackUri;
-            } else if (data.currentTrackUri) {
-                trackSourceUrl = data.currentTrackUri;
-            }
-            
-            // Create a clickable title element if we have a URL
-            const trackTitleElement = document.getElementById('track-title');
-            if (trackSourceUrl) {
-                // Create an anchor element with the track title
-                trackTitleElement.innerHTML = `<a href="${trackSourceUrl}" target="_blank" class="track-title-link">${displayTitle}</a>`;
-                
-                // For Spotify tracks with release year, add it after the link
-                if (data.sourceType === 'Spotify' && data.spotifyInfo && data.spotifyInfo.releaseYear) {
-                    trackTitleElement.querySelector('a').innerHTML += ` <span class="release-year">(${data.spotifyInfo.releaseYear})</span>`;
-                }
-            } else {
-                // No URL available, just display the text
-                trackTitleElement.textContent = displayTitle;
-            }
-            
-            // Create clickable author element if we have a URL for it (mainly for radio stations)
-            const trackAuthorElement = document.getElementById('track-author');
-            if (authorSourceUrl) {
-                // Create an anchor element with the author name (radio station)
-                trackAuthorElement.innerHTML = `<a href="${authorSourceUrl}" target="_blank" class="track-author-link">${displayAuthor}</a>`;
-            } else {
-                // Regular text for author when no special link is needed
-                trackAuthorElement.textContent = displayAuthor;
-            }
-            
-            document.getElementById('queue-info').textContent = `Queue: ${data.queueSize} track${data.queueSize !== 1 ? 's' : ''}`;
-            
-            // Update metadata with more specific info we added to the API
-            if (data.source && data.sourceType === '📻 Radio') {
-                document.getElementById('track-source-text').textContent = `Radio`;
-            } else if (data.sourceType === 'Stream' && data.currentTrackUri && data.currentTrackUri.includes('stream.gensokyoradio.net')) {
-                document.getElementById('track-source-text').innerHTML = `<a href="https://gensokyoradio.net/playing/" target="_blank">Gensokyo Radio</a>`;
-            } else if (data.sourceType === 'Gensokyo Radio') {
-                document.getElementById('track-source-text').innerHTML = `<a href="https://gensokyoradio.net/playing/" target="_blank">Gensokyo Radio</a>`;
-            } else if (data.sourceType === 'Radio') {
-                document.getElementById('track-source-text').textContent = `Radio`;
-            } else if (data.source) {
-                document.getElementById('track-source-text').textContent = `${data.source}`;
-            } else {
-                document.getElementById('track-source-text').textContent = 'Source: Unknown';
-            }
-            
-            // Update source icon based on the source type
-            let sourceIconElement = document.getElementById('track-source-icon');
-            
-            if (data.sourceIconUrl) {
-                // Handle custom icon URL
-                if (sourceIconElement && sourceIconElement.tagName !== 'IMG') {
-                    const img = document.createElement('img');
-                    img.id = 'track-source-icon';
-                    img.className = 'custom-source-icon';
-                    img.alt = data.source;
-                    img.style.width = '16px';
-                    img.style.height = '16px';
-                    img.style.marginRight = '5px';
-                    img.style.verticalAlign = 'text-bottom';
-                    sourceIconElement.replaceWith(img);
-                    sourceIconElement = img;
-                }
-                if (sourceIconElement) {
-                    sourceIconElement.src = data.sourceIconUrl;
-                    // Ensure it is visible if it was hidden
-                    sourceIconElement.style.display = 'inline-block';
-                }
-            } else {
-                // Fallback to FontAwesome icons
-                if (sourceIconElement && sourceIconElement.tagName !== 'I') {
-                    const i = document.createElement('i');
-                    i.id = 'track-source-icon';
-                    sourceIconElement.replaceWith(i);
-                    sourceIconElement = i;
-                }
-
-                if (sourceIconElement) {
-                    // Remove all existing classes except 'fas' or 'fab'
-                    sourceIconElement.className = '';
-                    // Set the appropriate icon based on source type
-                    const sourceIcon = UI.getSourceIcon(data.sourceType);
-                    sourceIconElement.className = sourceIcon;
-                    
-                    // Add color class based on source type
-                    const sourceType = data.sourceType || '';
-                    const sourceTypeLower = sourceType.toLowerCase();
-                    if (sourceTypeLower === 'youtube') {
-                        sourceIconElement.classList.add('source-icon-youtube');
-                    } else if (sourceTypeLower === 'spotify') {
-                        sourceIconElement.classList.add('source-icon-spotify');
-                    } else if (sourceTypeLower === 'soundcloud') {
-                        sourceIconElement.classList.add('source-icon-soundcloud');
-                    } else if (sourceTypeLower === 'tiktok') {
-                        sourceIconElement.classList.add('source-icon-tiktok');
-                    } else if (sourceTypeLower === 'instagram') {
-                        sourceIconElement.classList.add('source-icon-instagram');
-                    } else if (sourceTypeLower === 'twitter') {
-                        sourceIconElement.classList.add('source-icon-twitter');
-                    } else if (sourceTypeLower === 'gensokyo radio' || (sourceTypeLower === 'stream' && data.currentTrackUri && data.currentTrackUri.includes('stream.gensokyoradio.net'))) {
-                        sourceIconElement.classList.add('source-icon-gensokyoradio');
-                    } else if (sourceTypeLower === 'radio') {
-                        sourceIconElement.classList.add('source-icon-radio');
-                    } else if (sourceTypeLower === 'local file' || sourceTypeLower === 'local') {
-                        sourceIconElement.classList.add('source-icon-local');
-                    }
-                }
-            }
-            
-            // Update requester from API data
-            const requesterEl = document.getElementById('track-requester');
-            if (requesterEl) {
-                const container = requesterEl.parentElement;
-                if (data.requester) {
-                    const avatarHtml = data.requesterAvatar 
-                        ? `<img src="${data.requesterAvatar}" class="requester-avatar" alt="${data.requester}">` 
-                        : '<i class="fas fa-user"></i>';
-                    
-                    container.innerHTML = `${avatarHtml} <span id="track-requester">Requested by: ${data.requester}</span>`;
-                } else {
-                    container.innerHTML = `<i class="fas fa-user"></i> <span id="track-requester">Requested by: Unknown</span>`;
-                }
-            }
-            
-            // Update volume from API data
-            const volumeSlider = document.getElementById('volume-slider');
-            const volumeText = document.getElementById('track-volume');
-            const volumeIcon = document.getElementById('volume-icon');
-            const volume = data.volume !== undefined ? data.volume : 100;
-
-            if (volumeText) volumeText.textContent = `${volume}%`;
-            
-            // Only update slider if user is not currently dragging it
-            if (volumeSlider && !volumeSlider.matches(':active')) {
-                volumeSlider.value = volume;
-            }
-
-            // Update icon
-            if (volumeIcon) {
-                volumeIcon.className = 'fas';
-                if (volume > 60) volumeIcon.classList.add('fa-volume-up');
-                else if (volume > 30) volumeIcon.classList.add('fa-volume-down');
-                else if (volume > 0) volumeIcon.classList.add('fa-volume-off');
-                else volumeIcon.classList.add('fa-volume-mute');
-            }
-            
-            // Show Spotify information if available
-            const spotifyInfoContainer = document.getElementById('spotify-info-container');
-            const gensokyoInfoContainer = document.getElementById('gensokyo-info-container');
-            const localfileInfoContainer = document.getElementById('localfile-info-container'); // Get local file container
-
-            // Hide all optional info containers by default
-            spotifyInfoContainer.style.display = 'none';
-            gensokyoInfoContainer.style.display = 'none';
-            localfileInfoContainer.style.display = 'none';
-            
-            if (data.sourceType === 'Spotify' && data.spotifyInfo) {
-                // Update album name
-                if (data.spotifyInfo.albumName) {
-                    document.getElementById('track-album-text').textContent = `Album: ${data.spotifyInfo.albumName}`;
-                } else {
-                    document.getElementById('track-album-text').textContent = 'Album: Unknown';
-                }
-                
-                // Update release year
-                if (data.spotifyInfo.releaseYear) {
-                    document.getElementById('track-year-text').textContent = `Released: ${data.spotifyInfo.releaseYear}`;
-                } else {
-                    document.getElementById('track-year-text').textContent = 'Released: Unknown';
-                }
-                
-                // Show the Spotify info container and hide Gensokyo container
-                spotifyInfoContainer.style.display = 'flex';
-                // gensokyoInfoContainer.style.display = 'none'; // Already hidden by default
-                // localfileInfoContainer.style.display = 'none'; // Already hidden by default
-            } else if ((data.sourceType === 'Gensokyo Radio' || 
-                       (data.sourceType === 'Stream' && data.currentTrackUri && 
-                        data.currentTrackUri.includes('stream.gensokyoradio.net'))) && 
-                       data.spotifyInfo) {
-                
-                // Show Gensokyo Radio info container
-                gensokyoInfoContainer.style.display = 'flex';
-                // spotifyInfoContainer.style.display = 'none'; // Already hidden
-                // localfileInfoContainer.style.display = 'none'; // Already hidden
-                
-                // Update album name
-                if (data.spotifyInfo.albumName) {
-                    document.getElementById('gensokyo-album-text').textContent = `Album: ${data.spotifyInfo.albumName}`;
-                } else {
-                    document.getElementById('gensokyo-album-text').textContent = 'Album: Unknown';
-                }
-                
-                // Update circle name
-                if (data.spotifyInfo.circleName) {
-                    document.getElementById('gensokyo-circle-text').textContent = `Circle: ${data.spotifyInfo.circleName}`;
-                } else {
-                    document.getElementById('gensokyo-circle-text').textContent = 'Circle: Unknown';
-                }
-                
-                // Update release year
-                if (data.spotifyInfo.releaseYear) {
-                    document.getElementById('gensokyo-year-text').textContent = `Year: ${data.spotifyInfo.releaseYear}`;
-                } else {
-                    document.getElementById('gensokyo-year-text').textContent = 'Year: Unknown';
-                }
-            } else if (data.sourceType === 'Local File') {
-                // Show Local File info container
-                localfileInfoContainer.style.display = 'flex';
-                // spotifyInfoContainer.style.display = 'none'; // Already hidden
-                // gensokyoInfoContainer.style.display = 'none'; // Already hidden
-
-                // Update local file metadata
-                if (data.localAlbum && data.localAlbum !== "Unknown Album") {
-                    document.getElementById('localfile-album-text').textContent = `Album: ${data.localAlbum}`;
-                } else {
-                    document.getElementById('localfile-album-text').textContent = 'Album: Unknown';
-                }
-                if (data.localGenre && data.localGenre !== "Unknown Genre") {
-                    document.getElementById('localfile-genre-text').textContent = `Genre: ${data.localGenre}`;
-                } else {
-                    document.getElementById('localfile-genre-text').textContent = 'Genre: Unknown';
-                }
-                if (data.localYear && data.localYear !== "") {
-                    document.getElementById('localfile-year-text').textContent = `Year: ${data.localYear}`;
-                } else {
-                    document.getElementById('localfile-year-text').textContent = 'Year: Unknown';
-                }
-            } else {
-                // Hide all optional info containers for other track types (already done by default hide)
-            }
-            
-            // Log values just before thumbnail logic
-            console.log('[fetchStatus] Before thumbnail logic: currentTrackThumbnail:', data.currentTrackThumbnail, 'sourceType:', data.sourceType, 'currentTrackUri:', data.currentTrackUri);
-
-            // Update album art container class based on source type
-            const albumArt = document.querySelector('.album-art');
-            albumArt.className = 'album-art'; // Reset classes
-            
-            if (data.sourceType) {
-                // Replace spaces with hyphens for CSS class names
-                const cssFriendlySourceType = data.sourceType.toLowerCase().replace(/\s+/g, '-');
-                albumArt.classList.add(`${cssFriendlySourceType}-thumbnail`);
-            }
-            
-            // Manage radio station logo and live indicator for Radio tracks
-            const radioLogoContainer = document.getElementById('radio-logo-container');
-            const stationLogo = document.getElementById('station-logo');
-            const liveIndicator = document.getElementById('live-indicator');
-            const currentTime = document.getElementById('current-time');
-            const totalTime = document.getElementById('total-time');
-            
-            if (data.sourceType === 'Radio') {
-                // Show the radio logo container
-                radioLogoContainer.style.display = 'flex';
-                
-                // Show the station logo if we have one
-                if (data.radioLogoUrl) {
-                    stationLogo.src = data.radioLogoUrl;
-                } else {
-                    stationLogo.src = 'https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png';
-                }
-                
-                // Show LIVE indicator instead of time display for radio
-                liveIndicator.style.display = 'inline-flex';
-                currentTime.style.display = 'none';
-                totalTime.style.display = 'none';
-                
-                // Add special class for radio streams that don't show time display
-                const timeDisplay = document.querySelector('.time-display');
-                timeDisplay.classList.add('time-display-hidden');
-                timeDisplay.style.display = 'none';
-                
-                // Move the LIVE indicator to its own container after the progress bar
-                const progressContainer = document.querySelector('.progress-container');
-                const controlsContainer = document.querySelector('.controls');
-                
-                // Create or use an existing container for the live indicator
-                let liveIndicatorContainer = document.getElementById('live-indicator-container');
-                if (!liveIndicatorContainer) {
-                    liveIndicatorContainer = document.createElement('div');
-                    liveIndicatorContainer.id = 'live-indicator-container';
-                    liveIndicatorContainer.className = 'time-display time-display-hidden';
-                    progressContainer.parentNode.insertBefore(liveIndicatorContainer, controlsContainer);
-                }
-                
-                // Move the live indicator to the container if it's not already there
-                if (liveIndicator.parentNode !== liveIndicatorContainer) {
-                    liveIndicatorContainer.innerHTML = '';
-                    liveIndicatorContainer.appendChild(liveIndicator);
-                }
-                
-                liveIndicatorContainer.style.display = 'flex';
-            } else if (data.sourceType === 'Gensokyo Radio' || 
-                      (data.sourceType === 'Stream' && data.currentTrackUri && 
-                       data.currentTrackUri.includes('stream.gensokyoradio.net'))) {
-                // Show the radio logo container for Gensokyo Radio
-                radioLogoContainer.style.display = 'flex';
-                
-                // Use Gensokyo Radio logo
-                stationLogo.src = 'https://stream.gensokyoradio.net/images/logo.png';
-                
-                // Show LIVE indicator for Gensokyo Radio
-                liveIndicator.style.display = 'inline-flex';
-                currentTime.style.display = 'inline';
-                totalTime.style.display = 'inline';
-                
-                // Add class to time display container for proper styling
-                document.querySelector('.time-display').classList.add('with-live-indicator');
-                document.querySelector('.time-display').style.display = 'flex';
-                
-                // Move the live indicator back to the time display if needed
-                if (liveIndicator.parentNode.id === 'live-indicator-container') {
-                    document.querySelector('.time-display').appendChild(liveIndicator);
-                }
-                
-                // Save the timing information to our currentStatus object for the progress updates
-                if (!window.currentStatus.spotifyInfo) {
-                    window.currentStatus.spotifyInfo = {};
-                }
-                
-                // Update total time for Gensokyo Radio
-                if (data.spotifyInfo && data.spotifyInfo.gensokyoDuration) {
-                    totalTime.textContent = UI.formatTime(data.spotifyInfo.gensokyoDuration);
-                    window.currentStatus.spotifyInfo.gensokyoDuration = data.spotifyInfo.gensokyoDuration;
-                    
-                    // Update current time if available
-                    if (data.spotifyInfo.gensokyoPlayed !== undefined) {
-                        currentTime.textContent = UI.formatTime(data.spotifyInfo.gensokyoPlayed);
-                        
-                        // Reset the local offset when we get new server data
-                        window.currentStatus.spotifyInfo.lastServerGensokyoPlayed = data.spotifyInfo.gensokyoPlayed;
-                        window.currentStatus.spotifyInfo.localOffset = 0;
-                        
-                        window.currentStatus.spotifyInfo.gensokyoPlayed = data.spotifyInfo.gensokyoPlayed;
-                        
-                        // Update progress bar
-                        const progress = (data.spotifyInfo.gensokyoPlayed / data.spotifyInfo.gensokyoDuration) * 100;
-                        document.getElementById('progress-bar').style.width = `${progress}%`;
-                    }
-                } else {
-                    // Default values if timing info not available
-                    totalTime.textContent = '--:--';
-                    currentTime.textContent = '--:--';
-                }
-                
-                // Store remaining time if available
-                if (data.spotifyInfo && data.spotifyInfo.gensokyoRemaining !== undefined) {
-                    window.currentStatus.spotifyInfo.gensokyoRemaining = data.spotifyInfo.gensokyoRemaining;
-                }
-            } else {
-                // Hide the radio logo container for non-radio tracks
-                radioLogoContainer.style.display = 'none';
-                
-                // Reset the time display to default
-                const timeDisplay = document.querySelector('.time-display');
-                timeDisplay.classList.remove('time-display-hidden');
-                timeDisplay.style.display = 'flex';
-                
-                // Hide the separate live indicator container if it exists
-                const liveIndicatorContainer = document.getElementById('live-indicator-container');
-                if (liveIndicatorContainer) {
-                    liveIndicatorContainer.style.display = 'none';
-                }
-                
-                // Move the live indicator back to the time display if needed
-                if (liveIndicator.parentNode.id === 'live-indicator-container') {
-                    document.querySelector('.time-display').appendChild(liveIndicator);
-                }
-                
-                // For regular Stream sources OR if the track is a stream (like YouTube Live), show LIVE indicator
-                // Check for 'stream' property (from isStream() getter) or 'isStream' property (if serialized directly)
-                const isStream = data.sourceType === 'Stream' || data.stream === true || data.isStream === true;
-                
-                if (isStream) {
-                    liveIndicator.style.display = 'inline-flex';
-                    currentTime.style.display = 'none';
-                    totalTime.style.display = 'none';
-                    
-                    // Use the same approach as Radio: create a separate container for the live indicator
-                    const timeDisplay = document.querySelector('.time-display');
-                    timeDisplay.classList.add('time-display-hidden');
-                    timeDisplay.style.display = 'none';
-                    
-                    const progressContainer = document.querySelector('.progress-container');
-                    const controlsContainer = document.querySelector('.controls');
-                    
-                    // Create or use an existing container for the live indicator
-                    let liveIndicatorContainer = document.getElementById('live-indicator-container');
-                    if (!liveIndicatorContainer) {
-                        liveIndicatorContainer = document.createElement('div');
-                        liveIndicatorContainer.id = 'live-indicator-container';
-                        liveIndicatorContainer.className = 'time-display time-display-hidden';
-                        progressContainer.parentNode.insertBefore(liveIndicatorContainer, controlsContainer);
-                    }
-                    
-                    // Move the live indicator to the container if it's not already there
-                    if (liveIndicator.parentNode !== liveIndicatorContainer) {
-                        liveIndicatorContainer.innerHTML = '';
-                        liveIndicatorContainer.appendChild(liveIndicator);
-                    }
-                    
-                    liveIndicatorContainer.style.display = 'flex';
-                    
-                    // Special handling for Gensokyo Radio streams that are showing as 'Stream' type
-                    if (data.currentTrackUri && data.currentTrackUri.includes('stream.gensokyoradio.net')) {
-                        // Set specific source text for Gensokyo Radio streams
-                        document.getElementById('track-source-text').textContent = 'Source: Gensokyo Radio';
-                        
-                        // Use Gensokyo Radio logo if no custom thumbnail
-                        if (!data.currentTrackThumbnail) {
-                            document.getElementById('track-thumbnail').src = makeSafeThumbnail('https://stream.gensokyoradio.net/images/logo.png');
-                        }
-                    }
-                } else {
-                    // Hide LIVE indicator for non-radio/stream tracks
-                    liveIndicator.style.display = 'none';
-                    currentTime.style.display = 'inline';
-                    totalTime.style.display = 'inline';
-                    
-                    // Remove special classes from time display and reset styles
-                    const timeDisplay = document.querySelector('.time-display');
-                    timeDisplay.classList.remove('with-live-indicator');
-                    timeDisplay.classList.remove('time-display-hidden');
-                    timeDisplay.style.justifyContent = 'space-between';
-                }
-            }
-            
-            // Update thumbnail based on data from API
-            // Prioritize local artwork logic if sourceType is Local
-            if (data.sourceType === 'Local' && data.currentTrackUri) {
-                console.log('[fetchStatus] Local track detected. currentTrackUri:', data.currentTrackUri);
-                let rawUri = data.currentTrackUri;
-                let artworkFilename = '';
-
-                if (rawUri) {
-                    const normalizedUri = rawUri.replace(/\\/g, '/');
-                    try {
-                        const trackUrl = new URL(normalizedUri); 
-                        artworkFilename = trackUrl.pathname.split('/').pop();
-                    } catch (e) {
-                        artworkFilename = normalizedUri.split('/').pop();
-                    }
-                }
-
-                if (artworkFilename && artworkFilename.trim() !== '') {
-                    console.log('[fetchStatus] Using artwork filename (fetchStatus):', artworkFilename);
-                    document.getElementById('track-thumbnail').src = makeSafeThumbnail(`/api/artwork/${encodeURIComponent(artworkFilename)}`);
-                } else {
-                    console.warn('[fetchStatus] Could not determine artwork filename for local track (fetchStatus):', rawUri);
-                    document.getElementById('track-thumbnail').src = makeSafeThumbnail('https://cdn-icons-png.flaticon.com/512/4725/4725478.png');
-                }
-            } else if (data.currentTrackThumbnail) { // This will now be checked only if not Local or Local without URI
-                document.getElementById('track-thumbnail').src = makeSafeThumbnail(data.currentTrackThumbnail);
-            } else {
-                // Set a default thumbnail based on source type (if not Local and no specific thumbnail)
-                const defaultImage = getDefaultThumbnail(data.sourceType);
-                document.getElementById('track-thumbnail').src = makeSafeThumbnail(defaultImage);
-            }
-            
-            // For radio tracks, if we have a song image, use it as the main thumbnail and keep the station logo separate
-            if (data.sourceType === 'Radio' && data.radioSongImageUrl) {
-                document.getElementById('track-thumbnail').src = makeSafeThumbnail(data.radioSongImageUrl);
-            }
-            
-            // For Gensokyo Radio, we might have albumImageUrl in the spotifyInfo object
-            if ((data.sourceType === 'Gensokyo Radio' || 
-                (data.sourceType === 'Stream' && data.currentTrackUri && 
-                data.currentTrackUri.includes('stream.gensokyoradio.net'))) && 
-                data.spotifyInfo && data.spotifyInfo.albumImageUrl) {
-                document.getElementById('track-thumbnail').src = makeSafeThumbnail(data.spotifyInfo.albumImageUrl);
-            }
-            
-            // Update the current status safely - except for Gensokyo Radio tracks which handle their own time display
-            if (data.sourceType !== 'Gensokyo Radio' && 
-                !(data.sourceType === 'Stream' && data.currentTrackUri && 
-                  data.currentTrackUri.includes('stream.gensokyoradio.net'))) {
-                
-                // Use currentStatus position (which may be preserved from seek) instead of data position
-                if (currentTime) currentTime.textContent = UI.formatTime(window.currentStatus.currentTrackPosition || 0);
-                if (totalTime) totalTime.textContent = UI.formatTime(data.currentTrackDuration || 0);
-            }
-            
-            // Protect against division by zero - ensure we have a valid duration
-            const duration = data.currentTrackDuration || 1; // Use 1ms as fallback to avoid division by zero
-            
-            // Only update progress bar for non-Gensokyo Radio tracks (Gensokyo uses its own timing)
-            if (!(data.sourceType === 'Gensokyo Radio' || 
-                (data.sourceType === 'Stream' && data.currentTrackUri && 
-                 data.currentTrackUri.includes('stream.gensokyoradio.net')))) {
-                // Use currentStatus position (which may be preserved from seek)
-                const progressPercentage = data.currentTrackDuration ? 
-                    (window.currentStatus.currentTrackPosition / duration) * 100 : 0;
-                    
-                document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
-            }
-            
-            // Enable/disable buttons based on playback state
-            document.getElementById('play-button').disabled = !data.paused || !data.playing;
-            document.getElementById('pause-button').disabled = data.paused || !data.playing;
-            document.getElementById('skip-button').disabled = !data.hasNext && !data.playing;
-            document.getElementById('stop-button').disabled = !data.playing;
-            
-            // Update status message with appropriate class
-            const statusElement = document.getElementById('status-message');
-            
-            // Remove all status classes first
-            statusElement.classList.remove('status-playing', 'status-paused', 'status-idle', 'status-error');
-            
-            if (data.playing) {
-                if (data.paused) {
-                    statusElement.textContent = 'Paused';
-                    statusElement.classList.add('status-paused');
-                } else {
-                    statusElement.textContent = 'Playing';
-                    statusElement.classList.add('status-playing');
-                }
-            } else {
-                statusElement.textContent = 'Idle';
-                statusElement.classList.add('status-idle');
-            }
-            
-            clearInterval(progressInterval);
-            if (data.playing && !data.paused) {
-                progressInterval = setInterval(updateProgress, 100);
-            }
-            
-            // Bot status indicator is now managed globally by BotProfile module
-            // No need to update it here to avoid redundancy
-            
-            // Fetch chapters if source type changed to YouTube OR if track changed while type is still YouTube
-            const trackChanged = previousTrackId !== data.currentTrackUri;
-            
-            if ((previousSourceType !== data.sourceType && data.sourceType === 'YouTube') || 
-                (data.sourceType === 'YouTube' && trackChanged)) {
-                console.log('YouTube track detected, fetching chapters...');
-                try {
-                    if (typeof YouTubeChapters !== 'undefined' && YouTubeChapters.fetchYouTubeChapters) {
-                        await YouTubeChapters.fetchYouTubeChapters();
-                    } else {
-                        console.error('YouTubeChapters module not found or fetchYouTubeChapters not available');
-                    }
-                } catch (chapterError) {
-                    console.error('Error fetching YouTube chapters:', chapterError);
-                    // Continue execution even if chapters fail
-                }
-            } else if (data.sourceType === 'YouTube') {
-                // Just update current chapter if already showing chapters
-                try {
-                    if (typeof YouTubeChapters !== 'undefined' && YouTubeChapters.updateCurrentChapter) {
-                        YouTubeChapters.updateCurrentChapter();
-                    }
-                } catch (chapterError) {
-                    console.error('Error updating YouTube chapter:', chapterError);
-                }
-            } else {
-                // Hide chapters if not YouTube
-                try {
-                    if (typeof YouTubeChapters !== 'undefined' && YouTubeChapters.hideChaptersContainer) {
-                        YouTubeChapters.hideChaptersContainer();
-                    }
-                } catch (chapterError) {
-                    console.error('Error hiding YouTube chapters:', chapterError);
-                }
-            }
+            await fetchStatusInternalImpl();
         } catch (error) {
             console.error('Error fetching status:', error);
             const statusElement = document.getElementById('status-message');
@@ -1013,6 +466,566 @@ const Player = (function() {
                 statusElement.classList.remove('status-playing', 'status-paused', 'status-idle');
                 statusElement.classList.add('status-error');
             }
+        }
+    }
+
+    async function fetchStatusInternalImpl() {
+            if (!ensureStatusUpdateReady()) {
+                return;
+            }
+
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            console.log('[fetchStatus] Data received from /api/status:', JSON.parse(JSON.stringify(data)));
+
+            if (!isPlayerViewActive() || !hasRequiredStatusElements()) {
+                return;
+            }
+
+            const previousSourceType = window.currentStatus.sourceType;
+            const previousTrackId = window.currentStatus.currentTrackUri;
+
+            syncStatusTimingData(data);
+            const trackIdentity = getDisplayTrackIdentity(data);
+            const sourceUrls = getTrackSourceUrls(data);
+
+            renderTrackIdentity(data, trackIdentity, sourceUrls);
+            updateSourceText(data);
+            updateSourceIcon(data);
+            updateRequesterInfo(data);
+            updateVolumeState(data);
+            updateOptionalMetadataPanels(data);
+            updateAlbumArtClass(data);
+            updateRadioAndStreamLayout(data);
+            updateTrackThumbnail(data);
+            updatePlaybackTimeAndProgress(data);
+            updatePlaybackButtonsAndStatus(data);
+
+            await updateYouTubeChapters(previousSourceType, previousTrackId, data);
+    }
+
+    function ensureStatusUpdateReady() {
+        if (!isPlayerViewActive()) {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    function hasRequiredStatusElements() {
+        const requiredIds = [
+            'track-title', 'track-author', 'queue-info', 'track-source-text', 'track-source-icon',
+            'track-requester', 'track-volume', 'spotify-info-container', 'gensokyo-info-container',
+            'localfile-info-container', 'track-thumbnail', 'progress-bar', 'status-message',
+            'radio-logo-container', 'station-logo', 'live-indicator', 'progress-container'
+        ];
+        const missingEl = requiredIds.find(id => !document.getElementById(id));
+        if (missingEl) {
+            console.warn('[fetchStatus] Missing expected element:', missingEl);
+            return false;
+        }
+        return true;
+    }
+
+    function syncStatusTimingData(data) {
+        const justSeeked = (Date.now() - lastSeekTime) < 1000;
+        const preservedPosition = justSeeked ? lastSeekPosition : null;
+
+        window.currentStatus = data;
+
+        if (preservedPosition !== null) {
+            window.currentStatus.currentTrackPosition = preservedPosition;
+            lastServerPosition = preservedPosition;
+            lastServerUpdateTime = Date.now();
+            return;
+        }
+
+        lastServerPosition = data.currentTrackPosition || 0;
+        lastServerUpdateTime = Date.now();
+    }
+
+    function isGensokyoStream(data) {
+        return data.sourceType === 'Stream' && data.currentTrackUri && data.currentTrackUri.includes('stream.gensokyoradio.net');
+    }
+
+    function getDisplayTrackIdentity(data) {
+        let displayTitle = data.currentTrackTitle || 'No track playing';
+        const displayAuthor = data.currentTrackAuthor || '';
+
+        if (data.sourceType === 'Radio') {
+            const titleParts = displayTitle.split('|');
+            if (titleParts.length > 1) {
+                displayTitle = titleParts[0].trim();
+            }
+        }
+
+        return { displayTitle, displayAuthor };
+    }
+
+    function getTrackSourceUrls(data) {
+        if (data.sourceType === 'Spotify') {
+            return {
+                trackSourceUrl: resolveSpotifyTrackUrl({ uri: data.currentTrackUri, spotifyInfo: data.spotifyInfo }),
+                authorSourceUrl: ''
+            };
+        }
+        if (data.sourceType === 'Radio') {
+            return {
+                trackSourceUrl: '',
+                authorSourceUrl: resolveRadioAuthorUrl(data)
+            };
+        }
+        if (data.sourceType === 'Gensokyo Radio' || isGensokyoStream(data)) {
+            return {
+                trackSourceUrl: 'https://gensokyoradio.net/playing/',
+                authorSourceUrl: ''
+            };
+        }
+        return {
+            trackSourceUrl: data.currentTrackUri || '',
+            authorSourceUrl: ''
+        };
+    }
+
+    function renderTrackIdentity(data, trackIdentity, sourceUrls) {
+        const trackTitleElement = document.getElementById('track-title');
+        if (sourceUrls.trackSourceUrl) {
+            trackTitleElement.innerHTML = `<a href="${sourceUrls.trackSourceUrl}" target="_blank" class="track-title-link">${trackIdentity.displayTitle}</a>`;
+            if (data.sourceType === 'Spotify' && data.spotifyInfo && data.spotifyInfo.releaseYear) {
+                trackTitleElement.querySelector('a').innerHTML += ` <span class="release-year">(${data.spotifyInfo.releaseYear})</span>`;
+            }
+        } else {
+            trackTitleElement.textContent = trackIdentity.displayTitle;
+        }
+
+        const trackAuthorElement = document.getElementById('track-author');
+        if (sourceUrls.authorSourceUrl) {
+            trackAuthorElement.innerHTML = `<a href="${sourceUrls.authorSourceUrl}" target="_blank" class="track-author-link">${trackIdentity.displayAuthor}</a>`;
+        } else {
+            trackAuthorElement.textContent = trackIdentity.displayAuthor;
+        }
+
+        document.getElementById('queue-info').textContent = `Queue: ${data.queueSize} track${data.queueSize !== 1 ? 's' : ''}`;
+    }
+
+    function updateSourceText(data) {
+        const sourceText = document.getElementById('track-source-text');
+        if (data.source && data.sourceType === '📻 Radio') {
+            sourceText.textContent = 'Radio';
+        } else if (data.sourceType === 'Gensokyo Radio' || isGensokyoStream(data)) {
+            sourceText.innerHTML = '<a href="https://gensokyoradio.net/playing/" target="_blank">Gensokyo Radio</a>';
+        } else if (data.sourceType === 'Radio') {
+            sourceText.textContent = 'Radio';
+        } else if (data.source) {
+            sourceText.textContent = `${data.source}`;
+        } else {
+            sourceText.textContent = 'Source: Unknown';
+        }
+    }
+
+    function updateSourceIcon(data) {
+        if (data.sourceIconUrl) {
+            const imageIcon = ensureSourceIconElement('IMG', data.source);
+            if (!imageIcon) {
+                return;
+            }
+            imageIcon.src = data.sourceIconUrl;
+            imageIcon.style.display = 'inline-block';
+            return;
+        }
+
+        const fontIcon = ensureSourceIconElement('I');
+        if (!fontIcon) {
+            return;
+        }
+
+        fontIcon.className = UI.getSourceIcon(data.sourceType);
+        const sourceClass = getSourceTypeIconClass(data);
+        if (sourceClass) {
+            fontIcon.classList.add(sourceClass);
+        }
+    }
+
+    function ensureSourceIconElement(tagName, sourceName) {
+        let sourceIconElement = document.getElementById('track-source-icon');
+        if (!sourceIconElement) {
+            return null;
+        }
+
+        if (sourceIconElement.tagName !== tagName) {
+            const replacement = document.createElement(tagName.toLowerCase());
+            replacement.id = 'track-source-icon';
+            if (tagName === 'IMG') {
+                replacement.className = 'custom-source-icon';
+                replacement.alt = sourceName || '';
+                replacement.style.width = '16px';
+                replacement.style.height = '16px';
+                replacement.style.marginRight = '5px';
+                replacement.style.verticalAlign = 'text-bottom';
+            }
+            sourceIconElement.replaceWith(replacement);
+            sourceIconElement = replacement;
+        }
+
+        return sourceIconElement;
+    }
+
+    function getSourceTypeIconClass(data) {
+        const sourceTypeLower = (data.sourceType || '').toLowerCase();
+        const iconClassMap = {
+            youtube: 'source-icon-youtube',
+            spotify: 'source-icon-spotify',
+            soundcloud: 'source-icon-soundcloud',
+            tiktok: 'source-icon-tiktok',
+            instagram: 'source-icon-instagram',
+            twitter: 'source-icon-twitter',
+            radio: 'source-icon-radio'
+        };
+
+        if (sourceTypeLower === 'gensokyo radio' || (sourceTypeLower === 'stream' && isGensokyoStream(data))) {
+            return 'source-icon-gensokyoradio';
+        }
+        if (sourceTypeLower === 'local file' || sourceTypeLower === 'local') {
+            return 'source-icon-local';
+        }
+
+        return iconClassMap[sourceTypeLower] || '';
+    }
+
+    function updateRequesterInfo(data) {
+        const requesterEl = document.getElementById('track-requester');
+        if (!requesterEl) {
+            return;
+        }
+        const container = requesterEl.parentElement;
+        if (data.requester) {
+            const avatarHtml = data.requesterAvatar
+                ? `<img src="${data.requesterAvatar}" class="requester-avatar" alt="${data.requester}">`
+                : '<i class="fas fa-user"></i>';
+            container.innerHTML = `${avatarHtml} <span id="track-requester">Requested by: ${data.requester}</span>`;
+        } else {
+            container.innerHTML = '<i class="fas fa-user"></i> <span id="track-requester">Requested by: Unknown</span>';
+        }
+    }
+
+    function updateVolumeState(data) {
+        const volumeSlider = document.getElementById('volume-slider');
+        const volumeText = document.getElementById('track-volume');
+        const volumeIcon = document.getElementById('volume-icon');
+        const volume = data.volume !== undefined ? data.volume : 100;
+        if (volumeText) volumeText.textContent = `${volume}%`;
+        if (volumeSlider && !volumeSlider.matches(':active')) {
+            volumeSlider.value = volume;
+        }
+        if (!volumeIcon) {
+            return;
+        }
+        volumeIcon.className = 'fas';
+        if (volume > 60) volumeIcon.classList.add('fa-volume-up');
+        else if (volume > 30) volumeIcon.classList.add('fa-volume-down');
+        else if (volume > 0) volumeIcon.classList.add('fa-volume-off');
+        else volumeIcon.classList.add('fa-volume-mute');
+    }
+
+    function updateOptionalMetadataPanels(data) {
+        const spotifyInfoContainer = document.getElementById('spotify-info-container');
+        const gensokyoInfoContainer = document.getElementById('gensokyo-info-container');
+        const localfileInfoContainer = document.getElementById('localfile-info-container');
+
+        hideOptionalMetadataPanels(spotifyInfoContainer, gensokyoInfoContainer, localfileInfoContainer);
+
+        if (data.sourceType === 'Spotify' && data.spotifyInfo) {
+            populateSpotifyPanel(data.spotifyInfo, spotifyInfoContainer);
+            return;
+        }
+
+        if ((data.sourceType === 'Gensokyo Radio' || isGensokyoStream(data)) && data.spotifyInfo) {
+            populateGensokyoPanel(data.spotifyInfo, gensokyoInfoContainer);
+            return;
+        }
+
+        if (data.sourceType === 'Local File') {
+            populateLocalFilePanel(data, localfileInfoContainer);
+        }
+    }
+
+    function hideOptionalMetadataPanels(spotifyInfoContainer, gensokyoInfoContainer, localfileInfoContainer) {
+        spotifyInfoContainer.style.display = 'none';
+        gensokyoInfoContainer.style.display = 'none';
+        localfileInfoContainer.style.display = 'none';
+    }
+
+    function setMetadataText(id, value, label, unknownValue) {
+        document.getElementById(id).textContent = value ? `${label}: ${value}` : `${label}: ${unknownValue}`;
+    }
+
+    function populateSpotifyPanel(spotifyInfo, spotifyInfoContainer) {
+        setMetadataText('track-album-text', spotifyInfo.albumName, 'Album', 'Unknown');
+        setMetadataText('track-year-text', spotifyInfo.releaseYear, 'Released', 'Unknown');
+        spotifyInfoContainer.style.display = 'flex';
+    }
+
+    function populateGensokyoPanel(spotifyInfo, gensokyoInfoContainer) {
+        setMetadataText('gensokyo-album-text', spotifyInfo.albumName, 'Album', 'Unknown');
+        setMetadataText('gensokyo-circle-text', spotifyInfo.circleName, 'Circle', 'Unknown');
+        setMetadataText('gensokyo-year-text', spotifyInfo.releaseYear, 'Year', 'Unknown');
+        gensokyoInfoContainer.style.display = 'flex';
+    }
+
+    function populateLocalFilePanel(data, localfileInfoContainer) {
+        const album = data.localAlbum && data.localAlbum !== 'Unknown Album' ? data.localAlbum : '';
+        const genre = data.localGenre && data.localGenre !== 'Unknown Genre' ? data.localGenre : '';
+        const year = data.localYear && data.localYear !== '' ? data.localYear : '';
+
+        setMetadataText('localfile-album-text', album, 'Album', 'Unknown');
+        setMetadataText('localfile-genre-text', genre, 'Genre', 'Unknown');
+        setMetadataText('localfile-year-text', year, 'Year', 'Unknown');
+        localfileInfoContainer.style.display = 'flex';
+    }
+
+    function updateAlbumArtClass(data) {
+        console.log('[fetchStatus] Before thumbnail logic: currentTrackThumbnail:', data.currentTrackThumbnail, 'sourceType:', data.sourceType, 'currentTrackUri:', data.currentTrackUri);
+        const albumArt = document.querySelector('.album-art');
+        albumArt.className = 'album-art';
+        if (data.sourceType) {
+            albumArt.classList.add(`${data.sourceType.toLowerCase().replace(/\s+/g, '-')}-thumbnail`);
+        }
+    }
+
+    function getOrCreateLiveIndicatorContainer() {
+        const progressContainer = document.querySelector('.progress-container');
+        const controlsContainer = document.querySelector('.controls');
+        let liveIndicatorContainer = document.getElementById('live-indicator-container');
+        if (!liveIndicatorContainer) {
+            liveIndicatorContainer = document.createElement('div');
+            liveIndicatorContainer.id = 'live-indicator-container';
+            liveIndicatorContainer.className = 'time-display time-display-hidden';
+            progressContainer.parentNode.insertBefore(liveIndicatorContainer, controlsContainer);
+        }
+        return liveIndicatorContainer;
+    }
+
+    function moveLiveIndicatorToContainer(liveIndicator) {
+        const liveIndicatorContainer = getOrCreateLiveIndicatorContainer();
+        if (liveIndicator.parentNode !== liveIndicatorContainer) {
+            liveIndicatorContainer.innerHTML = '';
+            liveIndicatorContainer.appendChild(liveIndicator);
+        }
+        liveIndicatorContainer.style.display = 'flex';
+    }
+
+    function moveLiveIndicatorToTimeDisplay(liveIndicator) {
+        const timeDisplay = document.querySelector('.time-display');
+        if (liveIndicator.parentNode && liveIndicator.parentNode.id === 'live-indicator-container') {
+            timeDisplay.appendChild(liveIndicator);
+        }
+    }
+
+    function updateRadioAndStreamLayout(data) {
+        const radioLogoContainer = document.getElementById('radio-logo-container');
+        const stationLogo = document.getElementById('station-logo');
+        const liveIndicator = document.getElementById('live-indicator');
+        const currentTime = document.getElementById('current-time');
+        const totalTime = document.getElementById('total-time');
+        const timeDisplay = document.querySelector('.time-display');
+
+        if (data.sourceType === 'Radio') {
+            radioLogoContainer.style.display = 'flex';
+            stationLogo.src = data.radioLogoUrl || 'https://static.semrush.com/power-pages/media/favicons/onlineradiobox-com-favicon-7dd1a612.png';
+            liveIndicator.style.display = 'inline-flex';
+            currentTime.style.display = 'none';
+            totalTime.style.display = 'none';
+            timeDisplay.classList.add('time-display-hidden');
+            timeDisplay.style.display = 'none';
+            moveLiveIndicatorToContainer(liveIndicator);
+            return;
+        }
+
+        if (data.sourceType === 'Gensokyo Radio' || isGensokyoStream(data)) {
+            radioLogoContainer.style.display = 'flex';
+            stationLogo.src = 'https://stream.gensokyoradio.net/images/logo.png';
+            liveIndicator.style.display = 'inline-flex';
+            currentTime.style.display = 'inline';
+            totalTime.style.display = 'inline';
+            timeDisplay.classList.add('with-live-indicator');
+            timeDisplay.style.display = 'flex';
+            moveLiveIndicatorToTimeDisplay(liveIndicator);
+            updateGensokyoTimeData(data, currentTime, totalTime);
+            return;
+        }
+
+        radioLogoContainer.style.display = 'none';
+        timeDisplay.classList.remove('time-display-hidden');
+        timeDisplay.style.display = 'flex';
+        const liveIndicatorContainer = document.getElementById('live-indicator-container');
+        if (liveIndicatorContainer) {
+            liveIndicatorContainer.style.display = 'none';
+        }
+        moveLiveIndicatorToTimeDisplay(liveIndicator);
+
+        const isStream = data.sourceType === 'Stream' || data.stream === true || data.isStream === true;
+        if (isStream) {
+            liveIndicator.style.display = 'inline-flex';
+            currentTime.style.display = 'none';
+            totalTime.style.display = 'none';
+            timeDisplay.classList.add('time-display-hidden');
+            timeDisplay.style.display = 'none';
+            moveLiveIndicatorToContainer(liveIndicator);
+
+            if (isGensokyoStream(data)) {
+                document.getElementById('track-source-text').textContent = 'Source: Gensokyo Radio';
+                if (!data.currentTrackThumbnail) {
+                    document.getElementById('track-thumbnail').src = makeSafeThumbnail('https://stream.gensokyoradio.net/images/logo.png');
+                }
+            }
+            return;
+        }
+
+        liveIndicator.style.display = 'none';
+        currentTime.style.display = 'inline';
+        totalTime.style.display = 'inline';
+        timeDisplay.classList.remove('with-live-indicator');
+        timeDisplay.classList.remove('time-display-hidden');
+        timeDisplay.style.justifyContent = 'space-between';
+    }
+
+    function updateGensokyoTimeData(data, currentTime, totalTime) {
+        if (!window.currentStatus.spotifyInfo) {
+            window.currentStatus.spotifyInfo = {};
+        }
+        if (data.spotifyInfo && data.spotifyInfo.gensokyoDuration) {
+            totalTime.textContent = UI.formatTime(data.spotifyInfo.gensokyoDuration);
+            window.currentStatus.spotifyInfo.gensokyoDuration = data.spotifyInfo.gensokyoDuration;
+            if (data.spotifyInfo.gensokyoPlayed !== undefined) {
+                currentTime.textContent = UI.formatTime(data.spotifyInfo.gensokyoPlayed);
+                window.currentStatus.spotifyInfo.lastServerGensokyoPlayed = data.spotifyInfo.gensokyoPlayed;
+                window.currentStatus.spotifyInfo.localOffset = 0;
+                window.currentStatus.spotifyInfo.gensokyoPlayed = data.spotifyInfo.gensokyoPlayed;
+                const progress = (data.spotifyInfo.gensokyoPlayed / data.spotifyInfo.gensokyoDuration) * 100;
+                document.getElementById('progress-bar').style.width = `${progress}%`;
+            }
+        } else {
+            totalTime.textContent = '--:--';
+            currentTime.textContent = '--:--';
+        }
+
+        if (data.spotifyInfo && data.spotifyInfo.gensokyoRemaining !== undefined) {
+            window.currentStatus.spotifyInfo.gensokyoRemaining = data.spotifyInfo.gensokyoRemaining;
+        }
+    }
+
+    function updateTrackThumbnail(data) {
+        const thumbnail = document.getElementById('track-thumbnail');
+        if (data.sourceType === 'Local' && data.currentTrackUri) {
+            console.log('[fetchStatus] Local track detected. currentTrackUri:', data.currentTrackUri);
+            const normalizedUri = data.currentTrackUri.replace(/\\/g, '/');
+            let artworkFilename = '';
+            try {
+                artworkFilename = new URL(normalizedUri).pathname.split('/').pop();
+            } catch (e) {
+                artworkFilename = normalizedUri.split('/').pop();
+            }
+
+            if (artworkFilename && artworkFilename.trim() !== '') {
+                console.log('[fetchStatus] Using artwork filename (fetchStatus):', artworkFilename);
+                thumbnail.src = makeSafeThumbnail(`/api/artwork/${encodeURIComponent(artworkFilename)}`);
+            } else {
+                console.warn('[fetchStatus] Could not determine artwork filename for local track (fetchStatus):', data.currentTrackUri);
+                thumbnail.src = makeSafeThumbnail('https://cdn-icons-png.flaticon.com/512/4725/4725478.png');
+            }
+        } else if (data.currentTrackThumbnail) {
+            thumbnail.src = makeSafeThumbnail(data.currentTrackThumbnail);
+        } else {
+            thumbnail.src = makeSafeThumbnail(getDefaultThumbnail(data.sourceType));
+        }
+
+        if (data.sourceType === 'Radio' && data.radioSongImageUrl) {
+            thumbnail.src = makeSafeThumbnail(data.radioSongImageUrl);
+        }
+
+        if ((data.sourceType === 'Gensokyo Radio' || isGensokyoStream(data)) && data.spotifyInfo && data.spotifyInfo.albumImageUrl) {
+            thumbnail.src = makeSafeThumbnail(data.spotifyInfo.albumImageUrl);
+        }
+    }
+
+    function updatePlaybackTimeAndProgress(data) {
+        const currentTime = document.getElementById('current-time');
+        const totalTime = document.getElementById('total-time');
+        if (!(data.sourceType === 'Gensokyo Radio' || isGensokyoStream(data))) {
+            if (currentTime) currentTime.textContent = UI.formatTime(window.currentStatus.currentTrackPosition || 0);
+            if (totalTime) totalTime.textContent = UI.formatTime(data.currentTrackDuration || 0);
+        }
+
+        const duration = data.currentTrackDuration || 1;
+        if (!(data.sourceType === 'Gensokyo Radio' || isGensokyoStream(data))) {
+            const progressPercentage = data.currentTrackDuration ? (window.currentStatus.currentTrackPosition / duration) * 100 : 0;
+            document.getElementById('progress-bar').style.width = `${progressPercentage}%`;
+        }
+    }
+
+    function updatePlaybackButtonsAndStatus(data) {
+        document.getElementById('play-button').disabled = !data.paused || !data.playing;
+        document.getElementById('pause-button').disabled = data.paused || !data.playing;
+        document.getElementById('skip-button').disabled = !data.hasNext && !data.playing;
+        document.getElementById('stop-button').disabled = !data.playing;
+
+        const statusElement = document.getElementById('status-message');
+        statusElement.classList.remove('status-playing', 'status-paused', 'status-idle', 'status-error');
+        if (data.playing) {
+            if (data.paused) {
+                statusElement.textContent = 'Paused';
+                statusElement.classList.add('status-paused');
+            } else {
+                statusElement.textContent = 'Playing';
+                statusElement.classList.add('status-playing');
+            }
+        } else {
+            statusElement.textContent = 'Idle';
+            statusElement.classList.add('status-idle');
+        }
+
+        clearInterval(progressInterval);
+        if (data.playing && !data.paused) {
+            progressInterval = setInterval(updateProgress, 100);
+        }
+    }
+
+    async function updateYouTubeChapters(previousSourceType, previousTrackId, data) {
+        const trackChanged = previousTrackId !== data.currentTrackUri;
+        if ((previousSourceType !== data.sourceType && data.sourceType === 'YouTube') || (data.sourceType === 'YouTube' && trackChanged)) {
+            console.log('YouTube track detected, fetching chapters...');
+            try {
+                if (typeof YouTubeChapters !== 'undefined' && YouTubeChapters.fetchYouTubeChapters) {
+                    await YouTubeChapters.fetchYouTubeChapters();
+                } else {
+                    console.error('YouTubeChapters module not found or fetchYouTubeChapters not available');
+                }
+            } catch (chapterError) {
+                console.error('Error fetching YouTube chapters:', chapterError);
+            }
+            return;
+        }
+
+        if (data.sourceType === 'YouTube') {
+            try {
+                if (typeof YouTubeChapters !== 'undefined' && YouTubeChapters.updateCurrentChapter) {
+                    YouTubeChapters.updateCurrentChapter();
+                }
+            } catch (chapterError) {
+                console.error('Error updating YouTube chapter:', chapterError);
+            }
+            return;
+        }
+
+        try {
+            if (typeof YouTubeChapters !== 'undefined' && YouTubeChapters.hideChaptersContainer) {
+                YouTubeChapters.hideChaptersContainer();
+            }
+        } catch (chapterError) {
+            console.error('Error hiding YouTube chapters:', chapterError);
         }
     }
     
@@ -1034,131 +1047,7 @@ const Player = (function() {
             }
             
             data.forEach((track, index) => {
-                const item = document.createElement('div');
-                item.className = 'queue-item';
-                item.setAttribute('data-index', index);
-                item.setAttribute('draggable', 'true');
-                
-                // For thumbnails in queue, use the right approach based on source type
-                let thumbnailUrl = makeSafeThumbnail(track.thumbnail); // This should now have local_artwork/hash.ext for local files
-                
-                // If no thumbnail provided, or for specific source types, override with defaults
-                // The logic for local files is now primarily handled by the backend providing the correct track.thumbnail path.
-                // We just need a fallback here if track.thumbnail is somehow empty.
-                if (!thumbnailUrl || thumbnailUrl === '') {
-                    // Fallback for non-local types or if local thumbnail path is missing
-                    const defaultImage = getDefaultThumbnail(track.sourceType);
-                    thumbnailUrl = makeSafeThumbnail(defaultImage);
-                } else if (track.sourceType === 'Local File' && !thumbnailUrl.startsWith('local_artwork/')){
-                    // If it's a local file but the thumbnail isn't the expected path, use fallback
-                    // This handles cases where backend might not have populated it correctly for some reason
-                    console.warn('[fetchQueue] Local File track.thumbnail does not seem to be a local_artwork path:', thumbnailUrl);
-                    thumbnailUrl = makeSafeThumbnail('https://cdn-icons-png.flaticon.com/512/4725/4725478.png'); 
-                }
-                
-                // Add source-specific class for thumbnail styling
-                const thumbnailClass = track.sourceType ? 
-                    `queue-item-thumbnail ${track.sourceType.toLowerCase().replace(/\s+/g, '-')}-thumbnail` : 
-                    'queue-item-thumbnail';
-                
-                // Include source icon and requester info
-                const sourceIcon = UI.getSourceIcon(track.sourceType);
-                let requesterInfo = '';
-                if (track.requester) {
-                    const avatarHtml = track.requesterAvatar 
-                        ? `<img src="${track.requesterAvatar}" class="requester-avatar" alt="" style="width:16px;height:16px;margin:0 4px;vertical-align:text-bottom;">` 
-                        : '';
-                    requesterInfo = ` • ${avatarHtml}Requested by: ${track.requester}`;
-                }
-                
-                // Get appropriate source URL for the track
-                let trackSourceUrl = '';
-                let queueAuthorSourceUrl = '';
-                
-                if (track.sourceType === 'YouTube' && track.uri) {
-                    trackSourceUrl = track.uri;
-                } else if (track.sourceType === 'Spotify') {
-                    // For Spotify tracks, check if we have the original Spotify URL
-                    if (track.uri && track.uri.includes('spotify')) {
-                        // If the uri already contains a Spotify URL, use it directly
-                        trackSourceUrl = track.uri;
-                    } else if (track.spotifyInfo && track.spotifyInfo.trackId) {
-                        // Otherwise construct a Spotify URL from the track ID
-                        trackSourceUrl = 'https://open.spotify.com/track/' + track.spotifyInfo.trackId;
-                    }
-                } else if (track.sourceType === 'Radio') {
-                    // For Radio tracks, don't make the title clickable, but make the author (station name) clickable
-                    trackSourceUrl = ''; // Remove track title link for radio
-                    
-                    // Create proper OnlineRadioBox URL for the station
-                    if (track.radioCountry && track.radioAlias) {
-                        // Construct the correct URL using country and alias format: https://onlineradiobox.com/country/alias/
-                        queueAuthorSourceUrl = `https://onlineradiobox.com/${track.radioCountry}/${track.radioAlias}/`;
-                    } else if (track.radioStationUrl) {
-                        // Fallback to radioStationUrl if provided
-                        queueAuthorSourceUrl = track.radioStationUrl;
-                    }
-                } else if (track.sourceType === 'Gensokyo Radio') {
-                    trackSourceUrl = 'https://gensokyoradio.net/playing/';
-                } else if (track.sourceType === 'SoundCloud' && track.uri) {
-                    trackSourceUrl = track.uri;
-                } else if (track.uri) {
-                    trackSourceUrl = track.uri;
-                }
-                
-                // Overwrite source if special Gensokyo stream
-                if (track.sourceType === 'Stream' && track.uri && track.uri.includes('stream.gensokyoradio.net')) {
-                    // Override source to display "Gensokyo Radio" instead of "Web Stream"
-                    track.source = 'Gensokyo Radio';
-                    trackSourceUrl = 'https://gensokyoradio.net/playing/';
-                }
-                
-                // Prepare source icon HTML
-                let sourceIconHtml = `<i class="${sourceIcon}"></i>`;
-                if (track.sourceIconUrl) {
-                    sourceIconHtml = `<img src="${track.sourceIconUrl}" alt="${track.source}" class="custom-source-icon" style="width: 1em; height: 1em; vertical-align: -0.125em; margin-right: 4px;">`;
-                }
-
-                // Create title element based on whether we have a source URL
-                const titleElement = trackSourceUrl ? 
-                    `<div class="queue-item-title">${index + 1}. <a href="${trackSourceUrl}" target="_blank" class="track-title-link">${track.title}</a></div>` :
-                    `<div class="queue-item-title">${index + 1}. ${track.title}</div>`;
-                
-                // Create author element based on whether we have an author source URL
-                const authorElement = queueAuthorSourceUrl ?
-                    `<span class="queue-item-author"><a href="${queueAuthorSourceUrl}" target="_blank" class="track-author-link">${track.author}</a></span>` :
-                    `<span class="queue-item-author">${track.author}</span>`;
-                
-                item.innerHTML = `
-                    <div class="drag-handle" title="Drag to reorder">
-                        <i class="fas fa-grip-lines"></i>
-                    </div>
-                    <div class="${thumbnailClass}">
-                        <img src="${thumbnailUrl}" alt="${track.title}" referrerpolicy="no-referrer" onerror="handleImageError(this)">
-                    </div>
-                    <div class="queue-item-info">
-                        ${titleElement}
-                        <div class="queue-item-meta">
-                            ${authorElement}
-                            <span class="queue-item-source">${sourceIconHtml} ${track.source}</span>
-                            <span class="queue-item-requester">${requesterInfo}</span>
-                        </div>
-                    </div>
-                    <div class="queue-item-duration">${UI.formatTime(track.duration)}</div>
-                    <div class="queue-item-actions">
-                        <button class="move-top-btn" data-index="${index}" title="Move to top">
-                            <i class="fas fa-arrow-up"></i>
-                        </button>
-                        <button class="move-bottom-btn" data-index="${index}" title="Move to bottom">
-                            <i class="fas fa-arrow-down"></i>
-                        </button>
-                        <button class="remove-btn" data-index="${index}" title="Remove from queue">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                `;
-                
-                queueList.appendChild(item);
+                queueList.appendChild(buildQueueItemElement(track, index));
             });
             
             // Add event listeners to remove buttons

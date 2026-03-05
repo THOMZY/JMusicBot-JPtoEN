@@ -15,8 +15,8 @@
  */
 package dev.cosgy.jmusicbot.slashcommands.music;
 
-import com.jagrosh.jdautilities.command.CommandEvent;
-import com.jagrosh.jdautilities.command.SlashCommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.MusicHistory;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
@@ -62,16 +62,7 @@ public class HistoryCmd extends MusicCommand {
         int count = 10; // Default count
         String guildId = event.getGuild().getId(); // Current guild only
         
-        String[] args = event.getArgs().split("\\s+");
-        if (args.length > 0 && !args[0].isEmpty()) {
-            try {
-                count = Integer.parseInt(args[0]);
-                if (count < 1) count = 1;
-                if (count > 50) count = 50;
-            } catch (NumberFormatException ex) {
-                // Invalid number, use default
-            }
-        }
+        count = parseCountArg(event.getArgs(), count);
         
         // Display the history for the current guild only
         displayHistory(event, null, count, guildId);
@@ -105,141 +96,182 @@ public class HistoryCmd extends MusicCommand {
      */
     private void displayHistory(CommandEvent event, SlashCommandEvent slashEvent, int count, String guildId) {
         List<MusicHistory.PlayRecord> fullHistory = bot.getMusicHistory().getHistory();
-        
-        // Filter by the current guild
-        List<MusicHistory.PlayRecord> filteredHistory = fullHistory.stream()
-            .filter(record -> guildId.equals(record.getGuildId()))
-            .collect(Collectors.toList());
-        
-        // Limit the number of entries
-        int size = Math.min(count, filteredHistory.size());
-        List<MusicHistory.PlayRecord> history = size > 0 ? filteredHistory.subList(0, size) : filteredHistory;
-        
+        List<MusicHistory.PlayRecord> filteredHistory = filterGuildHistory(fullHistory, guildId);
+        List<MusicHistory.PlayRecord> history = limitHistory(filteredHistory, count);
+
         if (history.isEmpty()) {
-            if (event != null) {
-                event.replyWarning("No music history available for this server.");
-            } else {
-                slashEvent.reply("No music history available for this server.").setEphemeral(true).queue();
-            }
+            replyNoHistory(event, slashEvent);
             return;
         }
-        
+
         EmbedBuilder builder = new EmbedBuilder();
         builder.setTitle("Music Playback History");
         builder.setColor(new Color(114, 137, 218)); // Discord blue
-        
+
+        builder.setDescription(buildHistoryDescription(history));
+        applyThumbnail(builder, history);
+        builder.setFooter(buildFooterText(history.size(), filteredHistory.size(), guildId));
+
+        replyHistory(event, slashEvent, builder);
+    }
+
+    private int parseCountArg(String args, int fallback) {
+        String[] parts = args.split("\\s+");
+        if (parts.length == 0 || parts[0].isEmpty()) {
+            return fallback;
+        }
+        try {
+            int parsed = Integer.parseInt(parts[0]);
+            return Math.max(1, Math.min(50, parsed));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private List<MusicHistory.PlayRecord> filterGuildHistory(List<MusicHistory.PlayRecord> history, String guildId) {
+        return history.stream()
+                .filter(record -> guildId.equals(record.getGuildId()))
+                .collect(Collectors.toList());
+    }
+
+    private List<MusicHistory.PlayRecord> limitHistory(List<MusicHistory.PlayRecord> history, int count) {
+        int size = Math.min(count, history.size());
+        return size > 0 ? history.subList(0, size) : history;
+    }
+
+    private void replyNoHistory(CommandEvent event, SlashCommandEvent slashEvent) {
+        if (event != null) {
+            event.replyWarning("No music history available for this server.");
+            return;
+        }
+        slashEvent.reply("No music history available for this server.").setEphemeral(true).queue();
+    }
+
+    private String buildHistoryDescription(List<MusicHistory.PlayRecord> history) {
         StringBuilder description = new StringBuilder();
-        
         for (int i = 0; i < history.size(); i++) {
-            MusicHistory.PlayRecord record = history.get(i);
-            String title = record.getTitle();
-            String artist = record.getArtist();
-            String duration = record.getFormattedDuration();
-            String requester = record.getRequesterName();
-            String timestamp = record.getFormattedPlayedAt();
-            
-            description.append("`").append(i + 1).append(".` ");
-            
-            // Add different icons based on source type
-            if (record.hasSpotifyData()) {
-                description.append("🎧 ");
-            } else if (record.hasRadioData()) {
-                description.append("📻 ");
-            } else if (record.hasYoutubeData()) {
-                description.append("▶️ ");
-            } else if (record.hasStreamData()) {
-                description.append("🔴 ");
-                if (record.isLiveStream()) {
-                    description.append("**LIVE** - ");
-                }
-            } else if (record.hasLocalData()) {
-                description.append("💿 ");
-            } else if (record.getUrl() != null && record.getUrl().contains("soundcloud.com")) {
-                description.append("☁️ "); // SoundCloud icon
-            }
-            
-            if (!artist.isEmpty() && !artist.equals("Unknown artist")) {
-                description.append("**").append(artist).append("** - ");
-            }
-            description.append("**").append(title).append("**");
-            
-            // For streams, add stream name if available and different from title
-            if (record.hasStreamData() && !record.getStreamName().equals(title)) {
-                description.append(" | ").append(record.getStreamName());
-            }
-            
-            // Show duration with formatting for streams and radio
-            if (record.hasStreamData() && record.isLiveStream()) {
-                description.append(" `[STREAM]`");
-            } else if (record.hasRadioData()) {
-                description.append(" `[LIVE]`");
-            } else {
-                description.append(" `[").append(duration).append("]`");
-            }
-            
-            description.append("\n");
-            
-            // Add requester and timestamp on the next line
-            description.append("    ").append("Requested by: ").append(requester);
-            description.append(" | ").append(timestamp);
-            
-            // Add additional metadata based on type
-            if (record.hasSpotifyData()) {
-                description.append(" | Album: ").append(record.getSpotifyAlbumName());
-            } else if (record.hasRadioData()) {
-                description.append(" | Source: ").append("Radio");
-                // Don't display URLs in text, but we'll use them for the embed thumbnails
-            } else if (record.hasStreamData() && !record.getStreamGenre().isEmpty()) {
-                description.append(" | Genre: ").append(record.getStreamGenre());
-            } else if (record.hasLocalData() && record.getLocalAlbum() != null && !record.getLocalAlbum().isEmpty()) {
-                description.append(" | Album: ").append(record.getLocalAlbum());
-                if (record.getLocalGenre() != null && !record.getLocalGenre().isEmpty()) {
-                    description.append(" | Genre: ").append(record.getLocalGenre());
-                }
-            }
-            
-            description.append("\n\n");
+            appendRecord(description, history.get(i), i + 1);
         }
-        
-        builder.setDescription(description.toString());
-        
-        // Set thumbnail if available based on source type
-        // Check if the most recent entry has an image we can use
-        if (!history.isEmpty()) {
-            MusicHistory.PlayRecord latestRecord = history.get(0);
-            
-            if (latestRecord.hasRadioData() && latestRecord.getRadioLogoUrl() != null && !latestRecord.getRadioLogoUrl().isEmpty()) {
-                // For radio tracks, prioritize using the station logo as the thumbnail
-                builder.setThumbnail(latestRecord.getRadioLogoUrl());
-                
-                // If we also have a song image, add it as a separate image
-                if (latestRecord.getRadioSongImageUrl() != null && !latestRecord.getRadioSongImageUrl().isEmpty()) {
-                    builder.setImage(latestRecord.getRadioSongImageUrl());
-                }
-            } else if (latestRecord.hasSpotifyData() && latestRecord.getSpotifyAlbumImageUrl() != null) {
-                builder.setThumbnail(latestRecord.getSpotifyAlbumImageUrl());
-            } else if (latestRecord.hasYoutubeData()) {
-                builder.setThumbnail("https://img.youtube.com/vi/" + latestRecord.getYoutubeVideoId() + "/hqdefault.jpg");
-            } else if (latestRecord.hasStreamData() && latestRecord.getStreamLogo() != null && !latestRecord.getStreamLogo().isEmpty()) {
-                builder.setThumbnail(latestRecord.getStreamLogo());
+        return description.toString();
+    }
+
+    private void appendRecord(StringBuilder description, MusicHistory.PlayRecord record, int index) {
+        String title = record.getTitle();
+        String artist = record.getArtist();
+
+        description.append("`").append(index).append(".` ");
+        description.append(getSourceIcon(record));
+        if (record.hasStreamData() && record.isLiveStream()) {
+            description.append("**LIVE** - ");
+        }
+
+        if (!artist.isEmpty() && !"Unknown artist".equals(artist)) {
+            description.append("**").append(artist).append("** - ");
+        }
+        description.append("**").append(title).append("**");
+
+        if (record.hasStreamData() && !record.getStreamName().equals(title)) {
+            description.append(" | ").append(record.getStreamName());
+        }
+
+        description.append(formatDurationTag(record));
+        description.append("\n    Requested by: ").append(record.getRequesterName())
+                .append(" | ").append(record.getFormattedPlayedAt());
+
+        appendMetadata(description, record);
+        description.append("\n\n");
+    }
+
+    private String getSourceIcon(MusicHistory.PlayRecord record) {
+        if (record.hasSpotifyData()) {
+            return "🎧 ";
+        }
+        if (record.hasRadioData()) {
+            return "📻 ";
+        }
+        if (record.hasYoutubeData()) {
+            return "▶️ ";
+        }
+        if (record.hasStreamData()) {
+            return "🔴 ";
+        }
+        if (record.hasLocalData()) {
+            return "💿 ";
+        }
+        if (record.getUrl() != null && record.getUrl().contains("soundcloud.com")) {
+            return "☁️ ";
+        }
+        return "";
+    }
+
+    private String formatDurationTag(MusicHistory.PlayRecord record) {
+        if (record.hasStreamData() && record.isLiveStream()) {
+            return " `[STREAM]`";
+        }
+        if (record.hasRadioData()) {
+            return " `[LIVE]`";
+        }
+        return " `[" + record.getFormattedDuration() + "]`";
+    }
+
+    private void appendMetadata(StringBuilder description, MusicHistory.PlayRecord record) {
+        if (record.hasSpotifyData()) {
+            description.append(" | Album: ").append(record.getSpotifyAlbumName());
+            return;
+        }
+        if (record.hasRadioData()) {
+            description.append(" | Source: Radio");
+            return;
+        }
+        if (record.hasStreamData() && !record.getStreamGenre().isEmpty()) {
+            description.append(" | Genre: ").append(record.getStreamGenre());
+            return;
+        }
+        if (record.hasLocalData() && record.getLocalAlbum() != null && !record.getLocalAlbum().isEmpty()) {
+            description.append(" | Album: ").append(record.getLocalAlbum());
+            if (record.getLocalGenre() != null && !record.getLocalGenre().isEmpty()) {
+                description.append(" | Genre: ").append(record.getLocalGenre());
             }
         }
-        
-        int totalRecords = filteredHistory.size();
-        
-        // Get the current guild name
+    }
+
+    private void applyThumbnail(EmbedBuilder builder, List<MusicHistory.PlayRecord> history) {
+        MusicHistory.PlayRecord latestRecord = history.get(0);
+
+        if (latestRecord.hasRadioData() && latestRecord.getRadioLogoUrl() != null && !latestRecord.getRadioLogoUrl().isEmpty()) {
+            builder.setThumbnail(latestRecord.getRadioLogoUrl());
+            if (latestRecord.getRadioSongImageUrl() != null && !latestRecord.getRadioSongImageUrl().isEmpty()) {
+                builder.setImage(latestRecord.getRadioSongImageUrl());
+            }
+            return;
+        }
+        if (latestRecord.hasSpotifyData() && latestRecord.getSpotifyAlbumImageUrl() != null) {
+            builder.setThumbnail(latestRecord.getSpotifyAlbumImageUrl());
+            return;
+        }
+        if (latestRecord.hasYoutubeData()) {
+            builder.setThumbnail("https://img.youtube.com/vi/" + latestRecord.getYoutubeVideoId() + "/hqdefault.jpg");
+            return;
+        }
+        if (latestRecord.hasStreamData() && latestRecord.getStreamLogo() != null && !latestRecord.getStreamLogo().isEmpty()) {
+            builder.setThumbnail(latestRecord.getStreamLogo());
+        }
+    }
+
+    private String buildFooterText(int shownCount, int totalRecords, String guildId) {
         String serverName = "this server";
         Guild guild = bot.getJDA().getGuildById(guildId);
         if (guild != null) {
             serverName = guild.getName();
         }
-        
-        builder.setFooter("Showing " + history.size() + " of " + totalRecords + " entries from " + serverName);
-        
+        return "Showing " + shownCount + " of " + totalRecords + " entries from " + serverName;
+    }
+
+    private void replyHistory(CommandEvent event, SlashCommandEvent slashEvent, EmbedBuilder builder) {
         if (event != null) {
             event.reply(builder.build());
-        } else {
-            slashEvent.replyEmbeds(builder.build()).queue();
+            return;
         }
+        slashEvent.replyEmbeds(builder.build()).queue();
     }
 } 

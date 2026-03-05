@@ -97,101 +97,109 @@ public class HTTPUtil {
     }
 
     public String request() {
-        if (method == null || method.isEmpty()) throw new NullPointerException("The method is not set.");
-        if (targetAddress == null || targetAddress.isEmpty()) throw new NullPointerException("The URL is not set.");
-
-        String params = "";
-
+        validateRequest();
         try {
-            url = new URL(targetAddress);
-            if (query != null) {
-                StringBuilder sb = new StringBuilder();
-                query.forEach((key, val) -> {
-                    if (sb.length() == 0) sb.append(key).append("=").append(val);
-                    else sb.append("&").append(key).append("=").append(val);
-                });
-                params = sb.toString().replaceFirst("&$", "");
-            }
-
-            if (query != null && method.equalsIgnoreCase("GET")) {
-                url = new URL(targetAddress + (params.isEmpty() ? "" : "?" + params));
-            }
-
+            String params = buildParams();
+            url = resolveTargetUrl(params);
             connection = (HttpURLConnection) url.openConnection();
-
-            connection.setDoOutput(true);
-            connection.setDoInput(true);
-            connection.setUseCaches(false);
-            connection.setRequestMethod(method);
-            if (headers != null) headers.forEach(connection::addRequestProperty);
-
-            if ((query != null && requestData == null) && method.equalsIgnoreCase("POST")) {
-                PrintWriter pw = new PrintWriter(connection.getOutputStream());
-                pw.print(params);
-                pw.close();
-            }
-
-            if ((query == null && requestData != null) && method.equalsIgnoreCase("POST")) {
-                PrintWriter pw = new PrintWriter(connection.getOutputStream());
-                pw.print(requestData);
-                pw.close();
-            }
-
+            configureConnection();
+            writePostBodyIfNeeded(params);
             connection.connect();
 
             final int responseCode = connection.getResponseCode();
             if (responseCode == HttpsURLConnection.HTTP_OK) {
-                InputStream response = connection.getInputStream();
-                InputStreamReader isr = new InputStreamReader(response, (connection.getContentEncoding() == null ? "UTF-8" : connection.getContentEncoding()));
-                BufferedReader br = new BufferedReader(isr);
-
-                StringBuilder sb = new StringBuilder();
-                br.lines().forEach(sb::append);
-                isr.close();
-                br.close();
-                response.close();
-                connection.disconnect();
-                return sb.toString();
+                return readResponseBody(connection.getInputStream());
             } else {
-                StringBuilder sb = new StringBuilder();
-                if (connection.getInputStream() != null) {
-                    InputStream response = connection.getInputStream();
-                    InputStreamReader isr = new InputStreamReader(response, (connection.getContentEncoding() == null ? "UTF-8" : connection.getContentEncoding()));
-                    BufferedReader br = new BufferedReader(isr);
-
-                    br.lines().forEach(sb::append);
-                    isr.close();
-                    br.close();
-                    response.close();
-                }
-
-                System.out.println("Error: " + responseCode + "\n" + sb);
+                System.out.println("Error: " + responseCode + "\n" + readErrorBody());
             }
         } catch (MalformedURLException e) {
             throw new NullPointerException("The URL is invalid: " + e.getLocalizedMessage());
         } catch (ProtocolException e) {
             throw new NullPointerException("The method name is invalid: " + e.getLocalizedMessage());
         } catch (IOException e) {
-            StringBuilder sb = new StringBuilder();
-            try {
-                if (connection.getInputStream() != null) {
-                    InputStream response = connection.getInputStream();
-                    InputStreamReader isr = new InputStreamReader(response, (connection.getContentEncoding() == null ? "UTF-8" : connection.getContentEncoding()));
-                    BufferedReader br = new BufferedReader(isr);
-
-                    br.lines().forEach(sb::append);
-                    isr.close();
-                    br.close();
-                    response.close();
-                }
-            } catch (Exception ignored) {
-            }
-
-            System.out.println("An error occurred: " + e.getLocalizedMessage() + "\n" + sb);
+            System.out.println("An error occurred: " + e.getLocalizedMessage() + "\n" + readErrorBody());
         } finally {
             if (connection != null) connection.disconnect();
         }
 
         return null;
+    }
+
+    private void validateRequest() {
+        if (method == null || method.isEmpty()) throw new NullPointerException("The method is not set.");
+        if (targetAddress == null || targetAddress.isEmpty()) throw new NullPointerException("The URL is not set.");
+    }
+
+    private String buildParams() {
+        if (query == null || query.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        query.forEach((key, val) -> {
+            if (sb.length() == 0) sb.append(key).append("=").append(val);
+            else sb.append("&").append(key).append("=").append(val);
+        });
+        return sb.toString().replaceFirst("&$", "");
+    }
+
+    private URL resolveTargetUrl(String params) throws MalformedURLException {
+        if (query != null && method.equalsIgnoreCase("GET")) {
+            return new URL(targetAddress + (params.isEmpty() ? "" : "?" + params));
+        }
+        return new URL(targetAddress);
+    }
+
+    private void configureConnection() throws ProtocolException {
+        connection.setDoOutput(true);
+        connection.setDoInput(true);
+        connection.setUseCaches(false);
+        connection.setRequestMethod(method);
+        if (headers != null) headers.forEach(connection::addRequestProperty);
+    }
+
+    private void writePostBodyIfNeeded(String params) throws IOException {
+        if (!method.equalsIgnoreCase("POST")) {
+            return;
+        }
+        String payload = null;
+        if (query != null && requestData == null) {
+            payload = params;
+        } else if (query == null && requestData != null) {
+            payload = requestData;
+        }
+        if (payload == null) {
+            return;
+        }
+        try (PrintWriter pw = new PrintWriter(connection.getOutputStream())) {
+            pw.print(payload);
+        }
+    }
+
+    private String readResponseBody(InputStream response) throws IOException {
+        if (response == null) {
+            return "";
+        }
+        try (InputStream in = response;
+             InputStreamReader isr = new InputStreamReader(in, connection.getContentEncoding() == null ? "UTF-8" : connection.getContentEncoding());
+             BufferedReader br = new BufferedReader(isr)) {
+            StringBuilder sb = new StringBuilder();
+            br.lines().forEach(sb::append);
+            return sb.toString();
+        }
+    }
+
+    private String readErrorBody() {
+        try {
+            InputStream in = connection != null ? connection.getErrorStream() : null;
+            if (in == null && connection != null) {
+                in = connection.getInputStream();
+            }
+            if (in == null) {
+                return "";
+            }
+            return readResponseBody(in);
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 }

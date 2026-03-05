@@ -125,27 +125,14 @@ public class OtherUtil {
         if (game == null || game.trim().isEmpty() || game.trim().equalsIgnoreCase("default"))
             return null;
         String lower = game.toLowerCase();
-
-        if (lower.startsWith("playing")) {
-            String currGame = makeNonEmpty(game.substring(7).trim());
-            if(currGame != null && currGame.length() > 128) currGame = currGame.substring(0, 128);
-            return Activity.playing(currGame);
-        }
-        if (lower.startsWith("listening to")) {
-            String currGame = makeNonEmpty(game.substring(12).trim());
-            if(currGame != null && currGame.length() > 128) currGame = currGame.substring(0, 128);
-            return Activity.listening(currGame);
-        }
-        if (lower.startsWith("listening")) {
-            String currGame = makeNonEmpty(game.substring(9).trim());
-            if(currGame != null && currGame.length() > 128) currGame = currGame.substring(0, 128);
-            return Activity.listening(currGame);
-        }
-        if (lower.startsWith("watching")) {
-            String currGame = makeNonEmpty(game.substring(8).trim());
-            if(currGame != null && currGame.length() > 128) currGame = currGame.substring(0, 128);
-            return Activity.watching(currGame);
-        }
+        if (lower.startsWith("playing"))
+            return Activity.playing(extractActivityText(game, 7));
+        if (lower.startsWith("listening to"))
+            return Activity.listening(extractActivityText(game, 12));
+        if (lower.startsWith("listening"))
+            return Activity.listening(extractActivityText(game, 9));
+        if (lower.startsWith("watching"))
+            return Activity.watching(extractActivityText(game, 8));
         if (lower.startsWith("streaming")) {
             String[] parts = game.substring(9).trim().split("\\s+", 2);
             if (parts.length == 2) {
@@ -153,6 +140,14 @@ public class OtherUtil {
             }
         }
         return Activity.customStatus(game);
+    }
+
+    private static String extractActivityText(String game, int prefixLength) {
+        String currGame = makeNonEmpty(game.substring(prefixLength).trim());
+        if (currGame != null && currGame.length() > 128) {
+            return currGame.substring(0, 128);
+        }
+        return currGame;
     }
 
     public static String makeNonEmpty(String str) {

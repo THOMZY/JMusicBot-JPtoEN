@@ -10,6 +10,9 @@ import java.util.Map;
  * Data class for the current status of the music player
  */
 public class MusicStatus {
+    private static final String DEFAULT_TEXT = "";
+    private static final int DEFAULT_VOLUME = 100;
+
     private final String currentTrackTitle;
     private final String currentTrackAuthor;
     private final String currentTrackUri;
@@ -51,32 +54,10 @@ public class MusicStatus {
             boolean hasNext,
             int queueSize
     ) {
-        this.currentTrackTitle = currentTrackTitle;
-        this.currentTrackAuthor = currentTrackAuthor;
-        this.currentTrackUri = currentTrackUri;
-        this.currentTrackThumbnail = currentTrackThumbnail;
-        this.currentTrackPosition = currentTrackPosition;
-        this.currentTrackDuration = currentTrackDuration;
-        this.playing = playing;
-        this.paused = paused;
-        this.hasNext = hasNext;
-        this.queueSize = queueSize;
-        this.source = "";
-        this.requester = "";
-        this.requesterAvatar = "";
-        this.volume = 100;
-        this.sourceType = "";
-        this.inVoiceChannel = false;
-        this.spotifyInfo = null;
-        this.radioLogoUrl = null;
-        this.radioSongImageUrl = null;
-        this.radioCountry = null;
-        this.radioAlias = null;
-        this.localAlbum = null;
-        this.localGenre = null;
-        this.localYear = null;
-        this.isStream = false;
-        this.sourceIconUrl = null;
+            this(currentTrackTitle, currentTrackAuthor, currentTrackUri, currentTrackThumbnail,
+                currentTrackPosition, currentTrackDuration, playing, paused, hasNext,
+                queueSize, DEFAULT_TEXT, DEFAULT_TEXT, DEFAULT_TEXT, DEFAULT_VOLUME, DEFAULT_TEXT,
+                false, null, null, null, null, null, null, null, null, false, null);
     }
 
     public MusicStatus(
@@ -96,32 +77,10 @@ public class MusicStatus {
             int volume,
             String sourceType
     ) {
-        this.currentTrackTitle = currentTrackTitle;
-        this.currentTrackAuthor = currentTrackAuthor;
-        this.currentTrackUri = currentTrackUri;
-        this.currentTrackThumbnail = currentTrackThumbnail;
-        this.currentTrackPosition = currentTrackPosition;
-        this.currentTrackDuration = currentTrackDuration;
-        this.playing = playing;
-        this.paused = paused;
-        this.hasNext = hasNext;
-        this.queueSize = queueSize;
-        this.source = source;
-        this.requester = requester;
-        this.requesterAvatar = requesterAvatar;
-        this.volume = volume;
-        this.sourceType = sourceType;
-        this.inVoiceChannel = false;
-        this.spotifyInfo = null;
-        this.radioLogoUrl = null;
-        this.radioSongImageUrl = null;
-        this.radioCountry = null;
-        this.radioAlias = null;
-        this.localAlbum = null;
-        this.localGenre = null;
-        this.localYear = null;
-        this.isStream = false;
-        this.sourceIconUrl = null;
+            this(currentTrackTitle, currentTrackAuthor, currentTrackUri, currentTrackThumbnail,
+                currentTrackPosition, currentTrackDuration, playing, paused, hasNext,
+                queueSize, source, requester, requesterAvatar, volume, sourceType,
+                false, null, null, null, null, null, null, null, null, false, null);
     }
     
     public MusicStatus(

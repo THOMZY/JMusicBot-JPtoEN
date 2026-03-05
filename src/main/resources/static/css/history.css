@@ -99,6 +99,7 @@
     display: inline-flex;
     align-items: stretch;
     height: 42px;
+    overflow: visible;
 }
 
 .requester-filter-select {
@@ -767,7 +768,7 @@
 }
 
 .history-sentinel {
-    padding: 12px 0 20px 0;
+    padding: 12px 0 20px;
     text-align: center;
     color: var(--muted-text);
     font-size: 13px;
@@ -831,13 +832,14 @@
     
     .history-header {
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
+        flex-wrap: wrap;
         gap: 12px;
         grid-template-columns: none;
         column-gap: 0;
         margin-bottom: 15px;
         padding: 12px;
-        padding-bottom: 12px;
+        align-items: stretch; /* Ensure same height for items on same row */
         background-color: var(--darkest-bg);
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -863,13 +865,6 @@
     } */
     
     /* Ensure they stay on the same line by using flexbox on parent */
-    .history-header {
-        display: flex;
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: 12px;
-        align-items: stretch; /* Ensure same height for items on same row */
-    }
     
     /* Title takes full width */
     .history-header .history-title {
@@ -925,6 +920,9 @@
     /* Hide all filter buttons on mobile */
     .history-filters .filter-options {
         position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
     }
     
     .history-filter-btn {
@@ -938,11 +936,6 @@
     }
     
     /* Show as a styled select */
-    .history-filters .filter-options {
-        display: flex;
-        flex-direction: column;
-        gap: 0;
-    }
     
     /* Create custom select for sources */
     .source-filter-mobile-select,
@@ -990,7 +983,7 @@
         min-height: 64px;
         align-items: stretch;
         /* Using flex-start and indentical padding ensures perfect top alignment */
-        padding: 10px 6px 6px 6px; 
+        padding: 10px 6px 6px;
         background-color: rgba(0, 0, 0, 0.2);
         border-radius: 6px;
         border: 1px solid var(--border-color);
@@ -1060,7 +1053,7 @@
         min-height: 64px;
         align-items: stretch;
         /* Using flex-start and indentical padding ensures perfect top alignment */
-        padding: 10px 6px 6px 6px;
+        padding: 10px 6px 6px;
         background-color: rgba(0, 0, 0, 0.2);
         border-radius: 6px;
         border: 1px solid var(--border-color);
@@ -1253,7 +1246,7 @@
     
     .history-sentinel {
         font-size: 12px;
-        padding: 10px 0 15px 0;
+        padding: 10px 0 15px;
     }
     
     /* Calendar popup - full width on mobile */
@@ -1475,6 +1468,3 @@
 }
 
 /* Ensure container allows overflow */
-.requester-filter-container {
-    overflow: visible !important; 
-} 

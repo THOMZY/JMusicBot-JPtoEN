@@ -134,50 +134,7 @@ public final class YtDlpManager {
         String url = toFallbackUrl(input, platform);
         log.info("Downloading via yt-dlp ({}): {}", platform, url);
 
-        List<String> cmd = new ArrayList<>();
-        cmd.add(exePath.toString());
-
-        // Optional JS runtime (Deno) for YouTube extractors.
-        // When the bot runs with a restricted PATH, specifying the absolute deno path avoids
-        // yt-dlp failing with "No supported JavaScript runtime could be found".
-        if (denoPath != null) {
-            cmd.add("--js-runtimes");
-            cmd.add("deno:" + denoPath);
-        }
-
-        // Optional cookies for YouTube bot-check / auth.
-        if (cookiesPath != null) {
-            Path cookieFile = Paths.get(cookiesPath);
-            if (!cookieFile.isAbsolute()) {
-                cookieFile = botRoot.resolve(cookieFile).normalize();
-            }
-            if (Files.isRegularFile(cookieFile)) {
-                cmd.add("--cookies");
-                cmd.add(cookieFile.toString());
-            } else {
-                log.warn("yt-dlp cookies file not found; ignoring ytdlp.cookies: {} (resolved: {})", cookiesPath, cookieFile);
-            }
-        }
-
-        String format = formatOverrides.getOrDefault(platform, "bestaudio[ext=webm][acodec=opus]/bestaudio[ext=m4a]/bestaudio");
-        Collections.addAll(cmd,
-            "--no-playlist",
-            "--ignore-config",
-            "--no-progress",
-            "--newline",
-            "--restrict-filenames",
-            "--force-overwrites",
-            "-f", format,
-            "--no-post-overwrites",
-            "--encoding", "utf-8",
-            "--output", cacheDir.resolve("%(id)s.%(ext)s").toString(),
-            "--print", "after_move:filepath",
-            "--print", "meta:%(title)s\t%(uploader)s\t%(webpage_url)s\t%(duration)s\t%(thumbnail)s\t%(description)s",
-            "--add-header", "User-Agent: Mozilla/5.0");
-
-        List<String> extra = extractorArgs.getOrDefault(platform, List.of());
-        cmd.addAll(extra);
-        cmd.add(url);
+        List<String> cmd = buildDownloadCommand(platform, cacheDir, url);
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.directory(botRoot.toFile());
@@ -189,6 +146,101 @@ public final class YtDlpManager {
         }
 
         Process proc = pb.start();
+        DownloadOutput output = readDownloadOutput(proc, platform);
+
+        if (!proc.waitFor(600, TimeUnit.SECONDS)) {
+            proc.destroyForcibly();
+            throw new RuntimeException("yt-dlp timeout (600s)");
+        }
+        if (proc.exitValue() != 0) {
+            String tail = output.combinedOutput.size() > 10
+                    ? String.join("\n", output.combinedOutput.subList(Math.max(0, output.combinedOutput.size() - 10), output.combinedOutput.size()))
+                    : String.join("\n", output.combinedOutput);
+            throw new RuntimeException("yt-dlp exit code=" + proc.exitValue() + " tail=" + tail);
+        }
+
+        if (output.lastNonEmpty == null) {
+            if (platform == FallbackPlatform.YOUTUBE) {
+                String id = tryExtractYoutubeId(url);
+                if (id != null) {
+                    Path guessWebm = cacheDir.resolve(id + ".webm");
+                    if (Files.isRegularFile(guessWebm)) {
+                        return new YtDlpResult(guessWebm, output.metadata != null ? output.metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
+                    }
+                    Path guessM4a = cacheDir.resolve(id + ".m4a");
+                    if (Files.isRegularFile(guessM4a)) {
+                        return new YtDlpResult(guessM4a, output.metadata != null ? output.metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
+                    }
+                }
+            }
+            throw new FileNotFoundException("yt-dlp output is unknown");
+        }
+
+        Path out = Paths.get(output.lastNonEmpty);
+        if (!out.isAbsolute()) {
+            out = botRoot.resolve(out).normalize();
+        }
+        if (!Files.isRegularFile(out)) {
+            throw new FileNotFoundException("yt-dlp output missing: " + out);
+        }
+        log.info("yt-dlp finished: {}", out);
+        return new YtDlpResult(out, output.metadata != null ? output.metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
+    }
+
+    private List<String> buildDownloadCommand(FallbackPlatform platform, Path cacheDir, String url) {
+        List<String> cmd = new ArrayList<>();
+        cmd.add(exePath.toString());
+
+        if (denoPath != null) {
+            cmd.add("--js-runtimes");
+            cmd.add("deno:" + denoPath);
+        }
+
+        Path cookieFile = resolveCookieFile();
+        if (cookieFile != null) {
+            cmd.add("--cookies");
+            cmd.add(cookieFile.toString());
+        }
+
+        String format = formatOverrides.getOrDefault(platform, "bestaudio[ext=webm][acodec=opus]/bestaudio[ext=m4a]/bestaudio");
+        Collections.addAll(cmd,
+                "--no-playlist",
+                "--ignore-config",
+                "--no-progress",
+                "--newline",
+                "--restrict-filenames",
+                "--force-overwrites",
+                "-f", format,
+                "--no-post-overwrites",
+                "--encoding", "utf-8",
+                "--output", cacheDir.resolve("%(id)s.%(ext)s").toString(),
+                "--print", "after_move:filepath",
+                "--print", "meta:%(title)s\t%(uploader)s\t%(webpage_url)s\t%(duration)s\t%(thumbnail)s\t%(description)s",
+                "--add-header", "User-Agent: Mozilla/5.0");
+
+        cmd.addAll(extractorArgs.getOrDefault(platform, List.of()));
+        cmd.add(url);
+        return cmd;
+    }
+
+    private Path resolveCookieFile() {
+        if (cookiesPath == null) {
+            return null;
+        }
+
+        Path cookieFile = Paths.get(cookiesPath);
+        if (!cookieFile.isAbsolute()) {
+            cookieFile = botRoot.resolve(cookieFile).normalize();
+        }
+        if (Files.isRegularFile(cookieFile)) {
+            return cookieFile;
+        }
+
+        log.warn("yt-dlp cookies file not found; ignoring ytdlp.cookies: {} (resolved: {})", cookiesPath, cookieFile);
+        return null;
+    }
+
+    private DownloadOutput readDownloadOutput(Process proc, FallbackPlatform platform) throws IOException {
         String lastNonEmpty = null;
         YtDlpMetadata metadata = null;
         List<String> combinedOutput = new ArrayList<>();
@@ -205,44 +257,19 @@ public final class YtDlpManager {
                 log.debug("[yt-dlp] {}", line);
             }
         }
+        return new DownloadOutput(lastNonEmpty, metadata, combinedOutput);
+    }
 
-        if (!proc.waitFor(600, TimeUnit.SECONDS)) {
-            proc.destroyForcibly();
-            throw new RuntimeException("yt-dlp timeout (600s)");
-        }
-        if (proc.exitValue() != 0) {
-            String tail = combinedOutput.size() > 10
-                    ? String.join("\n", combinedOutput.subList(Math.max(0, combinedOutput.size() - 10), combinedOutput.size()))
-                    : String.join("\n", combinedOutput);
-            throw new RuntimeException("yt-dlp exit code=" + proc.exitValue() + " tail=" + tail);
-        }
+    private static final class DownloadOutput {
+        private final String lastNonEmpty;
+        private final YtDlpMetadata metadata;
+        private final List<String> combinedOutput;
 
-        if (lastNonEmpty == null) {
-            if (platform == FallbackPlatform.YOUTUBE) {
-                String id = tryExtractYoutubeId(url);
-                if (id != null) {
-                    Path guessWebm = cacheDir.resolve(id + ".webm");
-                    if (Files.isRegularFile(guessWebm)) {
-                        return new YtDlpResult(guessWebm, metadata != null ? metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
-                    }
-                    Path guessM4a = cacheDir.resolve(id + ".m4a");
-                    if (Files.isRegularFile(guessM4a)) {
-                        return new YtDlpResult(guessM4a, metadata != null ? metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
-                    }
-                }
-            }
-            throw new FileNotFoundException("yt-dlp output is unknown");
+        private DownloadOutput(String lastNonEmpty, YtDlpMetadata metadata, List<String> combinedOutput) {
+            this.lastNonEmpty = lastNonEmpty;
+            this.metadata = metadata;
+            this.combinedOutput = combinedOutput;
         }
-
-        Path out = Paths.get(lastNonEmpty);
-        if (!out.isAbsolute()) {
-            out = botRoot.resolve(out).normalize();
-        }
-        if (!Files.isRegularFile(out)) {
-            throw new FileNotFoundException("yt-dlp output missing: " + out);
-        }
-        log.info("yt-dlp finished: {}", out);
-        return new YtDlpResult(out, metadata != null ? metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
     }
 
     public FallbackPlatform detectPlatform(String identifier) {
@@ -256,31 +283,7 @@ public final class YtDlpManager {
 
         boolean isHttp = id.startsWith("http://") || id.startsWith("https://");
         if (isHttp) {
-            if (id.contains("soundcloud.com/") || id.contains("sndcdn.com/") || id.contains("on.soundcloud.com/")) {
-                return FallbackPlatform.SOUNDCLOUD;
-            }
-            if (id.contains("youtube.com/") || id.contains("youtu.be/")) {
-                return FallbackPlatform.YOUTUBE;
-            }
-            if (id.contains("instagram.com/") || id.contains("instagr.am/")) {
-                return FallbackPlatform.INSTAGRAM;
-            }
-            if (id.contains("tiktok.com/")) {
-                return FallbackPlatform.TIKTOK;
-            }
-            if (id.contains("twitter.com/") || id.contains("x.com/")) {
-                return FallbackPlatform.TWITTER;
-            }
-            if (id.contains("twitch.tv/")) {
-                return FallbackPlatform.TWITCH;
-            }
-            if (id.contains("bilibili.com/") || id.contains("b23.tv/")) {
-                return FallbackPlatform.BILIBILI;
-            }
-            if (id.contains("vimeo.com/") || id.contains("player.vimeo.com/")) {
-                return FallbackPlatform.VIMEO;
-            }
-            return FallbackPlatform.GENERIC;
+            return detectHttpPlatform(id);
         }
 
         if (id.matches("^[a-zA-Z0-9_-]{10,}$")) {
@@ -288,6 +291,43 @@ public final class YtDlpManager {
         }
 
         return FallbackPlatform.NONE;
+    }
+
+    private FallbackPlatform detectHttpPlatform(String id) {
+        if (containsAny(id, "soundcloud.com/", "sndcdn.com/", "on.soundcloud.com/")) {
+            return FallbackPlatform.SOUNDCLOUD;
+        }
+        if (containsAny(id, "youtube.com/", "youtu.be/")) {
+            return FallbackPlatform.YOUTUBE;
+        }
+        if (containsAny(id, "instagram.com/", "instagr.am/")) {
+            return FallbackPlatform.INSTAGRAM;
+        }
+        if (containsAny(id, "tiktok.com/")) {
+            return FallbackPlatform.TIKTOK;
+        }
+        if (containsAny(id, "twitter.com/", "x.com/")) {
+            return FallbackPlatform.TWITTER;
+        }
+        if (containsAny(id, "twitch.tv/")) {
+            return FallbackPlatform.TWITCH;
+        }
+        if (containsAny(id, "bilibili.com/", "b23.tv/")) {
+            return FallbackPlatform.BILIBILI;
+        }
+        if (containsAny(id, "vimeo.com/", "player.vimeo.com/")) {
+            return FallbackPlatform.VIMEO;
+        }
+        return FallbackPlatform.GENERIC;
+    }
+
+    private boolean containsAny(String value, String... probes) {
+        for (String probe : probes) {
+            if (value.contains(probe)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public Path getCacheDir() {

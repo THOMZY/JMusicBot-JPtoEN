@@ -2,15 +2,29 @@
 
 ---
 
+# 05 March 2026
+
+## ▶️ Fixed slash commands. ( merge original fork [Cosgy](https://github.com/Cosgy-Dev/JMusicBot-JP) )
+
+### 🔧 Changes
+- Minor code clean.
+
+### 📦 Dependency Updates
+- Removed **jda-chewtils** for Cosgy implementation.
+
+
+---
+
 # 04 March 2026
 
-## ▶️ Fixed bot join/quit loop.
+## ▶️ Fixed bot join/quit loop. ( merge original fork [Cosgy](https://github.com/Cosgy-Dev/JMusicBot-JP) )
 
 ### 🔧 Changes
 - Added DAVE (jdave) dependencies.
 - Updated to Java 25.
 
 ### 📦 Dependency Updates
+- **youtube-source**: `1.17.0` → `1.18.0`
 - **dev.arbjerg-lavaplayer**: `2.2.4` → `2.2.6`
 - **net.dv8tion-JDA**: `5.6.1` → `6.3.1`
 - **spring-boot-starter-web**: `3.3.0` → `4.1.0-M2`

@@ -134,92 +134,117 @@ public class YouTubeChapterExtractor {
             return Collections.emptyList();
         }
         try {
-            // Locate the bundled yt-dlp binary (downloaded via YtDlpManager)
-            Path ytDlpBinary = Paths.get("yt-dlp", "bin");
-            if (!Files.isDirectory(ytDlpBinary)) {
-                log.debug("yt-dlp binary directory missing: {}", ytDlpBinary);
+            Path exe = findYtDlpExecutable();
+            if (exe == null) {
                 return Collections.emptyList();
             }
 
-            Path exe = Files.list(ytDlpBinary)
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().startsWith("yt-dlp"))
-                    .findFirst()
-                    .orElse(null);
-
-            if (exe == null || !Files.isExecutable(exe)) {
-                log.debug("yt-dlp binary not found or not executable; skipping yt-dlp chapter extraction");
+            String json = runYtDlpAndGetJson(exe, youtubeUrl);
+            if (json == null || json.isBlank()) {
                 return Collections.emptyList();
             }
-
-            ProcessBuilder pb = new ProcessBuilder(exe.toString(), "--dump-json", "--no-warnings", "--encoding", "utf-8", youtubeUrl);
-            pb.redirectErrorStream(true);
-            pb.environment().put("PYTHONIOENCODING", "utf-8");
-            // Ensure console encoding for Windows compatibility
-            if (System.getProperty("os.name").toLowerCase().contains("win")) {
-                pb.environment().put("PYTHONUTF8", "1");
-            }
-
-            Process proc = pb.start();
-            boolean finished = proc.waitFor(YT_DLP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            if (!finished) {
-                proc.destroyForcibly();
-                log.debug("yt-dlp chapter extraction timed out");
-                return Collections.emptyList();
-            }
-
-            if (proc.exitValue() != 0) {
-                log.debug("yt-dlp chapter extraction failed with code {}", proc.exitValue());
-                return Collections.emptyList();
-            }
-
-            String json;
-            try (InputStream in = proc.getInputStream()) {
-                json = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-            }
-
             JsonNode node = mapper.readTree(json);
-            JsonNode chapters = node.path("chapters");
-            if (!chapters.isArray()) {
-                return Collections.emptyList();
-            }
-
-            List<Chapter> parsed = new ArrayList<>();
-            for (JsonNode c : chapters) {
-                String name = c.path("title").asText(null);
-                long start = (long) (c.path("start_time").asDouble(-1) * 1000);
-                long end = (long) (c.path("end_time").asDouble(-1) * 1000);
-                if (name == null || start < 0) {
-                    continue;
-                }
-                Chapter chapter = new Chapter(name, start);
-                if (end > 0) {
-                    chapter.setEndTimeMs(end);
-                }
-                parsed.add(chapter);
-            }
-
-            // Ensure end times are filled if missing
-            if (!parsed.isEmpty()) {
-                for (int i = 0; i < parsed.size() - 1; i++) {
-                    Chapter current = parsed.get(i);
-                    if (current.getEndTimeMs() <= 0) {
-                        current.setEndTimeMs(parsed.get(i + 1).getStartTimeMs());
-                    }
-                }
-                if (parsed.get(parsed.size() - 1).getEndTimeMs() <= 0) {
-                    long durationMs = node.path("duration").isNumber()
-                            ? (long) (node.path("duration").asDouble() * 1000)
-                            : Long.MAX_VALUE;
-                    parsed.get(parsed.size() - 1).setEndTimeMs(durationMs);
-                }
-            }
-
+            List<Chapter> parsed = parseYtDlpChapters(node.path("chapters"));
+            fillMissingChapterEndTimes(parsed, node);
             return parsed;
         } catch (Exception e) {
             log.debug("yt-dlp chapter extraction failed: {}", e.toString());
             return Collections.emptyList();
         }
+    }
+
+    private static Path findYtDlpExecutable() throws IOException {
+        Path ytDlpBinary = Paths.get("yt-dlp", "bin");
+        if (!Files.isDirectory(ytDlpBinary)) {
+            log.debug("yt-dlp binary directory missing: {}", ytDlpBinary);
+            return null;
+        }
+
+        Path exe;
+        try (var stream = Files.list(ytDlpBinary)) {
+            exe = stream
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().startsWith("yt-dlp"))
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        if (exe == null || !Files.isExecutable(exe)) {
+            log.debug("yt-dlp binary not found or not executable; skipping yt-dlp chapter extraction");
+            return null;
+        }
+        return exe;
+    }
+
+    private static String runYtDlpAndGetJson(Path executable, String youtubeUrl) throws IOException, InterruptedException {
+        ProcessBuilder pb = new ProcessBuilder(executable.toString(), "--dump-json", "--no-warnings", "--encoding", "utf-8", youtubeUrl);
+        pb.redirectErrorStream(true);
+        pb.environment().put("PYTHONIOENCODING", "utf-8");
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            pb.environment().put("PYTHONUTF8", "1");
+        }
+
+        Process proc = pb.start();
+        boolean finished = proc.waitFor(YT_DLP_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        if (!finished) {
+            proc.destroyForcibly();
+            log.debug("yt-dlp chapter extraction timed out");
+            return null;
+        }
+
+        if (proc.exitValue() != 0) {
+            log.debug("yt-dlp chapter extraction failed with code {}", proc.exitValue());
+            return null;
+        }
+
+        try (InputStream in = proc.getInputStream()) {
+            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+    }
+
+    private static List<Chapter> parseYtDlpChapters(JsonNode chaptersNode) {
+        if (!chaptersNode.isArray()) {
+            return Collections.emptyList();
+        }
+
+        List<Chapter> parsed = new ArrayList<>();
+        for (JsonNode chapterNode : chaptersNode) {
+            String name = chapterNode.path("title").asText(null);
+            long start = (long) (chapterNode.path("start_time").asDouble(-1) * 1000);
+            long end = (long) (chapterNode.path("end_time").asDouble(-1) * 1000);
+            if (name == null || start < 0) {
+                continue;
+            }
+            Chapter chapter = new Chapter(name, start);
+            if (end > 0) {
+                chapter.setEndTimeMs(end);
+            }
+            parsed.add(chapter);
+        }
+        return parsed;
+    }
+
+    private static void fillMissingChapterEndTimes(List<Chapter> chapters, JsonNode rootNode) {
+        if (chapters.isEmpty()) {
+            return;
+        }
+
+        for (int i = 0; i < chapters.size() - 1; i++) {
+            Chapter current = chapters.get(i);
+            if (current.getEndTimeMs() <= 0) {
+                current.setEndTimeMs(chapters.get(i + 1).getStartTimeMs());
+            }
+        }
+
+        Chapter last = chapters.get(chapters.size() - 1);
+        if (last.getEndTimeMs() > 0) {
+            return;
+        }
+
+        long durationMs = rootNode.path("duration").isNumber()
+                ? (long) (rootNode.path("duration").asDouble() * 1000)
+                : Long.MAX_VALUE;
+        last.setEndTimeMs(durationMs);
     }
 
     /**

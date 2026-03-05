@@ -141,107 +141,118 @@ public class LocalAudioMetadata {
      * @return The LocalTrackInfo containing the extracted metadata
      */
     public static LocalTrackInfo extractMetadata(String originalTrackIdentifier, File tempFile) {
-        // Use the originalTrackIdentifier as the primary key for the cache.
-        // If originalTrackIdentifier is null or empty, we might fall back to a file-based hash,
-        // but ideally, it should always be provided.
-        String cacheKey = originalTrackIdentifier;
-        if (cacheKey == null || cacheKey.isEmpty()) {
-            // Fallback for safety, though this path should ideally not be taken if called correctly.
-            log.warn("LocalAudioMetadata.extractMetadata called without an originalTrackIdentifier. Falling back to temp file hash for cache key.");
-            cacheKey = "file_" + tempFile.getAbsolutePath().hashCode();
+        String cacheKey = resolveCacheKey(originalTrackIdentifier, tempFile);
+        LocalTrackInfo cached = trackInfoCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
         }
 
-        // Extract filename from the temporary file's path for title cleanup if needed.
-        // Or, if the originalTrackIdentifier is a URL, we could try to get a filename from it.
-        // For now, let's assume the tempFile's name (after download) is representative enough or use the original URI if it was passed.
-        // The LocalTrackInfo constructor will use this for initial title.
-        String filenameForTitle = extractFilenameFromUrl(tempFile.getName()); // Prefer tempFile.getName() which might be original
-         if (originalTrackIdentifier != null && (originalTrackIdentifier.startsWith("http://") || originalTrackIdentifier.startsWith("https://"))) {
-            filenameForTitle = extractFilenameFromUrl(originalTrackIdentifier);
-        }
-
-
-        // Check if we already have cached info for this track using the definitive cacheKey
-        if (trackInfoCache.containsKey(cacheKey)) {
-            return trackInfoCache.get(cacheKey);
-        }
+        String filenameForTitle = resolveFilenameForTitle(originalTrackIdentifier, tempFile);
         
-        // Create a new track info object with the (potentially better) original filename
         LocalTrackInfo info = new LocalTrackInfo(cleanupFilename(filenameForTitle));
         
         try {
-            // Use jaudiotagger to extract metadata
             AudioFile audioFile = AudioFileIO.read(tempFile);
             Tag tag = audioFile.getTag();
-            
             if (tag != null) {
-                // Extract basic metadata
-                if (tag.getFirst(FieldKey.TITLE) != null && !tag.getFirst(FieldKey.TITLE).isEmpty()) {
-                    info.title = tag.getFirst(FieldKey.TITLE);
-                }
-                
-                if (tag.getFirst(FieldKey.ARTIST) != null && !tag.getFirst(FieldKey.ARTIST).isEmpty()) {
-                    info.artist = tag.getFirst(FieldKey.ARTIST);
-                }
-                
-                if (tag.getFirst(FieldKey.ALBUM) != null && !tag.getFirst(FieldKey.ALBUM).isEmpty()) {
-                    info.album = tag.getFirst(FieldKey.ALBUM);
-                }
-                
-                if (tag.getFirst(FieldKey.YEAR) != null && !tag.getFirst(FieldKey.YEAR).isEmpty()) {
-                    info.year = tag.getFirst(FieldKey.YEAR);
-                }
-                
-                if (tag.getFirst(FieldKey.GENRE) != null && !tag.getFirst(FieldKey.GENRE).isEmpty()) {
-                    info.genre = tag.getFirst(FieldKey.GENRE);
-                }
-                
-                // Extract artwork if available
-                try {
-                    Artwork artwork = tag.getFirstArtwork();
-                    if (artwork != null && artwork.getBinaryData() != null) {
-                        byte[] artworkData = artwork.getBinaryData();
-                        // Save artwork and store its path
-                        try {
-                            String artworkHash = calculateArtworkHash(artworkData);
-                            String extension = determineImageExtension(artworkData);
-                            String artworkFilename = artworkHash + "." + extension;
-                            Path artworkFilePath = ARTWORK_DIR.resolve(artworkFilename);
-
-                            if (!Files.exists(artworkFilePath)) {
-                                Files.write(artworkFilePath, artworkData);
-                                log.debug("Saved new artwork: {}", artworkFilePath);
-                            } else {
-                                log.debug("Artwork already exists: {}", artworkFilePath);
-                            }
-                            // Store the relative path
-                            info.artworkPath = ARTWORK_DIR.getFileName().toString() + "/" + artworkFilename;
-                        } catch (NoSuchAlgorithmException | IOException e) {
-                            log.error("Failed to save or hash artwork for track ID {}: {}", cacheKey, e.getMessage());
-                        }
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to extract artwork: {}", e.getMessage());
-                }
-                
+                populateBasicMetadata(info, tag);
+                extractAndStoreArtwork(info, tag, cacheKey);
                 info.setMetadataExtracted(true);
             }
         } catch (Exception e) {
             log.warn("Failed to extract metadata from local file: {}", filenameForTitle, e);
         }
         
-        // For files with minimal metadata, ensure we at least have a good title
-        if (info.title == null || info.title.isEmpty() || 
-            info.title.equalsIgnoreCase("Unknown Title") || 
-            info.title.equalsIgnoreCase("Unknown") ||
-            // If the title is still the raw hash.ext, try to clean it up better or use original filename.
-            (info.artworkPath != null && info.title.equals(FilenameUtils.removeExtension(new File(info.artworkPath).getName()))) ) {
+        if (needsTitleFallback(info)) {
             info.title = cleanupFilename(filenameForTitle);
         }
         
-        // Cache the track info for future use with the definitive cacheKey
         trackInfoCache.put(cacheKey, info);
         return info;
+    }
+
+    private static String resolveCacheKey(String originalTrackIdentifier, File tempFile) {
+        if (originalTrackIdentifier != null && !originalTrackIdentifier.isEmpty()) {
+            return originalTrackIdentifier;
+        }
+        log.warn("LocalAudioMetadata.extractMetadata called without an originalTrackIdentifier. Falling back to temp file hash for cache key.");
+        return "file_" + tempFile.getAbsolutePath().hashCode();
+    }
+
+    private static String resolveFilenameForTitle(String originalTrackIdentifier, File tempFile) {
+        if (originalTrackIdentifier != null
+                && (originalTrackIdentifier.startsWith("http://") || originalTrackIdentifier.startsWith("https://"))) {
+            return extractFilenameFromUrl(originalTrackIdentifier);
+        }
+        return extractFilenameFromUrl(tempFile.getName());
+    }
+
+    private static void populateBasicMetadata(LocalTrackInfo info, Tag tag) {
+        String title = getTagValue(tag, FieldKey.TITLE);
+        if (title != null) {
+            info.title = title;
+        }
+
+        String artist = getTagValue(tag, FieldKey.ARTIST);
+        if (artist != null) {
+            info.artist = artist;
+        }
+
+        String album = getTagValue(tag, FieldKey.ALBUM);
+        if (album != null) {
+            info.album = album;
+        }
+
+        String year = getTagValue(tag, FieldKey.YEAR);
+        if (year != null) {
+            info.year = year;
+        }
+
+        String genre = getTagValue(tag, FieldKey.GENRE);
+        if (genre != null) {
+            info.genre = genre;
+        }
+    }
+
+    private static String getTagValue(Tag tag, FieldKey fieldKey) {
+        String value = tag.getFirst(fieldKey);
+        return (value == null || value.isEmpty()) ? null : value;
+    }
+
+    private static void extractAndStoreArtwork(LocalTrackInfo info, Tag tag, String cacheKey) {
+        try {
+            Artwork artwork = tag.getFirstArtwork();
+            if (artwork == null || artwork.getBinaryData() == null) {
+                return;
+            }
+
+            byte[] artworkData = artwork.getBinaryData();
+            String artworkHash = calculateArtworkHash(artworkData);
+            String extension = determineImageExtension(artworkData);
+            String artworkFilename = artworkHash + "." + extension;
+            Path artworkFilePath = ARTWORK_DIR.resolve(artworkFilename);
+
+            if (!Files.exists(artworkFilePath)) {
+                Files.write(artworkFilePath, artworkData);
+                log.debug("Saved new artwork: {}", artworkFilePath);
+            } else {
+                log.debug("Artwork already exists: {}", artworkFilePath);
+            }
+
+            info.artworkPath = ARTWORK_DIR.getFileName().toString() + "/" + artworkFilename;
+        } catch (NoSuchAlgorithmException | IOException e) {
+            log.error("Failed to save or hash artwork for track ID {}: {}", cacheKey, e.getMessage());
+        } catch (Exception e) {
+            log.warn("Failed to extract artwork: {}", e.getMessage());
+        }
+    }
+
+    private static boolean needsTitleFallback(LocalTrackInfo info) {
+        return info.title == null
+                || info.title.isEmpty()
+                || info.title.equalsIgnoreCase("Unknown Title")
+                || info.title.equalsIgnoreCase("Unknown")
+                || (info.artworkPath != null && info.title.equals(FilenameUtils.removeExtension(new File(info.artworkPath).getName())));
     }
 
     /**

@@ -7,11 +7,11 @@ public class Sample {
         nicoSearchAPI ns = new nicoSearchAPI(true, 5);
 
         long start = System.currentTimeMillis();
-        List<nicoVideoSearchResult> results_0 = ns.searchVideo("初音ミク", 5);
+        List<nicoVideoSearchResult> results_0 = ns.searchVideo("Hatsune Miku", 5);
         long end = System.currentTimeMillis();
 
         long start_2 = System.currentTimeMillis();
-        List<nicoVideoSearchResult> results_1 = ns.searchVideo("千本桜", 5);
+        List<nicoVideoSearchResult> results_1 = ns.searchVideo("Senbonzakura", 5);
         long end_2 = System.currentTimeMillis();
 
         long start_3 = System.currentTimeMillis();

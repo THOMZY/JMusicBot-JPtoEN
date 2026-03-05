@@ -80,42 +80,12 @@ public class PlayerManager extends DefaultAudioPlayerManager {
     }
 
     public void init() {
-        // Initialize IPv6 rotation using LavaPlayer's official youtube-rotator extension
-        if (bot.getConfig().isIPv6RotationEnabled()) {
-            try {
-                String ipv6Block = bot.getConfig().getIPv6RotationBlock();
-                if (ipv6Block == null || ipv6Block.isEmpty()) {
-                    logger.warn("IPv6 rotation enabled but no IPv6 block configured. Please set ipv6rotation.block in config.");
-                    this.ipv6RoutePlanner = null;
-                } else {
-                    Ipv6Block block = new Ipv6Block(ipv6Block);
-                    this.ipv6RoutePlanner = new NanoIpRoutePlanner(java.util.Collections.singletonList(block), true);
-                    logger.info("IPv6 rotation initialized with block: {}", ipv6Block);
-                }
-            } catch (Exception e) {
-                logger.error("Failed to initialize IPv6 rotation: {}", e.getMessage());
-                this.ipv6RoutePlanner = null;
-            }
-        } else {
-            this.ipv6RoutePlanner = null;
-        }
-        
-        // Prepare yt-dlp for YouTube fallback
-        try {
-            Path botDir = Paths.get("").toAbsolutePath();
-            this.ytDlpManager = new YtDlpManager(
-                    botDir,
-                    bot.getConfig().getYtDlpDenoPath(),
-                    bot.getConfig().getYtDlpCookiesPath()
-            );
-            this.ytDlpPath = ytDlpManager.prepare();
-            ytDlpManager.startAutoUpdate(Duration.ofHours(6));
-            logger.info("yt-dlp ready at {}", ytDlpPath);
-        } catch (Exception e) {
-            logger.error("Failed to initialize yt-dlp. YouTube fallback is disabled.", e);
-            this.ytDlpPath = null;
-            this.ytDlpManager = null;
-        }
+        initInternal();
+    }
+
+    private void initInternal() {
+        initIpv6Rotation();
+        initYtDlpFallback();
 
         if (bot.getConfig().isNicoNicoEnabled()) {
             registerSourceManager(
@@ -180,6 +150,47 @@ public class PlayerManager extends DefaultAudioPlayerManager {
         
         // Configure IPv6 rotation for all HTTP-based source managers
         configureIPv6Rotation();
+    }
+
+    private void initIpv6Rotation() {
+        if (!bot.getConfig().isIPv6RotationEnabled()) {
+            this.ipv6RoutePlanner = null;
+            return;
+        }
+
+        try {
+            String ipv6Block = bot.getConfig().getIPv6RotationBlock();
+            if (ipv6Block == null || ipv6Block.isEmpty()) {
+                logger.warn("IPv6 rotation enabled but no IPv6 block configured. Please set ipv6rotation.block in config.");
+                this.ipv6RoutePlanner = null;
+                return;
+            }
+
+            Ipv6Block block = new Ipv6Block(ipv6Block);
+            this.ipv6RoutePlanner = new NanoIpRoutePlanner(java.util.Collections.singletonList(block), true);
+            logger.info("IPv6 rotation initialized with block: {}", ipv6Block);
+        } catch (Exception e) {
+            logger.error("Failed to initialize IPv6 rotation: {}", e.getMessage());
+            this.ipv6RoutePlanner = null;
+        }
+    }
+
+    private void initYtDlpFallback() {
+        try {
+            Path botDir = Paths.get("").toAbsolutePath();
+            this.ytDlpManager = new YtDlpManager(
+                    botDir,
+                    bot.getConfig().getYtDlpDenoPath(),
+                    bot.getConfig().getYtDlpCookiesPath()
+            );
+            this.ytDlpPath = ytDlpManager.prepare();
+            ytDlpManager.startAutoUpdate(Duration.ofHours(6));
+            logger.info("yt-dlp ready at {}", ytDlpPath);
+        } catch (Exception e) {
+            logger.error("Failed to initialize yt-dlp. YouTube fallback is disabled.", e);
+            this.ytDlpPath = null;
+            this.ytDlpManager = null;
+        }
     }
     
     /**

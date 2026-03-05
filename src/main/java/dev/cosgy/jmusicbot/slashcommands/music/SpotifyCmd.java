@@ -17,10 +17,10 @@
 
 package dev.cosgy.jmusicbot.slashcommands.music;
 
-import com.jagrosh.jdautilities.command.CommandEvent;
-import com.jagrosh.jdautilities.command.SlashCommandEvent;
-import com.jagrosh.jdautilities.menu.ButtonMenu;
-import com.jagrosh.jdautilities.menu.OrderedMenu;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.menu.ButtonMenu;
+import dev.cosgy.jmusicbot.framework.jdautilities.menu.OrderedMenu;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.audio.QueuedTrack;
@@ -33,6 +33,7 @@ import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.exceptions.PermissionException;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
@@ -151,63 +152,13 @@ public class SpotifyCmd extends MusicCommand {
             event.reply("Error: The specified URL is not a Spotify track URL").queue();
             return;
         }
-
-        String trackId = extractTrackIdFromUrl(trackUrl);
-        String endpoint = "https://api.spotify.com/v1/tracks/" + trackId;
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .header("Authorization", "Bearer " + accessToken)
-                .header("Accept-Language", "en")
-                .GET()
-                .uri(URI.create(endpoint))
-                .build();
-
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            JSONObject json = new JSONObject(response.body());
-            String trackName = json.getString("name");
-            String albumName = json.getJSONObject("album").getString("name");
-            String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
-            String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
-            
-            // Extract release date information
-            String releaseDate = json.getJSONObject("album").getString("release_date");
-            String releaseDatePrecision = json.getJSONObject("album").getString("release_date_precision");
-            String releaseYear = extractReleaseYear(releaseDate, releaseDatePrecision);
-
-            // Use the Audio Features endpoint to retrieve track information
-            endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
-            request = HttpRequest.newBuilder()
-                    .header("Authorization", "Bearer " + accessToken)
-                    .GET()
-                    .uri(URI.create(endpoint))
-                    .build();
-
-            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            json = new JSONObject(response.body());
-            // Use a default value when valence key does not exist
-            double trackColor = json.has("valence") ? json.getDouble("valence") : 0.5;
-
-            int hue = (int) (trackColor * 360);
-            Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
-
-            // Store track information for NowplayingCmd
-            storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color, releaseYear);
-
-            EmbedBuilder embed = new EmbedBuilder();
-            embed.setTitle("Track Information :");
-            embed.setDescription(
-                "**Title** : " + trackName + "\n" +
-                "**Album** : " + albumName + "\n" +
-                "**Artist** : " + artistName + "\n" +
-                "**Released** : " + releaseYear
-            );
-            embed.setImage(albumImageUrl);
-            embed.setColor(color);
-
-            event.getTextChannel().sendMessageEmbeds(embed.build()).queue();
-
-            event.reply("Loading `[" + trackName + "]`...").queue(m -> bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new SlashResultHandler(m, event)));
+            String trackId = extractTrackIdFromUrl(trackUrl);
+            SpotifyLookupResult trackData = fetchSpotifyTrackData(trackId);
+            storeTrackInfo(event.getGuild().getId(), trackId, trackData.trackName, trackData.albumName, trackData.artistName, trackData.albumImageUrl, trackData.color, trackData.releaseYear);
+            sendTrackInfoEmbed(event.getTextChannel(), trackData);
+            event.reply("Loading `[" + trackData.trackName + "]`...")
+                    .queue(m -> bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackData.trackName + " " + trackData.artistName, new SlashResultHandler(m, event)));
         } catch (Exception e) {
             event.reply("Error: " + e.getMessage()).queue();
         }
@@ -241,63 +192,13 @@ public class SpotifyCmd extends MusicCommand {
             event.reply("Error: The specified URL is not a Spotify track URL");
             return;
         }
-
-        String trackId = extractTrackIdFromUrl(trackUrl);
-        String endpoint = "https://api.spotify.com/v1/tracks/" + trackId;
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .header("Authorization", "Bearer " + accessToken)
-                .header("Accept-Language", "en")
-                .GET()
-                .uri(URI.create(endpoint))
-                .build();
-
         try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            JSONObject json = new JSONObject(response.body());
-            String trackName = json.getString("name");
-            String albumName = json.getJSONObject("album").getString("name");
-            String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
-            String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
-            
-            // Extract release date information
-            String releaseDate = json.getJSONObject("album").getString("release_date");
-            String releaseDatePrecision = json.getJSONObject("album").getString("release_date_precision");
-            String releaseYear = extractReleaseYear(releaseDate, releaseDatePrecision);
-
-            // Use the Audio Features endpoint to retrieve track information
-            endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
-            request = HttpRequest.newBuilder()
-                    .header("Authorization", "Bearer " + accessToken)
-                    .GET()
-                    .uri(URI.create(endpoint))
-                    .build();
-
-            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            json = new JSONObject(response.body());
-            // Use a default value when valence key does not exist
-            double trackColor = json.has("valence") ? json.getDouble("valence") : 0.5;
-
-            int hue = (int) (trackColor * 360);
-            Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
-            
-            // Store track information for NowplayingCmd
-            storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color, releaseYear);
-
-            EmbedBuilder embed = new EmbedBuilder();
-            embed.setTitle("Track Information :");
-            embed.setDescription(
-                "**Title** : " + trackName + "\n" +
-                "**Album** : " + albumName + "\n" +
-                "**Artist** : " + artistName + "\n" +
-                "**Released** : " + releaseYear
-            );
-            embed.setImage(albumImageUrl);
-            embed.setColor(color);
-
-            event.getTextChannel().sendMessageEmbeds(embed.build()).queue();
-
-            event.reply("Loading `[" + trackName + "]`...", m -> bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new ResultHandler(m, event)));
+            String trackId = extractTrackIdFromUrl(trackUrl);
+            SpotifyLookupResult trackData = fetchSpotifyTrackData(trackId);
+            storeTrackInfo(event.getGuild().getId(), trackId, trackData.trackName, trackData.albumName, trackData.artistName, trackData.albumImageUrl, trackData.color, trackData.releaseYear);
+            sendTrackInfoEmbed(event.getTextChannel(), trackData);
+            event.reply("Loading `[" + trackData.trackName + "]`...",
+                    m -> bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackData.trackName + " " + trackData.artistName, new ResultHandler(m, event)));
         } catch (Exception e) {
             event.reply("Error: " + e.getMessage());
         }
@@ -325,6 +226,74 @@ public class SpotifyCmd extends MusicCommand {
         Matcher matcher = pattern.matcher(cleanUrl);
 
         return matcher.matches();
+    }
+
+    private static final class SpotifyLookupResult {
+        private final String trackName;
+        private final String albumName;
+        private final String artistName;
+        private final String albumImageUrl;
+        private final String releaseYear;
+        private final Color color;
+
+        private SpotifyLookupResult(String trackName, String albumName, String artistName, String albumImageUrl, String releaseYear, Color color) {
+            this.trackName = trackName;
+            this.albumName = albumName;
+            this.artistName = artistName;
+            this.albumImageUrl = albumImageUrl;
+            this.releaseYear = releaseYear;
+            this.color = color;
+        }
+    }
+
+    private SpotifyLookupResult fetchSpotifyTrackData(String trackId) throws IOException, InterruptedException {
+        String endpoint = "https://api.spotify.com/v1/tracks/" + trackId;
+        HttpRequest request = HttpRequest.newBuilder()
+                .header("Authorization", "Bearer " + accessToken)
+                .header("Accept-Language", "en")
+                .GET()
+                .uri(URI.create(endpoint))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        JSONObject json = new JSONObject(response.body());
+        String trackName = json.getString("name");
+        String albumName = json.getJSONObject("album").getString("name");
+        String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
+        String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
+
+        String releaseDate = json.getJSONObject("album").getString("release_date");
+        String releaseDatePrecision = json.getJSONObject("album").getString("release_date_precision");
+        String releaseYear = extractReleaseYear(releaseDate, releaseDatePrecision);
+
+        endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
+        request = HttpRequest.newBuilder()
+                .header("Authorization", "Bearer " + accessToken)
+                .GET()
+                .uri(URI.create(endpoint))
+                .build();
+
+        response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        json = new JSONObject(response.body());
+        double trackColor = json.has("valence") ? json.getDouble("valence") : 0.5;
+        int hue = (int) (trackColor * 360);
+        Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
+
+        return new SpotifyLookupResult(trackName, albumName, artistName, albumImageUrl, releaseYear, color);
+    }
+
+    private void sendTrackInfoEmbed(MessageChannel channel, SpotifyLookupResult result) {
+        EmbedBuilder embed = new EmbedBuilder();
+        embed.setTitle("Track Information :");
+        embed.setDescription(
+                "**Title** : " + result.trackName + "\n" +
+                "**Album** : " + result.albumName + "\n" +
+                "**Artist** : " + result.artistName + "\n" +
+                "**Released** : " + result.releaseYear
+        );
+        embed.setImage(result.albumImageUrl);
+        embed.setColor(result.color);
+        channel.sendMessageEmbeds(embed.build()).queue();
     }
 
     private static String getAccessToken(String clientId, String clientSecret) {
@@ -645,64 +614,15 @@ public class SpotifyCmd extends MusicCommand {
             }
         }
 
-        String endpoint = "https://api.spotify.com/v1/tracks/" + trackId;
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .header("Authorization", "Bearer " + accessToken)
-                .header("Accept-Language", "en")
-                .GET()
-                .uri(URI.create(endpoint))
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        JSONObject json = new JSONObject(response.body());
-        String trackName = json.getString("name");
-        String albumName = json.getJSONObject("album").getString("name");
-        String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
-        String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
-        
-        // Extract release date information
-        String releaseDate = json.getJSONObject("album").getString("release_date");
-        String releaseDatePrecision = json.getJSONObject("album").getString("release_date_precision");
-        String releaseYear = extractReleaseYear(releaseDate, releaseDatePrecision);
-
-        // Use the Audio Features endpoint to retrieve track information
-        endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
-        request = HttpRequest.newBuilder()
-                .header("Authorization", "Bearer " + accessToken)
-                .GET()
-                .uri(URI.create(endpoint))
-                .build();
-
-        response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        json = new JSONObject(response.body());
-        // Use a default value when valence key does not exist
-        double trackColor = json.has("valence") ? json.getDouble("valence") : 0.5;
-
-        int hue = (int) (trackColor * 360);
-        Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
-
-        // Store track information for NowplayingCmd
-        storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color, releaseYear);
-
-        EmbedBuilder embed = new EmbedBuilder();
-        embed.setTitle("Track Information :");
-        embed.setDescription(
-            "**Title** : " + trackName + "\n" +
-            "**Album** : " + albumName + "\n" +
-            "**Artist** : " + artistName + "\n" +
-            "**Released** : " + releaseYear
-        );
-        embed.setImage(albumImageUrl);
-        embed.setColor(color);
-
-        event.getTextChannel().sendMessageEmbeds(embed.build()).queue();
+            SpotifyLookupResult trackData = fetchSpotifyTrackData(trackId);
+            storeTrackInfo(event.getGuild().getId(), trackId, trackData.trackName, trackData.albumName, trackData.artistName, trackData.albumImageUrl, trackData.color, trackData.releaseYear);
+            sendTrackInfoEmbed(event.getTextChannel(), trackData);
         
         // Update the hook with the track name being loaded
-        hook.editOriginal("Loading `[" + trackName + "]`...").queue();
+            hook.editOriginal("Loading `[" + trackData.trackName + "]`...").queue();
         
         // Create a custom AudioLoadResultHandler that will store the Spotify track ID
-        bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new AudioLoadResultHandler() {
+            bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackData.trackName + " " + trackData.artistName, new AudioLoadResultHandler() {
             @Override
             public void trackLoaded(AudioTrack track) {
                 // Create RequestMetadata with the Spotify track ID
@@ -743,7 +663,7 @@ public class SpotifyCmd extends MusicCommand {
 
             @Override
             public void noMatches() {
-                hook.editOriginal(event.getClient().getWarning() + " No matches found for: " + trackName).queue();
+                hook.editOriginal(event.getClient().getWarning() + " No matches found for: " + trackData.trackName).queue();
             }
 
             @Override
@@ -772,64 +692,15 @@ public class SpotifyCmd extends MusicCommand {
             }
         }
 
-        String endpoint = "https://api.spotify.com/v1/tracks/" + trackId;
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .header("Authorization", "Bearer " + accessToken)
-                .header("Accept-Language", "en")
-                .GET()
-                .uri(URI.create(endpoint))
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        JSONObject json = new JSONObject(response.body());
-        String trackName = json.getString("name");
-        String albumName = json.getJSONObject("album").getString("name");
-        String artistName = json.getJSONArray("artists").getJSONObject(0).getString("name");
-        String albumImageUrl = json.getJSONObject("album").getJSONArray("images").getJSONObject(0).getString("url");
-        
-        // Extract release date information
-        String releaseDate = json.getJSONObject("album").getString("release_date");
-        String releaseDatePrecision = json.getJSONObject("album").getString("release_date_precision");
-        String releaseYear = extractReleaseYear(releaseDate, releaseDatePrecision);
-
-        // Use the Audio Features endpoint to retrieve track information
-        endpoint = "https://api.spotify.com/v1/audio-features/" + trackId;
-        request = HttpRequest.newBuilder()
-                .header("Authorization", "Bearer " + accessToken)
-                .GET()
-                .uri(URI.create(endpoint))
-                .build();
-
-        response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        json = new JSONObject(response.body());
-        // Use a default value when valence key does not exist
-        double trackColor = json.has("valence") ? json.getDouble("valence") : 0.5;
-
-        int hue = (int) (trackColor * 360);
-        Color color = Color.getHSBColor((float) hue / 360, 1.0f, 1.0f);
-        
-        // Store track information for NowplayingCmd
-        storeTrackInfo(event.getGuild().getId(), trackId, trackName, albumName, artistName, albumImageUrl, color, releaseYear);
-
-        EmbedBuilder embed = new EmbedBuilder();
-        embed.setTitle("Track Information :");
-        embed.setDescription(
-            "**Title** : " + trackName + "\n" +
-            "**Album** : " + albumName + "\n" +
-            "**Artist** : " + artistName + "\n" +
-            "**Released** : " + releaseYear
-        );
-        embed.setImage(albumImageUrl);
-        embed.setColor(color);
-
-        event.getTextChannel().sendMessageEmbeds(embed.build()).queue();
+            SpotifyLookupResult trackData = fetchSpotifyTrackData(trackId);
+            storeTrackInfo(event.getGuild().getId(), trackId, trackData.trackName, trackData.albumName, trackData.artistName, trackData.albumImageUrl, trackData.color, trackData.releaseYear);
+            sendTrackInfoEmbed(event.getTextChannel(), trackData);
         
         // Update the message with the track name being loaded
-        message.editMessage("Loading `[" + trackName + "]`...").queue();
+            message.editMessage("Loading `[" + trackData.trackName + "]`...").queue();
         
         // Create a custom AudioLoadResultHandler that will store the Spotify track ID
-        bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackName + " " + artistName, new AudioLoadResultHandler() {
+            bot.getPlayerManager().loadItemOrdered(event.getGuild(), "ytmsearch:" + trackData.trackName + " " + trackData.artistName, new AudioLoadResultHandler() {
             @Override
             public void trackLoaded(AudioTrack track) {
                 // Create RequestMetadata with the Spotify track ID
@@ -870,7 +741,7 @@ public class SpotifyCmd extends MusicCommand {
 
             @Override
             public void noMatches() {
-                message.editMessage(event.getClient().getWarning() + " No matches found for: " + trackName).queue();
+                message.editMessage(event.getClient().getWarning() + " No matches found for: " + trackData.trackName).queue();
             }
 
             @Override

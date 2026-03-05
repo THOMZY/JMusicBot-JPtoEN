@@ -98,116 +98,32 @@ public class MusicHistory {
         if (!enabled) {
             return;
         }
-        
+        addTrackInternal(track, handler);
+    }
+
+    private void addTrackInternal(AudioTrack track, AudioHandler handler) {
         try {
             AudioTrackInfo info = PlayerManager.getDisplayInfo(track);
             if (info == null) {
                 info = track.getInfo();
             }
 
-            // Check for duplicates (same URL and Guild) using display info
-            if (!history.isEmpty()) {
-                PlayRecord lastRecord = history.get(0);
-                String currentGuildId = String.valueOf(handler.getGuildId());
-                String currentUrl = info.uri;
-                long currentTime = System.currentTimeMillis();
-                
-                if (lastRecord.getGuildId().equals(currentGuildId) && lastRecord.getUrl().equals(currentUrl)) {
-                    // If it's a stream (like YouTube Live), avoid adding duplicates regardless of time
-                    // This handles long streams that might reconnect multiple times
-                    // But exclude Gensokyo Radio and other Radios which have their own duplicate handling
-                    boolean isStream = info.isStream;
-                    if (isStream && !handler.isGensokyoRadioTrack(track) && !handler.isRadioTrack(track)) {
-                        return;
-                    }
-                    
-                    // For regular tracks, 60s window to prevent accidental double-adds
-                    if (currentTime - lastRecord.getPlayedAt() < 60000) {
-                        return;
-                    }
-                }
+            if (shouldSkipRecentDuplicate(info, handler, track) || shouldSkipGensokyoDuplicate(handler, track)) {
+                return;
             }
 
-            // Check for Gensokyo Radio duplicates first
-            if (handler.isGensokyoRadioTrack(track)) {
-                try {
-                    dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-                    if (grInfo != null && grInfo.getSonginfo() != null) {
-                        String currentSong = grInfo.getSonginfo().getArtist() + " - " + grInfo.getSonginfo().getTitle();
-                        long currentTime = System.currentTimeMillis();
-                        
-                        // Check if this exact song was just added (within threshold)
-                        if (currentSong.equals(lastGensokyoSong) && 
-                            (currentTime - lastGensokyoTimestamp) < GENSOKYO_DUPLICATE_THRESHOLD) {
-                            // Skip adding duplicate entry
-                            System.out.println("Skipping duplicate Gensokyo Radio track: " + currentSong);
-                            return;
-                        }
-                        
-                        // Update tracking variables
-                        lastGensokyoSong = currentSong;
-                        lastGensokyoTimestamp = currentTime;
-                    }
-                } catch (Exception e) {
-                    // Ignore error and continue with adding the track
-                }
-            }
-            
             RequestMetadata rm = getRequestMetadata(track);
-            
-            User requester = rm != null && rm.getOwner() != 0 
-                ? bot.getJDA().getUserById(rm.getOwner()) 
-                : null;
-            
+            User requester = rm != null && rm.getOwner() != 0
+                    ? bot.getJDA().getUserById(rm.getOwner())
+                    : null;
+
             String guildId = String.valueOf(handler.getGuildId());
             String guildName = bot.getJDA().getGuildById(handler.getGuildId()).getName();
-            
-            // For Gensokyo Radio, get the current track info directly from the agent
-            String title = info.title;
-            String artist = info.author;
-            
-            // Clean radio titles by removing "| RADIO NAME" suffix
-            if (handler.isRadioTrack(track)) {
-                int pipeIndex = title.lastIndexOf(" | ");
-                if (pipeIndex > 0) {
-                    title = title.substring(0, pipeIndex).trim();
-                }
-            }
-            
-            if (handler.isGensokyoRadioTrack(track)) {
-                try {
-                    // Force an update to get the very latest info
-                    dev.cosgy.agent.GensokyoInfoAgent.forceUpdate();
-                    dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-                    
-                    if (grInfo != null && grInfo.getSonginfo() != null) {
-                        // Always use the info directly from the agent for Gensokyo Radio tracks
-                        title = grInfo.getSonginfo().getTitle();
-                        artist = grInfo.getSonginfo().getArtist();
-                        
-                        // Check for empty values and provide defaults
-                        if (title == null || title.isEmpty()) {
-                            title = "Unknown Title";
-                            System.out.println("Warning: Empty title from Gensokyo Radio API");
-                        }
-                        
-                        if (artist == null || artist.isEmpty()) {
-                            artist = "Unknown Artist";
-                            System.out.println("Warning: Empty artist from Gensokyo Radio API");
-                        }
-                        
-                    } else {
-                        System.out.println("Warning: No track info available from Gensokyo Radio API");
-                    }
-                } catch (Exception e) {
-                    // Ignore error and use track data
-                    System.out.println("Error getting Gensokyo Radio info: " + e.getMessage());
-                }
-            }
-            
+            TrackText trackText = resolveTrackText(info, handler, track);
+
             PlayRecord record = new PlayRecord(
-                title,  // Use our cleaned detected title
-                artist, // Use our detected artist
+                trackText.title,
+                trackText.artist,
                 track.getDuration(),
                 info.uri,
                 System.currentTimeMillis(),
@@ -216,183 +132,269 @@ public class MusicHistory {
                 guildName,
                 guildId
             );
-            
-            // Check for YtDlp metadata
-            YtDlpMetadata ytMeta = PlayerManager.getYtDlpMetadata(track);
-            FallbackPlatform ytPlatform = PlayerManager.getYtDlpPlatform(track);
+            applyYtDlpMetadata(record, track);
+            applyTrackTypeMetadata(record, handler, track, info, rm);
+            applyGensokyoOrStreamMetadata(record, handler, track, info);
 
-            if (ytPlatform != null && ytPlatform != FallbackPlatform.NONE) {
-                String sourceType = "Unknown";
-                String thumbnailUrl = "";
-                String sourceIconUrl = null;
+            history.add(0, record);
+            saveHistory();
+        } catch (Exception e) {
+            System.err.println("Error adding track to history: " + e.getMessage());
+        }
+    }
 
-                switch (ytPlatform) {
-                    case INSTAGRAM -> sourceType = "Instagram";
-                    case TIKTOK -> sourceType = "TikTok";
-                    case TWITTER -> sourceType = "Twitter";
-                    case BILIBILI -> sourceType = "Bilibili";
-                    case VIMEO -> sourceType = "Vimeo";
-                    case TWITCH -> sourceType = "Twitch";
-                    case SOUNDCLOUD -> sourceType = "SoundCloud";
-                    case YOUTUBE -> sourceType = "YouTube";
-                    default -> {
-                        if (ytMeta != null && ytMeta.webpageUrl() != null) {
-                            try {
-                                java.net.URI uri = new java.net.URI(ytMeta.webpageUrl());
-                                String host = uri.getHost();
-                                if (host != null) {
-                                    String fullDomain = host;
-                                    host = host.startsWith("www.") ? host.substring(4) : host;
-                                    int lastDot = host.lastIndexOf('.');
-                                    if (lastDot > 0) {
-                                        host = host.substring(0, lastDot);
-                                    }
-                                    if (!host.isEmpty()) {
-                                        sourceType = host.substring(0, 1).toUpperCase() + host.substring(1);
-                                        sourceIconUrl = "https://www.google.com/s2/favicons?domain=" + fullDomain + "&sz=64";
-                                    }
-                                }
-                            } catch (Exception ignored) {}
-                        }
-                    }
-                }
+    private boolean shouldSkipRecentDuplicate(AudioTrackInfo info, AudioHandler handler, AudioTrack track) {
+        if (history.isEmpty()) {
+            return false;
+        }
 
-                if (ytMeta != null && ytMeta.thumbnailUrl() != null && !ytMeta.thumbnailUrl().isEmpty()) {
-                    thumbnailUrl = ytMeta.thumbnailUrl();
-                }
-                
-                if (!"Unknown".equals(sourceType)) {
-                    record.setYtDlpData(sourceType, thumbnailUrl, sourceIconUrl);
-                }
+        PlayRecord lastRecord = history.get(0);
+        String currentGuildId = String.valueOf(handler.getGuildId());
+        String currentUrl = info.uri;
+        long currentTime = System.currentTimeMillis();
+
+        if (!lastRecord.getGuildId().equals(currentGuildId) || !lastRecord.getUrl().equals(currentUrl)) {
+            return false;
+        }
+
+        if (info.isStream && !handler.isGensokyoRadioTrack(track) && !handler.isRadioTrack(track)) {
+            return true;
+        }
+
+        return currentTime - lastRecord.getPlayedAt() < 60000;
+    }
+
+    private boolean shouldSkipGensokyoDuplicate(AudioHandler handler, AudioTrack track) {
+        if (!handler.isGensokyoRadioTrack(track)) {
+            return false;
+        }
+
+        try {
+            dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+            if (grInfo == null || grInfo.getSonginfo() == null) {
+                return false;
             }
 
-            // Add metadata based on track type
-            AudioHandler.TrackType type = handler.getTrackType(track);
-            
-            if (type == AudioHandler.TrackType.SPOTIFY) {
-                SpotifyCmd.SpotifyTrackInfo spotifyInfo = handler.getSpotifyTrackInfo();
-                if (spotifyInfo != null) {
-                    record.setSpotifyData(
-                        spotifyInfo.trackId,
-                        spotifyInfo.albumName,
-                        spotifyInfo.albumImageUrl,
-                        spotifyInfo.artistName,
-                        spotifyInfo.releaseYear
-                    );
-                }
-            } else if (type == AudioHandler.TrackType.RADIO) {
-                RadioCmd.TrackInfo radioInfo = handler.getRadioTrackInfo(track);
-                String songImageUrl = (radioInfo != null) ? radioInfo.imageUrl : null;
-                
-                // For radio tracks, store the actual station name but use only the formatted title for display
-                record.setRadioData(
-                    handler.getRadioStationName(track),  // We still store the real station name
-                    songImageUrl,
-                    handler.getRadioLogoUrl(track)
-                );
-            } else if (type == AudioHandler.TrackType.YOUTUBE) {
-                String videoId = info.uri;
-                if (videoId.contains("v=")) {
-                    videoId = videoId.substring(videoId.indexOf("v=") + 2);
-                    if (videoId.contains("&")) {
-                        videoId = videoId.substring(0, videoId.indexOf("&"));
-                    }
-                    record.setYoutubeData(videoId);
-                }
-            } else if (type == AudioHandler.TrackType.SOUNDCLOUD) {
-                // Add SoundCloud artwork URL to the record
-                if (track.getInfo().artworkUrl != null && !track.getInfo().artworkUrl.isEmpty()) {
-                    record.setSoundCloudData(track.getInfo().artworkUrl);
-                }
-            } else if (type == AudioHandler.TrackType.LOCAL) {
-                String trackIdentifier = track.getInfo().identifier;
-                LocalAudioMetadata.LocalTrackInfo cachedInfo = LocalAudioMetadata.getCachedTrackInfo(trackIdentifier);
-                
-                if (cachedInfo != null) {
-                    record.setLocalData(
-                        cachedInfo.getAlbum(),
-                        cachedInfo.getGenre(),
-                        cachedInfo.getYear(),
-                        cachedInfo.getArtworkPath() // artworkPath is the filename of the cover art (hash.ext)
-                    );
-                } else if (rm != null && rm.hasLocalFileData()) { // Fallback, should happen less often now
-                    record.setLocalData(
-                        rm.getLocalFileAlbum(),
-                        rm.getLocalFileGenre(),
-                        rm.getLocalFileYear(),
-                        rm.getLocalFileArtworkHash()
-                    );
-                } else {
-                    // Maybe set default values or do nothing if no local info is found
-                    record.setLocalData("Unknown Album", "Unknown Genre", "", ""); // Default values
-                }
+            String currentSong = grInfo.getSonginfo().getArtist() + " - " + grInfo.getSonginfo().getTitle();
+            long currentTime = System.currentTimeMillis();
+            if (currentSong.equals(lastGensokyoSong) && (currentTime - lastGensokyoTimestamp) < GENSOKYO_DUPLICATE_THRESHOLD) {
+                System.out.println("Skipping duplicate Gensokyo Radio track: " + currentSong);
+                return true;
             }
-            
-            // Check for Gensokyo Radio tracks
-            if (handler.isGensokyoRadioTrack(track)) {
-                try {
-                    dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
-                    if (grInfo != null && grInfo.getSonginfo() != null) {
-                        // Set Gensokyo Radio data
-                        record.setGensokyoData(
+
+            lastGensokyoSong = currentSong;
+            lastGensokyoTimestamp = currentTime;
+        } catch (Exception ignored) {
+        }
+
+        return false;
+    }
+
+    private TrackText resolveTrackText(AudioTrackInfo info, AudioHandler handler, AudioTrack track) {
+        String title = info.title;
+        String artist = info.author;
+
+        if (handler.isRadioTrack(track) && title != null) {
+            int pipeIndex = title.lastIndexOf(" | ");
+            if (pipeIndex > 0) {
+                title = title.substring(0, pipeIndex).trim();
+            }
+        }
+
+        if (handler.isGensokyoRadioTrack(track)) {
+            try {
+                dev.cosgy.agent.GensokyoInfoAgent.forceUpdate();
+                dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+                if (grInfo != null && grInfo.getSonginfo() != null) {
+                    title = grInfo.getSonginfo().getTitle();
+                    artist = grInfo.getSonginfo().getArtist();
+                }
+            } catch (Exception e) {
+                System.out.println("Error getting Gensokyo Radio info: " + e.getMessage());
+            }
+        }
+
+        if (title == null || title.isEmpty()) {
+            title = "Unknown Title";
+        }
+        if (artist == null || artist.isEmpty()) {
+            artist = "Unknown Artist";
+        }
+
+        return new TrackText(title, artist);
+    }
+
+    private void applyYtDlpMetadata(PlayRecord record, AudioTrack track) {
+        YtDlpMetadata ytMeta = PlayerManager.getYtDlpMetadata(track);
+        FallbackPlatform ytPlatform = PlayerManager.getYtDlpPlatform(track);
+        if (ytPlatform == null || ytPlatform == FallbackPlatform.NONE) {
+            return;
+        }
+
+        String sourceType = switch (ytPlatform) {
+            case INSTAGRAM -> "Instagram";
+            case TIKTOK -> "TikTok";
+            case TWITTER -> "Twitter";
+            case BILIBILI -> "Bilibili";
+            case VIMEO -> "Vimeo";
+            case TWITCH -> "Twitch";
+            case SOUNDCLOUD -> "SoundCloud";
+            case YOUTUBE -> "YouTube";
+            default -> resolveGenericYtSourceType(ytMeta);
+        };
+
+        if ("Unknown".equals(sourceType)) {
+            return;
+        }
+
+        String thumbnailUrl = ytMeta != null && ytMeta.thumbnailUrl() != null ? ytMeta.thumbnailUrl() : "";
+        String sourceIconUrl = resolveGenericYtSourceIcon(ytMeta);
+        record.setYtDlpData(sourceType, thumbnailUrl, sourceIconUrl);
+    }
+
+    private String resolveGenericYtSourceType(YtDlpMetadata ytMeta) {
+        if (ytMeta == null || ytMeta.webpageUrl() == null) {
+            return "Unknown";
+        }
+        try {
+            java.net.URI uri = new java.net.URI(ytMeta.webpageUrl());
+            String host = uri.getHost();
+            if (host == null) {
+                return "Unknown";
+            }
+            host = host.startsWith("www.") ? host.substring(4) : host;
+            int lastDot = host.lastIndexOf('.');
+            if (lastDot > 0) {
+                host = host.substring(0, lastDot);
+            }
+            return host.isEmpty() ? "Unknown" : host.substring(0, 1).toUpperCase() + host.substring(1);
+        } catch (Exception ignored) {
+            return "Unknown";
+        }
+    }
+
+    private String resolveGenericYtSourceIcon(YtDlpMetadata ytMeta) {
+        if (ytMeta == null || ytMeta.webpageUrl() == null) {
+            return null;
+        }
+        try {
+            java.net.URI uri = new java.net.URI(ytMeta.webpageUrl());
+            String host = uri.getHost();
+            return host == null ? null : "https://www.google.com/s2/favicons?domain=" + host + "&sz=64";
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void applyTrackTypeMetadata(PlayRecord record, AudioHandler handler, AudioTrack track, AudioTrackInfo info, RequestMetadata rm) {
+        AudioHandler.TrackType type = handler.getTrackType(track);
+        if (type == AudioHandler.TrackType.SPOTIFY) {
+            SpotifyCmd.SpotifyTrackInfo spotifyInfo = handler.getSpotifyTrackInfo();
+            if (spotifyInfo != null) {
+                record.setSpotifyData(spotifyInfo.trackId, spotifyInfo.albumName, spotifyInfo.albumImageUrl, spotifyInfo.artistName, spotifyInfo.releaseYear);
+            }
+            return;
+        }
+
+        if (type == AudioHandler.TrackType.RADIO) {
+            RadioCmd.TrackInfo radioInfo = handler.getRadioTrackInfo(track);
+            String songImageUrl = (radioInfo != null) ? radioInfo.imageUrl : null;
+            record.setRadioData(handler.getRadioStationName(track), songImageUrl, handler.getRadioLogoUrl(track));
+            return;
+        }
+
+        if (type == AudioHandler.TrackType.YOUTUBE) {
+            String videoId = info.uri;
+            if (videoId.contains("v=")) {
+                videoId = videoId.substring(videoId.indexOf("v=") + 2);
+                if (videoId.contains("&")) {
+                    videoId = videoId.substring(0, videoId.indexOf("&"));
+                }
+                record.setYoutubeData(videoId);
+            }
+            return;
+        }
+
+        if (type == AudioHandler.TrackType.SOUNDCLOUD) {
+            if (track.getInfo().artworkUrl != null && !track.getInfo().artworkUrl.isEmpty()) {
+                record.setSoundCloudData(track.getInfo().artworkUrl);
+            }
+            return;
+        }
+
+        if (type == AudioHandler.TrackType.LOCAL) {
+            applyLocalMetadata(record, track, rm);
+        }
+    }
+
+    private void applyLocalMetadata(PlayRecord record, AudioTrack track, RequestMetadata rm) {
+        String trackIdentifier = track.getInfo().identifier;
+        LocalAudioMetadata.LocalTrackInfo cachedInfo = LocalAudioMetadata.getCachedTrackInfo(trackIdentifier);
+        if (cachedInfo != null) {
+            record.setLocalData(cachedInfo.getAlbum(), cachedInfo.getGenre(), cachedInfo.getYear(), cachedInfo.getArtworkPath());
+            return;
+        }
+        if (rm != null && rm.hasLocalFileData()) {
+            record.setLocalData(rm.getLocalFileAlbum(), rm.getLocalFileGenre(), rm.getLocalFileYear(), rm.getLocalFileArtworkHash());
+            return;
+        }
+        record.setLocalData("Unknown Album", "Unknown Genre", "", "");
+    }
+
+    private void applyGensokyoOrStreamMetadata(PlayRecord record, AudioHandler handler, AudioTrack track, AudioTrackInfo info) {
+        if (handler.isGensokyoRadioTrack(track)) {
+            try {
+                dev.cosgy.agent.objects.ResultSet grInfo = dev.cosgy.agent.GensokyoInfoAgent.getInfo();
+                if (grInfo != null && grInfo.getSonginfo() != null) {
+                    record.setGensokyoData(
                             grInfo.getSonginfo().getTitle(),
                             grInfo.getSonginfo().getArtist(),
                             grInfo.getSonginfo().getAlbum(),
                             grInfo.getSonginfo().getCircle(),
                             grInfo.getSonginfo().getYear(),
                             grInfo.getMisc() != null ? grInfo.getMisc().getFullAlbumArtUrl() : ""
-                        );
-                    }
-                } catch (Exception e) {
-                    // Ignore error and continue with regular stream data
-                }
-            }
-            // Handle regular streams if not Gensokyo Radio
-            else if (info.isStream && !record.hasYtDlpData()) {
-                // Check for ICY metadata
-                IcyMetadataHandler.StreamMetadata icyMetadata = 
-                    bot.getIcyMetadataHandler().getMetadata(String.valueOf(handler.getGuildId()));
-                
-                if (icyMetadata != null) {
-                    // Use ICY metadata for stream information
-                    String stationName = icyMetadata.getStationName();
-                    String currentTrack = icyMetadata.getCurrentTrack();
-                    String stationGenre = icyMetadata.getStationGenre();
-                    String stationLogo = icyMetadata.getStationLogo();
-                    
-                    // Set stream data
-                    record.setStreamData(
-                        stationName != null ? stationName : "Stream", 
-                        stationGenre != null ? stationGenre : "",
-                        stationLogo != null ? stationLogo : "",
-                        true
                     );
-                    
-                    // If we have current track info, update record title
-                    if (currentTrack != null && !currentTrack.isEmpty()) {
-                        // For streams, the record title might be just the station name
-                        // Manually override with the current track if available
-                        try {
-                            java.lang.reflect.Field titleField = record.getClass().getDeclaredField("title");
-                            titleField.setAccessible(true);
-                            titleField.set(record, currentTrack);
-                        } catch (Exception e) {
-                            // Ignore reflection errors, keep original title
-                        }
-                    }
-                } else {
-                    // Simple stream with no ICY metadata
-                    record.setStreamData("Stream", "", "", true);
                 }
+            } catch (Exception ignored) {
             }
-            
-            // Add to the beginning of the history list
-            history.add(0, record);
-            
-            // Save the updated history
-            saveHistory();
-        } catch (Exception e) {
-            System.err.println("Error adding track to history: " + e.getMessage());
+            return;
+        }
+
+        if (info.isStream && !record.hasYtDlpData()) {
+            applyStreamMetadata(record, handler);
+        }
+    }
+
+    private void applyStreamMetadata(PlayRecord record, AudioHandler handler) {
+        IcyMetadataHandler.StreamMetadata icyMetadata = bot.getIcyMetadataHandler().getMetadata(String.valueOf(handler.getGuildId()));
+        if (icyMetadata == null) {
+            record.setStreamData("Stream", "", "", true);
+            return;
+        }
+
+        String stationName = icyMetadata.getStationName();
+        String currentTrack = icyMetadata.getCurrentTrack();
+        String stationGenre = icyMetadata.getStationGenre();
+        String stationLogo = icyMetadata.getStationLogo();
+        record.setStreamData(stationName != null ? stationName : "Stream", stationGenre != null ? stationGenre : "", stationLogo != null ? stationLogo : "", true);
+
+        if (currentTrack != null && !currentTrack.isEmpty()) {
+            try {
+                java.lang.reflect.Field titleField = record.getClass().getDeclaredField("title");
+                titleField.setAccessible(true);
+                titleField.set(record, currentTrack);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private static final class TrackText {
+        private final String title;
+        private final String artist;
+
+        private TrackText(String title, String artist) {
+            this.title = title;
+            this.artist = artist;
         }
     }
 

@@ -48,7 +48,6 @@ body.chapters-open .chapters-sidebar {
 .chapters-header {
     position: sticky;
     top: 0;
-    background-color: var(--darker-bg);
     z-index: 5;
     border-bottom: 1px solid var(--border-color);
     display: flex;
@@ -76,7 +75,7 @@ body.chapters-open .chapters-sidebar {
 
 .chapters-list {
     overflow-y: auto;
-    padding: 10px 0 25px 0; /* Extra bottom padding to prevent last item cutoff */
+    padding: 10px 0 25px; /* Extra bottom padding to prevent last item cutoff */
     scrollbar-width: thin;
     max-height: calc(100vh - 160px); /* Adjust based on your header height */
 }

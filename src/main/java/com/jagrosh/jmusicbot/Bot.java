@@ -16,7 +16,7 @@
  */
 package com.jagrosh.jmusicbot;
 
-import com.jagrosh.jdautilities.commons.waiter.EventWaiter;
+import dev.cosgy.jmusicbot.framework.jdautilities.commons.waiter.EventWaiter;
 import com.jagrosh.jmusicbot.audio.AloneInVoiceHandler;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.audio.IcyMetadataHandler;
@@ -196,7 +196,7 @@ public class Bot {
     }
 
     public void resetGame() {
-        Activity game = config.getGame() == null || config.getGame().getName().toLowerCase().matches("(none|なし)") ? null : config.getGame();
+        Activity game = config.getGame() == null || config.getGame().getName().toLowerCase().matches("(none)") ? null : config.getGame();
         if (!Objects.equals(jda.getPresence().getActivity(), game))
             jda.getPresence().setActivity(game);
     }

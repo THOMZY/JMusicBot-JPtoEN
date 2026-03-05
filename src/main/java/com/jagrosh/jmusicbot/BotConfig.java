@@ -90,146 +90,149 @@ public class BotConfig {
     public void load() {
         valid = false;
 
-        // Load settings from file
         try {
-            // Get configuration path (default config.txt)
-            path = OtherUtil.getPath(System.getProperty("config.file", System.getProperty("config", "config.txt")));
-            if (path.toFile().exists()) {
-                if (System.getProperty("config.file") == null)
-                    System.setProperty("config.file", System.getProperty("config", path.toAbsolutePath().toString()));
-                ConfigFactory.invalidateCaches();
-            }
-
-            // Loaded into configuration file and default values added
-            // Config config = ConfigFactory.parseFile(path.toFile()).withFallback(ConfigFactory.load());
+            initConfigPath();
             Config config = ConfigFactory.load();
-            // Setting value
-            token = config.getString("token");
-            prefix = config.getString("prefix");
-            altprefix = config.getString("altprefix");
-            helpWord = config.getString("help");
-            owner = (config.getAnyRef("owner") instanceof String ? 0L : config.getLong("owner"));
-            successEmoji = config.getString("success");
-            warningEmoji = config.getString("warning");
-            errorEmoji = config.getString("error");
-            loadingEmoji = config.getString("loading");
-            searchingEmoji = config.getString("searching");
-            game = OtherUtil.parseGame(config.getString("game"));
-            status = OtherUtil.parseStatus(config.getString("status"));
-            stayInChannel = config.getBoolean("stayinchannel");
-            songInGame = config.getBoolean("songinstatus");
-            npImages = config.getBoolean("npimages");
-            updatealerts = config.getBoolean("updatealerts");
-            useEval = config.getBoolean("eval");
-            maxSeconds = config.getLong("maxtime");
-            aloneTimeUntilStop = config.getLong("alonetimeuntilstop");
-            playlistsFolder = config.getString("playlistsfolder");
-            mylistfolder = config.getString("mylistfolder");
-            publistFolder = config.getString("publistfolder");
-            aliases = config.getConfig("aliases");
-            transforms = config.getConfig("transforms");
-            dbots = owner == 334091398263341056L;
-
-
-            // [JMusicBot-JP]
-            useNicoNico = config.getBoolean("useniconico");
-            nicoEmail = config.getString("nicomail");
-            nicoPass = config.getString("nicopass");
-            nicoTwoFactor = config.getString("nicotwofactor");
-            pauseNoUsers = config.getBoolean("pausenousers");
-            resumeJoined = config.getBoolean("resumejoined");
-            stopNoUsers = config.getBoolean("stopnousers");
-            changeNickName = config.getBoolean("changenickname");
-            helpToDm = config.getBoolean("helptodm");
-            autoStopQueueSave = config.getBoolean("autostopqueuesave");
-            auditCommands = config.getBoolean("auditcommands");
-            officialInvite = config.getBoolean("officialinvite");
-            useinvitecommand = config.getBoolean("useinvitecommand");
-            ytEmail = config.getString("ytemail");
-            ytPass = config.getString("ytpass");
-            ytRefreshToken = config.hasPath("ytrefreshtoken") ? config.getString("ytrefreshtoken") : null; // [YouTube OAuth] Read refresh token from config
-            spClientId = config.getString("spclient");
-            spClientSecret = config.getString("spsecret");
-            enableHistory = config.hasPath("enablehistory") ? config.getBoolean("enablehistory") : true;
-
-            // YouTube remote cipher server settings (optional)
-            ytCipherUrl = config.hasPath("ytcipher.url") ? config.getString("ytcipher.url") : null;
-            ytCipherPassword = config.hasPath("ytcipher.password") ? config.getString("ytcipher.password") : null;
-            ytCipherUserAgent = config.hasPath("ytcipher.user-agent") ? config.getString("ytcipher.user-agent") : null;
-
-            // Optional Deno executable path for yt-dlp (JS runtime)
-            ytDlpDenoPath = config.hasPath("ytdlp.deno") ? config.getString("ytdlp.deno") : "";
-
-            // Optional cookies for yt-dlp
-            ytDlpCookiesPath = config.hasPath("ytdlp.cookies") ? config.getString("ytdlp.cookies") : "";
-
-            // IPv6 rotation settings
-            ipv6RotationEnabled = config.hasPath("ipv6rotation.enabled") ? config.getBoolean("ipv6rotation.enabled") : false;
-            ipv6RotationBlock = config.hasPath("ipv6rotation.block") ? config.getString("ipv6rotation.block") : "";
-
-            cosgyDevHost = false;
-            // [JMusicBot-JP] End
-
-            // WebPanel settings
-            webPanelEnabled = config.hasPath("webpanelenabled") ? config.getBoolean("webpanelenabled") : false;
-            webPanelPort = config.hasPath("webpanelport") ? config.getInt("webpanelport") : 8080;
-
-            // we may need to write a new config file
-            boolean write = false;
-
-            // validate bot token
-            if (token == null || token.isEmpty() || token.matches("(BOT_TOKEN_HERE|Paste the bot token here|BOTトークンを入力してください)")) {
-                token = prompt.prompt("Please enter the BOT token."
-                        + "\nYou can obtain the token from here:"
-                        + "\nhttps://github.com/jagrosh/MusicBot/wiki/Getting-a-Bot-Token."
-                        + "\nBOT Token: ");
-                if (token == null) {
-                    prompt.alert(Prompt.Level.WARNING, CONTEXT, "Token not entered! Exiting.\n\nConfiguration file location: " + path.toAbsolutePath());
-                    return;
-                } else {
-                    write = true;
-                }
+            loadConfigValues(config);
+            ValidationResult validation = ensureTokenAndOwner();
+            if (!validation.continueLoad) {
+                return;
             }
-
-            // validate bot owner
-            if (owner <= 0) {
-                try {
-                    owner = Long.parseLong(prompt.prompt("The owner user ID is not set or is invalid."
-                            + "\nPlease enter the BOT owner's user ID."
-                            + "\nYou can obtain the user ID from here:"
-                            + "\nhttps://github.com/jagrosh/MusicBot/wiki/Finding-Your-User-ID"
-                            + "\nOwner user ID: "));
-                } catch (NumberFormatException | NullPointerException ex) {
-                    owner = 0;
-                }
-                if (owner <= 0) {
-                    prompt.alert(Prompt.Level.ERROR, CONTEXT, "Invalid user ID! Exiting.\n\nConfiguration file location: " + path.toAbsolutePath());
-                    System.exit(0);
-                } else {
-                    write = true;
-                }
+            if (validation.writeConfig) {
+                writeConfigFile();
             }
-
-            if (write) {
-                String original = OtherUtil.loadResource(this, "/reference.conf");
-                String mod;
-                if (original == null) {
-                    mod = ("token = " + token + "\r\nowner = " + owner);
-                } else {
-                    mod = original.substring(original.indexOf(START_TOKEN) + START_TOKEN.length(), original.indexOf(END_TOKEN))
-                    .replace("BOT_TOKEN_HERE", token).replace("Paste the bot token here", token)
-                    .replace("0 // OWNER ID", Long.toString(owner)).replace("Paste the owner ID here", Long.toString(owner))
-                            .trim();
-                }
-
-                FileUtils.writeStringToFile(path.toFile(), mod, StandardCharsets.UTF_8);
-            }
-
-            // if we get through the whole config, it's good to go
             valid = true;
         } catch (ConfigException | IOException ex) {
             prompt.alert(Prompt.Level.ERROR, CONTEXT, ex + ": " + ex.getMessage() + "\n\nConfiguration file location: " + path.toAbsolutePath());
         }
+    }
+
+    private void initConfigPath() {
+        path = OtherUtil.getPath(System.getProperty("config.file", System.getProperty("config", "config.txt")));
+        if (path.toFile().exists()) {
+            if (System.getProperty("config.file") == null) {
+                System.setProperty("config.file", System.getProperty("config", path.toAbsolutePath().toString()));
+            }
+            ConfigFactory.invalidateCaches();
+        }
+    }
+
+    private void loadConfigValues(Config config) {
+        token = config.getString("token");
+        prefix = config.getString("prefix");
+        altprefix = config.getString("altprefix");
+        helpWord = config.getString("help");
+        owner = (config.getAnyRef("owner") instanceof String ? 0L : config.getLong("owner"));
+        successEmoji = config.getString("success");
+        warningEmoji = config.getString("warning");
+        errorEmoji = config.getString("error");
+        loadingEmoji = config.getString("loading");
+        searchingEmoji = config.getString("searching");
+        game = OtherUtil.parseGame(config.getString("game"));
+        status = OtherUtil.parseStatus(config.getString("status"));
+        stayInChannel = config.getBoolean("stayinchannel");
+        songInGame = config.getBoolean("songinstatus");
+        npImages = config.getBoolean("npimages");
+        updatealerts = config.getBoolean("updatealerts");
+        useEval = config.getBoolean("eval");
+        maxSeconds = config.getLong("maxtime");
+        aloneTimeUntilStop = config.getLong("alonetimeuntilstop");
+        playlistsFolder = config.getString("playlistsfolder");
+        mylistfolder = config.getString("mylistfolder");
+        publistFolder = config.getString("publistfolder");
+        aliases = config.getConfig("aliases");
+        transforms = config.getConfig("transforms");
+        dbots = owner == 334091398263341056L;
+
+        useNicoNico = config.getBoolean("useniconico");
+        nicoEmail = config.getString("nicomail");
+        nicoPass = config.getString("nicopass");
+        nicoTwoFactor = config.getString("nicotwofactor");
+        pauseNoUsers = config.getBoolean("pausenousers");
+        resumeJoined = config.getBoolean("resumejoined");
+        stopNoUsers = config.getBoolean("stopnousers");
+        changeNickName = config.getBoolean("changenickname");
+        helpToDm = config.getBoolean("helptodm");
+        autoStopQueueSave = config.getBoolean("autostopqueuesave");
+        auditCommands = config.getBoolean("auditcommands");
+        officialInvite = config.getBoolean("officialinvite");
+        useinvitecommand = config.getBoolean("useinvitecommand");
+        ytEmail = config.getString("ytemail");
+        ytPass = config.getString("ytpass");
+        ytRefreshToken = config.hasPath("ytrefreshtoken") ? config.getString("ytrefreshtoken") : null;
+        spClientId = config.getString("spclient");
+        spClientSecret = config.getString("spsecret");
+        enableHistory = config.hasPath("enablehistory") ? config.getBoolean("enablehistory") : true;
+
+        ytCipherUrl = config.hasPath("ytcipher.url") ? config.getString("ytcipher.url") : null;
+        ytCipherPassword = config.hasPath("ytcipher.password") ? config.getString("ytcipher.password") : null;
+        ytCipherUserAgent = config.hasPath("ytcipher.user-agent") ? config.getString("ytcipher.user-agent") : null;
+
+        ytDlpDenoPath = config.hasPath("ytdlp.deno") ? config.getString("ytdlp.deno") : "";
+        ytDlpCookiesPath = config.hasPath("ytdlp.cookies") ? config.getString("ytdlp.cookies") : "";
+        ipv6RotationEnabled = config.hasPath("ipv6rotation.enabled") ? config.getBoolean("ipv6rotation.enabled") : false;
+        ipv6RotationBlock = config.hasPath("ipv6rotation.block") ? config.getString("ipv6rotation.block") : "";
+        webPanelEnabled = config.hasPath("webpanelenabled") ? config.getBoolean("webpanelenabled") : false;
+        webPanelPort = config.hasPath("webpanelport") ? config.getInt("webpanelport") : 8080;
+        cosgyDevHost = false;
+    }
+
+    private ValidationResult ensureTokenAndOwner() {
+        boolean write = false;
+        if (token == null || token.isEmpty() || token.matches("(BOT_TOKEN_HERE|Paste the bot token here)")) {
+            token = prompt.prompt("Please enter the BOT token."
+                    + "\nYou can obtain the token from here:"
+                    + "\nhttps://github.com/jagrosh/MusicBot/wiki/Getting-a-Bot-Token."
+                    + "\nBOT Token: ");
+            if (token == null) {
+                prompt.alert(Prompt.Level.WARNING, CONTEXT, "Token not entered! Exiting.\n\nConfiguration file location: " + path.toAbsolutePath());
+                return new ValidationResult(false, false);
+            }
+            write = true;
+        }
+
+        if (owner <= 0) {
+            try {
+                owner = Long.parseLong(prompt.prompt("The owner user ID is not set or is invalid."
+                        + "\nPlease enter the BOT owner's user ID."
+                        + "\nYou can obtain the user ID from here:"
+                        + "\nhttps://github.com/jagrosh/MusicBot/wiki/Finding-Your-User-ID"
+                        + "\nOwner user ID: "));
+            } catch (NumberFormatException | NullPointerException ex) {
+                owner = 0;
+            }
+            if (owner <= 0) {
+                prompt.alert(Prompt.Level.ERROR, CONTEXT, "Invalid user ID! Exiting.\n\nConfiguration file location: " + path.toAbsolutePath());
+                System.exit(0);
+            }
+            write = true;
+        }
+
+        return new ValidationResult(true, write);
+    }
+
+    private static final class ValidationResult {
+        private final boolean continueLoad;
+        private final boolean writeConfig;
+
+        private ValidationResult(boolean continueLoad, boolean writeConfig) {
+            this.continueLoad = continueLoad;
+            this.writeConfig = writeConfig;
+        }
+    }
+
+    private void writeConfigFile() throws IOException {
+        String original = OtherUtil.loadResource(this, "/reference.conf");
+        String mod;
+        if (original == null) {
+            mod = ("token = " + token + "\r\nowner = " + owner);
+        } else {
+            mod = original.substring(original.indexOf(START_TOKEN) + START_TOKEN.length(), original.indexOf(END_TOKEN))
+                    .replace("BOT_TOKEN_HERE", token).replace("Paste the bot token here", token)
+                    .replace("0 // OWNER ID", Long.toString(owner)).replace("Paste the owner ID here", Long.toString(owner))
+                    .trim();
+        }
+        FileUtils.writeStringToFile(path.toFile(), mod, StandardCharsets.UTF_8);
     }
 
     public boolean isValid() {

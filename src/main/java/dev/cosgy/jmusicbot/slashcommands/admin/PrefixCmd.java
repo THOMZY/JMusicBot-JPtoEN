@@ -16,8 +16,8 @@
 
 package dev.cosgy.jmusicbot.slashcommands.admin;
 
-import com.jagrosh.jdautilities.command.CommandEvent;
-import com.jagrosh.jdautilities.command.SlashCommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.settings.Settings;
 import dev.cosgy.jmusicbot.slashcommands.AdminCommand;
@@ -52,7 +52,7 @@ public class PrefixCmd extends AdminCommand {
         }
         Settings s = event.getClient().getSettingsFor(event.getGuild());
         String prefix = event.getOption("prefix").getAsString();
-        if (prefix.toLowerCase().matches("(none|なし)")) {
+        if (prefix.toLowerCase().matches("(none)")) {
             s.setPrefix(null);
             event.reply(event.getClient().getSuccess() + "The prefix has been cleared.").queue();
         } else {
@@ -69,7 +69,7 @@ public class PrefixCmd extends AdminCommand {
         }
 
         Settings s = event.getClient().getSettingsFor(event.getGuild());
-        if (event.getArgs().toLowerCase().matches("(none|なし)")) {
+        if (event.getArgs().toLowerCase().matches("(none)")) {
             s.setPrefix(null);
             event.replySuccess("The prefix has been cleared.");
         } else {

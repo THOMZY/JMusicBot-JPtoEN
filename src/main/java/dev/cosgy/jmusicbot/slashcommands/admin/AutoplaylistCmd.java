@@ -15,8 +15,8 @@
  */
 package dev.cosgy.jmusicbot.slashcommands.admin;
 
-import com.jagrosh.jdautilities.command.CommandEvent;
-import com.jagrosh.jdautilities.command.SlashCommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.settings.Settings;
 import dev.cosgy.jmusicbot.slashcommands.AdminCommand;
@@ -36,7 +36,7 @@ public class AutoplaylistCmd extends AdminCommand {
         this.bot = bot;
         this.guildOnly = true;
         this.name = "autoplaylist";
-        this.arguments = "<name|NONE|なし>";
+        this.arguments = "<name|NONE>";
         this.aliases = bot.getConfig().getAliases(this.name);
         this.help = "Set the server's autoplaylist";
         this.ownerCommand = false;
@@ -55,7 +55,7 @@ public class AutoplaylistCmd extends AdminCommand {
         }
 
         String pName = event.getOption("name").getAsString();
-        if (pName.toLowerCase().matches("(none|なし)")) {
+        if (pName.toLowerCase().matches("(none)")) {
             Settings settings = event.getClient().getSettingsFor(event.getGuild());
             settings.setDefaultPlaylist(null);
             event.reply(event.getClient().getSuccess() + "**" + event.getGuild().getName() + "**'s autoplaylist has been set to none.").queue();
@@ -80,7 +80,7 @@ public class AutoplaylistCmd extends AdminCommand {
             event.reply(event.getClient().getError() + " Please include a playlist name or NONE.");
             return;
         }
-        if (event.getArgs().toLowerCase().matches("(none|なし)")) {
+        if (event.getArgs().toLowerCase().matches("(none)")) {
             Settings settings = event.getClient().getSettingsFor(event.getGuild());
             settings.setDefaultPlaylist(null);
             event.reply(event.getClient().getSuccess() + "**" + event.getGuild().getName() + "**'s autoplaylist has been set to none.");

@@ -70,195 +70,176 @@ const UI = (function() {
     // Initialize all UI components
     function initializeUI() {
         console.log('UI: Initializing UI components...');
-        
-        // Navigation buttons are now handled by components.js and router.js
-        // We don't attach listeners here to avoid conflicts and double-loading
-        
-        // Initialize modals
-        const consoleBtn = document.getElementById('console-btn');
-        const consoleModal = document.getElementById('console-modal');
-        const consoleClose = document.getElementById('console-modal-close');
-        
-        if (consoleBtn && consoleModal) {
-            console.log('UI: Set up console button');
-            consoleBtn.addEventListener('click', () => {
-                consoleModal.style.display = 'flex';
-                if (typeof ConsoleManager !== 'undefined') {
-                    ConsoleManager.loadConsoleLogs();
-                }
-            });
-            
-            if (consoleClose) {
-                consoleClose.addEventListener('click', () => {
-                    consoleModal.style.display = 'none';
-                });
+
+        bindModal('console-btn', 'console-modal', 'console-modal-close', () => {
+            if (typeof ConsoleManager !== 'undefined') {
+                ConsoleManager.loadConsoleLogs();
             }
-        }
-        
-        // Commands modal
-        const commandsBtn = document.getElementById('commands-btn');
-        const commandsModal = document.getElementById('commands-modal');
-        const commandsClose = document.getElementById('commands-modal-close');
-        
-        if (commandsBtn && commandsModal) {
-            console.log('UI: Set up commands button');
-            commandsBtn.addEventListener('click', () => {
-                commandsModal.style.display = 'flex';
-                if (typeof Commands !== 'undefined') {
-                    Commands.initializeCommandSystem();
-                }
-            });
-            
-            if (commandsClose) {
-                commandsClose.addEventListener('click', () => {
-                    commandsModal.style.display = 'none';
-                });
+        });
+        bindModal('commands-btn', 'commands-modal', 'commands-modal-close', () => {
+            if (typeof Commands !== 'undefined') {
+                Commands.initializeCommandSystem();
             }
+        });
+        bindModal('config-btn', 'config-modal', 'config-modal-close', () => {
+            if (typeof ConfigManager !== 'undefined') {
+                ConfigManager.loadConfig();
+            }
+        });
+        bindModal('bot-profile-btn', 'bot-profile-modal', 'bot-profile-modal-close', () => {
+            if (typeof BotProfile !== 'undefined' && typeof BotProfile.loadBotProfile === 'function') {
+                BotProfile.loadBotProfile();
+            }
+        });
+
+        bindCommandControls();
+        bindConfigControls();
+        bindBotProfileControls();
+        bindRebootControl();
+        bindPlayerControls();
+        initializeServerDropdown();
+        bindConsoleControls();
+        bindModalBackdropClose();
+
+        console.log('UI: Initialization complete');
+    }
+
+    function bindModal(buttonId, modalId, closeId, onOpen) {
+        const button = document.getElementById(buttonId);
+        const modal = document.getElementById(modalId);
+        const closeButton = document.getElementById(closeId);
+        if (!button || !modal) {
+            return;
         }
-        
-        // For command execution
+
+        button.addEventListener('click', () => {
+            modal.style.display = 'flex';
+            if (typeof onOpen === 'function') {
+                onOpen();
+            }
+        });
+
+        if (closeButton) {
+            closeButton.addEventListener('click', () => {
+                modal.style.display = 'none';
+            });
+        }
+    }
+
+    function bindCommandControls() {
+        if (typeof Commands === 'undefined') {
+            return;
+        }
+
         const executeCommandBtn = document.getElementById('execute-command-btn');
-        if (executeCommandBtn && typeof Commands !== 'undefined') {
+        if (executeCommandBtn) {
             executeCommandBtn.addEventListener('click', Commands.executeDiscordCommand);
         }
-        
+
         const clearHistoryBtn = document.getElementById('clear-history-btn');
-        if (clearHistoryBtn && typeof Commands !== 'undefined') {
+        if (clearHistoryBtn) {
             clearHistoryBtn.addEventListener('click', Commands.clearCommandHistory);
         }
-        
+
         const commandInput = document.getElementById('command-input');
-        if (commandInput && typeof Commands !== 'undefined') {
-            commandInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    Commands.executeDiscordCommand();
-                }
-            });
-            
-            commandInput.addEventListener('input', Commands.handleCommandInput);
-            commandInput.addEventListener('keydown', Commands.handleCommandKeyDown);
+        if (!commandInput) {
+            return;
         }
-        
-        // Config modal
-        const configBtn = document.getElementById('config-btn');
-        const configModal = document.getElementById('config-modal');
-        const configClose = document.getElementById('config-modal-close');
-        
-        if (configBtn && configModal) {
-            console.log('UI: Set up config button');
-            configBtn.addEventListener('click', () => {
-                configModal.style.display = 'flex';
-                if (typeof ConfigManager !== 'undefined') {
-                    ConfigManager.loadConfig();
-                }
-            });
-            
-            if (configClose) {
-                configClose.addEventListener('click', () => {
-                    configModal.style.display = 'none';
-                });
+        commandInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                Commands.executeDiscordCommand();
             }
-        }
-        
-        // Config save button
+        });
+        commandInput.addEventListener('input', Commands.handleCommandInput);
+        commandInput.addEventListener('keydown', Commands.handleCommandKeyDown);
+    }
+
+    function bindConfigControls() {
         const saveConfigBtn = document.getElementById('save-config-btn');
         if (saveConfigBtn && typeof ConfigManager !== 'undefined') {
             saveConfigBtn.addEventListener('click', ConfigManager.saveConfig);
         }
-        
-        // Initialize bot profile modal
-        const botProfileBtn = document.getElementById('bot-profile-btn');
-        const botProfileModal = document.getElementById('bot-profile-modal');
-        const botProfileClose = document.getElementById('bot-profile-modal-close');
-        
-        if (botProfileBtn && botProfileModal) {
-            console.log('UI: Set up bot profile button');
-            botProfileBtn.addEventListener('click', () => {
-                botProfileModal.style.display = 'flex';
-                if (typeof BotProfile !== 'undefined' && typeof BotProfile.loadBotProfile === 'function') {
-                    BotProfile.loadBotProfile();
-                }
-            });
-            
-            if (botProfileClose) {
-                botProfileClose.addEventListener('click', () => {
-                    botProfileModal.style.display = 'none';
-                });
-            }
+    }
+
+    function bindBotProfileControls() {
+        if (typeof BotProfile === 'undefined') {
+            return;
         }
-        
-        // Bot profile form handlers
+
         const updateNameBtn = document.getElementById('update-name-btn');
-        if (updateNameBtn && typeof BotProfile !== 'undefined') {
+        if (updateNameBtn) {
             updateNameBtn.addEventListener('click', BotProfile.updateBotName);
         }
-        
+
         const updateAvatarBtn = document.getElementById('update-avatar-btn');
-        if (updateAvatarBtn && typeof BotProfile !== 'undefined') {
+        if (updateAvatarBtn) {
             updateAvatarBtn.addEventListener('click', BotProfile.updateBotAvatar);
         }
-        
+
         const updateBannerBtn = document.getElementById('update-banner-btn');
-        if (updateBannerBtn && typeof BotProfile !== 'undefined') {
+        if (updateBannerBtn) {
             updateBannerBtn.addEventListener('click', BotProfile.updateBotBanner);
         }
-        
-        // Initialize reboot button
+    }
+
+    function bindRebootControl() {
         const rebootBtn = document.getElementById('reboot-btn');
-        if (rebootBtn) {
-            console.log('UI: Set up reboot button');
-            rebootBtn.addEventListener('click', function() {
-                if (typeof BotProfile !== 'undefined' && typeof BotProfile.rebootBot === 'function') {
-                    BotProfile.rebootBot();
+        if (!rebootBtn) {
+            return;
+        }
+
+        rebootBtn.addEventListener('click', function() {
+            if (typeof BotProfile !== 'undefined' && typeof BotProfile.rebootBot === 'function') {
+                BotProfile.rebootBot();
+                return;
+            }
+            fallbackReboot();
+        });
+    }
+
+    function fallbackReboot() {
+        if (!confirm('Are you sure you want to reboot the bot?')) {
+            return;
+        }
+        fetch('/api/reboot', { method: 'POST' })
+            .then(response => {
+                if (response.ok) {
+                    showToast('Bot is rebooting...', true);
                 } else {
-                    if (confirm('Are you sure you want to reboot the bot?')) {
-                        fetch('/api/reboot', { method: 'POST' })
-                            .then(response => {
-                                if (response.ok) {
-                                    showToast('Bot is rebooting...', true);
-                                } else {
-                                    throw new Error('Failed to reboot the bot');
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Reboot error:', error);
-                                showToast('Failed to reboot the bot', false);
-                            });
-                    }
+                    throw new Error('Failed to reboot the bot');
                 }
+            })
+            .catch(error => {
+                console.error('Reboot error:', error);
+                showToast('Failed to reboot the bot', false);
             });
+    }
+
+    function bindPlayerControls() {
+        if (typeof Player === 'undefined') {
+            return;
         }
-        
-        // Initialize player controls if they exist
-        if (typeof Player !== 'undefined') {
-            const playButton = document.getElementById('play-button');
-            if (playButton) playButton.addEventListener('click', Player.playTrack);
-            
-            const pauseButton = document.getElementById('pause-button');
-            if (pauseButton) pauseButton.addEventListener('click', Player.pauseTrack);
-            
-            const skipButton = document.getElementById('skip-button');
-            if (skipButton) skipButton.addEventListener('click', Player.skipTrack);
-            
-            const stopButton = document.getElementById('stop-button');
-            if (stopButton) stopButton.addEventListener('click', Player.stopTrack);
-            
-            // Initialize progress bar - handled by Router/View init
-            // if (typeof Player.setupProgressBarInteraction === 'function') {
-            //    Player.setupProgressBarInteraction();
-            // }
-        }
-        
-        // Initialize server dropdown
-        initializeServerDropdown();
-        
-        // Console controls
+
+        const playButton = document.getElementById('play-button');
+        if (playButton) playButton.addEventListener('click', Player.playTrack);
+
+        const pauseButton = document.getElementById('pause-button');
+        if (pauseButton) pauseButton.addEventListener('click', Player.pauseTrack);
+
+        const skipButton = document.getElementById('skip-button');
+        if (skipButton) skipButton.addEventListener('click', Player.skipTrack);
+
+        const stopButton = document.getElementById('stop-button');
+        if (stopButton) stopButton.addEventListener('click', Player.stopTrack);
+    }
+
+    function bindConsoleControls() {
         const refreshConsoleBtn = document.getElementById('refresh-console-btn');
         if (refreshConsoleBtn && typeof ConsoleManager !== 'undefined') {
             refreshConsoleBtn.addEventListener('click', ConsoleManager.loadConsoleLogs);
         }
-        
+
         const clearConsoleBtn = document.getElementById('clear-console-btn');
         if (clearConsoleBtn) {
             clearConsoleBtn.addEventListener('click', () => {
@@ -268,36 +249,35 @@ const UI = (function() {
                 }
             });
         }
-        
-        // Delete server logs button
+
         const deleteLogsBtn = document.getElementById('delete-logs-btn');
         if (deleteLogsBtn) {
-            deleteLogsBtn.addEventListener('click', async () => {
-                if (confirm('Are you sure you want to DELETE ALL LOGS from the server? This action cannot be undone!')) {
-                    try {
-                        const response = await fetch('/api/console/logs', {
-                            method: 'DELETE'
-                        });
-                        
-                        const result = await response.json();
-                        
-                        if (result.success) {
-                            alert('Server logs have been successfully deleted!');
-                            if (typeof ConsoleManager !== 'undefined') {
-                                ConsoleManager.loadConsoleLogs();
-                            }
-                        } else {
-                            alert('Failed to delete logs: ' + (result.message || 'Unknown error'));
-                        }
-                    } catch (error) {
-                        console.error('Error deleting logs:', error);
-                        alert('Error deleting logs: ' + error.message);
-                    }
-                }
-            });
+            deleteLogsBtn.addEventListener('click', deleteServerLogs);
         }
-        
-        // Set up click outside modals to close them
+    }
+
+    async function deleteServerLogs() {
+        if (!confirm('Are you sure you want to DELETE ALL LOGS from the server? This action cannot be undone!')) {
+            return;
+        }
+        try {
+            const response = await fetch('/api/console/logs', { method: 'DELETE' });
+            const result = await response.json();
+            if (result.success) {
+                alert('Server logs have been successfully deleted!');
+                if (typeof ConsoleManager !== 'undefined') {
+                    ConsoleManager.loadConsoleLogs();
+                }
+            } else {
+                alert('Failed to delete logs: ' + (result.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error deleting logs:', error);
+            alert('Error deleting logs: ' + error.message);
+        }
+    }
+
+    function bindModalBackdropClose() {
         const modals = document.querySelectorAll('.modal');
         window.addEventListener('click', function(event) {
             modals.forEach(modal => {
@@ -306,8 +286,6 @@ const UI = (function() {
                 }
             });
         });
-        
-        console.log('UI: Initialization complete');
     }
 
     // Initialize server dropdown with proper event handling

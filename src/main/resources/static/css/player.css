@@ -401,7 +401,7 @@ body.chapters-open .chapters-toggle {
     margin-left: -6px;
     border-width: 6px;
     border-style: solid;
-    border-color: #2c2f33 transparent transparent transparent;
+    border-color: #2c2f33 transparent transparent;
 }
 
 .progress-container .progress-preview {

@@ -272,7 +272,7 @@
     margin-bottom: 0;
     display: flex;
     flex-direction: column;
-    padding: 15px 15px 20px 15px;
+    padding: 15px 15px 20px;
     flex: 1 1 0; /* Allow it to expand and shrink properly */
     min-height: 0; /* Critical for nested flex scrolling */
     position: relative; /* For absolute positioning of elements inside */
@@ -937,14 +937,6 @@
 }
 
 /* Code Blocks */
-code {
-    background-color: #2b2d31;
-    color: #dcddde;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-family: 'Consolas', 'Courier New', monospace;
-    font-size: 0.9em;
-}
 
 /* No Channel Selected State - Make it fill the available space */
 .no-channel-selected {
@@ -977,12 +969,6 @@ code {
 }
 
 /* Message Text */
-.message-text {
-    word-break: break-word;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    color: #dcddde; /* Discord message text */
-}
 
 /* Markdown Elements */
 /* Code blocks */
@@ -998,6 +984,8 @@ pre {
     white-space: pre-wrap;
     font-size: 0.85em;
     line-height: 1.4;
+    position: relative;
+    border: 1px solid #202225;
 }
 
 pre code {
@@ -1022,7 +1010,7 @@ code {
 blockquote {
     border-left: 4px solid #4f545c;
     padding: 0 8px;
-    margin: 4px 0 4px 0;
+    margin: 4px 0;
     color: #b9bbbe;
     background-color: rgba(64, 68, 75, 0.3);
     border-radius: 0 4px 4px 0;
@@ -1153,12 +1141,6 @@ pre:hover .copy-code-btn {
     background-color: #3ba55c; /* Discord success color */
 }
 
-/* Enhanced Code Block Styling */
-pre {
-    position: relative;
-    border: 1px solid #202225;
-}
-
 /* Discord Syntax Highlighting Colors */
 .hljs-keyword {
     color: #3c7cfe;
@@ -1253,12 +1235,6 @@ pre {
 
 .send-message-btn i {
     font-size: 16px;
-}
-
-/* Adjustments to messages container to make room for input box */
-.messages-container {
-    max-height: none;
-    /* height removed to allow flex to work */
 }
 
 /* Command Autocomplete for Message Input */
@@ -1396,16 +1372,6 @@ pre {
     border-radius: 3px;
     font-size: 11px;
     margin-top: 4px;
-}
-
-/* Ensure message input container has position relative */
-.message-input-wrapper {
-    display: flex;
-    align-items: center;
-    background-color: #40444b;
-    border-radius: 8px;
-    padding: 0;
-    position: relative;
 }
 
 /* Voice Channels with Connected Users */
@@ -1684,7 +1650,7 @@ pre {
 
 /* Wrapper for scrollable content */
 .profile-content-wrapper {
-    padding: 0 16px 16px 16px;
+    padding: 0 16px 16px;
     overflow-y: auto;
     flex-grow: 1;
     background-color: #202225; /* Slightly lighter than main popup for content area */

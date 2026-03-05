@@ -377,8 +377,12 @@ public class ChannelsService {
      * @return List of Discord messages or null if error
      */
     public List<DiscordMessage> getChannelMessages(String channelId, Integer limit, String before, String after) {
+        return getChannelMessagesInternal(channelId, limit, before, after);
+    }
+
+    private List<DiscordMessage> getChannelMessagesInternal(String channelId, Integer limit, String before, String after) {
         List<DiscordMessage> messages = new ArrayList<>();
-        
+
         try {
             JDA jda = Bot.INSTANCE.getJDA();
             if (jda == null) {
@@ -399,164 +403,146 @@ public class ChannelsService {
                 log.error("Bot doesn't have permission to read message history in channel: {}", channelId);
                 return null;
             }
-            
-            // Set default limit if not specified
-            int messageLimit = limit != null ? limit : 50;
-            messageLimit = Math.min(messageLimit, 100); // Cap at 100 messages per request
-            
-            // Retrieve messages with pagination support
-            List<Message> retrievedMessages;
-            if (before != null) {
-                retrievedMessages = channel.getHistoryBefore(before, messageLimit).complete().getRetrievedHistory();
-            } else if (after != null) {
-                retrievedMessages = channel.getHistoryAfter(after, messageLimit).complete().getRetrievedHistory();
-            } else {
-                retrievedMessages = channel.getHistory().retrievePast(messageLimit).complete();
-            }
-            
-            // Convert JDA messages to our model
+
+            int messageLimit = Math.min(limit != null ? limit : 50, 100);
+            List<Message> retrievedMessages = retrieveMessages(channel, messageLimit, before, after);
+
             for (Message message : retrievedMessages) {
-                User authorUser = message.getAuthor();
-                Member authorMember = guild.getMember(authorUser); // Get member object
-
-                String highestRoleColor = "#FFFFFF"; // Default to white
-                if (authorMember != null) {
-                    List<Role> memberRoles = authorMember.getRoles();
-                    if (!memberRoles.isEmpty()) {
-                        Role highestRole = memberRoles.get(0); 
-                        Color roleColor = highestRole.getColor();
-                        if (roleColor != null) {
-                            highestRoleColor = String.format("#%02x%02x%02x", roleColor.getRed(), roleColor.getGreen(), roleColor.getBlue());
-                        }
-                    }
-                }
-
-                // Process author
-                String authorAvatar = avatarCacheService.getAvatarUrl(authorUser.getId());
-                if (authorAvatar == null) {
-                    authorAvatar = authorUser.getEffectiveAvatarUrl();
-                }
-
-                DiscordMessage.MessageAuthor discordAuthor = new DiscordMessage.MessageAuthor(
-                    authorUser.getId(),
-                    authorUser.getName(),
-                    authorAvatar,
-                    authorUser.isBot(),
-                    highestRoleColor
-                );
-                
-                // Resolve mentions in message content
-                String resolvedContent = message.getContentRaw();
-                for (User mentionedUser : message.getMentions().getUsers()) {
-                    resolvedContent = resolvedContent.replace("<@" + mentionedUser.getId() + ">", "@" + mentionedUser.getName());
-                    resolvedContent = resolvedContent.replace("<@!" + mentionedUser.getId() + ">", "@" + mentionedUser.getName());
-                }
-                for (GuildChannel mentionedChannel : message.getMentions().getChannels()) { // Use GuildChannel for broader type
-                    resolvedContent = resolvedContent.replace("<#" + mentionedChannel.getId() + ">", "#" + mentionedChannel.getName());
-                }
-                for (Role mentionedRole : message.getMentions().getRoles()) {
-                    resolvedContent = resolvedContent.replace("<@&" + mentionedRole.getId() + ">", "@" + mentionedRole.getName());
-                }
-
-                // Process attachments
-                List<DiscordMessage.MessageAttachment> attachments = new ArrayList<>();
-                for (net.dv8tion.jda.api.entities.Message.Attachment attachment : message.getAttachments()) {
-                    attachments.add(new DiscordMessage.MessageAttachment(
-                        attachment.getId(),
-                        attachment.getUrl(),
-                        attachment.getProxyUrl(),
-                        attachment.getFileName(),
-                        attachment.getSize(),
-                        attachment.getContentType()
-                    ));
-                }
-                
-                // Process embeds
-                List<DiscordMessage.MessageEmbed> embeds = new ArrayList<>();
-                for (net.dv8tion.jda.api.entities.MessageEmbed embed : message.getEmbeds()) {
-                    List<DiscordMessage.EmbedField> fields = new ArrayList<>();
-                    if (embed.getFields() != null) {
-                        for (net.dv8tion.jda.api.entities.MessageEmbed.Field field : embed.getFields()) {
-                            fields.add(new DiscordMessage.EmbedField(
-                                field.getName(),
-                                field.getValue(),
-                                field.isInline()
-                            ));
-                        }
-                    }
-                    
-                    DiscordMessage.EmbedFooter footer = null;
-                    if (embed.getFooter() != null) {
-                        footer = new DiscordMessage.EmbedFooter(
-                            embed.getFooter().getText(),
-                            embed.getFooter().getIconUrl()
-                        );
-                    }
-                    
-                    DiscordMessage.EmbedImage image = null;
-                    if (embed.getImage() != null) {
-                        image = new DiscordMessage.EmbedImage(
-                            embed.getImage().getUrl(),
-                            embed.getImage().getWidth(),
-                            embed.getImage().getHeight()
-                        );
-                    }
-                    
-                    DiscordMessage.EmbedThumbnail thumbnail = null;
-                    if (embed.getThumbnail() != null) {
-                        thumbnail = new DiscordMessage.EmbedThumbnail(
-                            embed.getThumbnail().getUrl(),
-                            embed.getThumbnail().getWidth(),
-                            embed.getThumbnail().getHeight()
-                        );
-                    }
-                    
-                    DiscordMessage.EmbedAuthor embedAuthor = null;
-                    if (embed.getAuthor() != null) {
-                        embedAuthor = new DiscordMessage.EmbedAuthor(
-                            embed.getAuthor().getName(),
-                            embed.getAuthor().getUrl(),
-                            embed.getAuthor().getIconUrl()
-                        );
-                    }
-                    
-                    String timestamp = embed.getTimestamp() != null ? embed.getTimestamp().toString() : null;
-                    Integer color = embed.getColor() != null ? embed.getColor().getRGB() : null;
-                    
-                    embeds.add(new DiscordMessage.MessageEmbed(
-                        embed.getTitle(),
-                        embed.getDescription(),
-                        embed.getUrl(),
-                        timestamp,
-                        color,
-                        footer,
-                        image,
-                        thumbnail,
-                        embedAuthor,
-                        fields
-                    ));
-                }
-                
-                DiscordMessage discordMessage = new DiscordMessage(
-                    message.getId(),
-                    resolvedContent, // Use resolved content here
-                    message.getTimeCreated(),
-                    discordAuthor,
-                    attachments,
-                    embeds
-                );
-                
-                messages.add(discordMessage);
+                messages.add(toDiscordMessage(message, guild));
             }
-            
+
             Collections.reverse(messages);
-            
+
         } catch (Exception e) {
             log.error("Error fetching messages for channel: {}", channelId, e);
             return null;
         }
-        
+
         return messages;
+    }
+
+    private List<Message> retrieveMessages(TextChannel channel, int messageLimit, String before, String after) {
+        if (before != null) {
+            return channel.getHistoryBefore(before, messageLimit).complete().getRetrievedHistory();
+        }
+        if (after != null) {
+            return channel.getHistoryAfter(after, messageLimit).complete().getRetrievedHistory();
+        }
+        return channel.getHistory().retrievePast(messageLimit).complete();
+    }
+
+    private DiscordMessage toDiscordMessage(Message message, Guild guild) {
+        User authorUser = message.getAuthor();
+        Member authorMember = guild.getMember(authorUser);
+        DiscordMessage.MessageAuthor discordAuthor = new DiscordMessage.MessageAuthor(
+                authorUser.getId(),
+                authorUser.getName(),
+                resolveAuthorAvatar(authorUser),
+                authorUser.isBot(),
+                resolveHighestRoleColor(authorMember)
+        );
+
+        return new DiscordMessage(
+                message.getId(),
+                resolveMentions(message),
+                message.getTimeCreated(),
+                discordAuthor,
+                extractAttachments(message),
+                extractEmbeds(message)
+        );
+    }
+
+    private String resolveHighestRoleColor(Member member) {
+        if (member == null || member.getRoles().isEmpty()) {
+            return "#FFFFFF";
+        }
+
+        Role highestRole = member.getRoles().get(0);
+        Color roleColor = highestRole.getColor();
+        if (roleColor == null) {
+            return "#FFFFFF";
+        }
+        return String.format("#%02x%02x%02x", roleColor.getRed(), roleColor.getGreen(), roleColor.getBlue());
+    }
+
+    private String resolveAuthorAvatar(User authorUser) {
+        String cached = avatarCacheService.getAvatarUrl(authorUser.getId());
+        return cached != null ? cached : authorUser.getEffectiveAvatarUrl();
+    }
+
+    private String resolveMentions(Message message) {
+        String resolvedContent = message.getContentRaw();
+        for (User mentionedUser : message.getMentions().getUsers()) {
+            resolvedContent = resolvedContent.replace("<@" + mentionedUser.getId() + ">", "@" + mentionedUser.getName());
+            resolvedContent = resolvedContent.replace("<@!" + mentionedUser.getId() + ">", "@" + mentionedUser.getName());
+        }
+        for (GuildChannel mentionedChannel : message.getMentions().getChannels()) {
+            resolvedContent = resolvedContent.replace("<#" + mentionedChannel.getId() + ">", "#" + mentionedChannel.getName());
+        }
+        for (Role mentionedRole : message.getMentions().getRoles()) {
+            resolvedContent = resolvedContent.replace("<@&" + mentionedRole.getId() + ">", "@" + mentionedRole.getName());
+        }
+        return resolvedContent;
+    }
+
+    private List<DiscordMessage.MessageAttachment> extractAttachments(Message message) {
+        List<DiscordMessage.MessageAttachment> attachments = new ArrayList<>();
+        for (net.dv8tion.jda.api.entities.Message.Attachment attachment : message.getAttachments()) {
+            attachments.add(new DiscordMessage.MessageAttachment(
+                    attachment.getId(),
+                    attachment.getUrl(),
+                    attachment.getProxyUrl(),
+                    attachment.getFileName(),
+                    attachment.getSize(),
+                    attachment.getContentType()
+            ));
+        }
+        return attachments;
+    }
+
+    private List<DiscordMessage.MessageEmbed> extractEmbeds(Message message) {
+        List<DiscordMessage.MessageEmbed> embeds = new ArrayList<>();
+        for (net.dv8tion.jda.api.entities.MessageEmbed embed : message.getEmbeds()) {
+            List<DiscordMessage.EmbedField> fields = new ArrayList<>();
+            if (embed.getFields() != null) {
+                for (net.dv8tion.jda.api.entities.MessageEmbed.Field field : embed.getFields()) {
+                    fields.add(new DiscordMessage.EmbedField(field.getName(), field.getValue(), field.isInline()));
+                }
+            }
+
+            DiscordMessage.EmbedFooter footer = embed.getFooter() == null
+                    ? null
+                    : new DiscordMessage.EmbedFooter(embed.getFooter().getText(), embed.getFooter().getIconUrl());
+
+            DiscordMessage.EmbedImage image = embed.getImage() == null
+                    ? null
+                    : new DiscordMessage.EmbedImage(embed.getImage().getUrl(), embed.getImage().getWidth(), embed.getImage().getHeight());
+
+            DiscordMessage.EmbedThumbnail thumbnail = embed.getThumbnail() == null
+                    ? null
+                    : new DiscordMessage.EmbedThumbnail(embed.getThumbnail().getUrl(), embed.getThumbnail().getWidth(), embed.getThumbnail().getHeight());
+
+            DiscordMessage.EmbedAuthor embedAuthor = embed.getAuthor() == null
+                    ? null
+                    : new DiscordMessage.EmbedAuthor(embed.getAuthor().getName(), embed.getAuthor().getUrl(), embed.getAuthor().getIconUrl());
+
+            String timestamp = embed.getTimestamp() != null ? embed.getTimestamp().toString() : null;
+            Integer color = embed.getColor() != null ? embed.getColor().getRGB() : null;
+
+            embeds.add(new DiscordMessage.MessageEmbed(
+                    embed.getTitle(),
+                    embed.getDescription(),
+                    embed.getUrl(),
+                    timestamp,
+                    color,
+                    footer,
+                    image,
+                    thumbnail,
+                    embedAuthor,
+                    fields
+            ));
+        }
+        return embeds;
     }
 
     /**

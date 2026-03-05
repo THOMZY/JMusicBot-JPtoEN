@@ -138,6 +138,248 @@ public class HistoryController {
                 .collect(Collectors.toList());
     }
 
+    private static List<MusicHistory.PlayRecord> applyTypeFilter(
+            List<MusicHistory.PlayRecord> records,
+            List<String> types) {
+        if (types == null || types.isEmpty() || types.contains("all")) {
+            return records;
+        }
+
+        return records.stream()
+                .filter(record -> matchesAnySelectedType(record, types))
+                .collect(Collectors.toList());
+    }
+
+    private static boolean matchesAnySelectedType(MusicHistory.PlayRecord record, List<String> types) {
+        for (String type : types) {
+            if (matchesType(record, type)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean matchesType(MusicHistory.PlayRecord record, String type) {
+        switch (type) {
+            case "spotify":
+                return record.hasSpotifyData();
+            case "youtube":
+                return record.getYoutubeVideoId() != null && !record.getYoutubeVideoId().isEmpty();
+            case "radio":
+                return record.hasRadioData();
+            case "gensokyo":
+                return record.hasGensokyoData();
+            case "local":
+                return record.hasLocalData();
+            case "soundcloud":
+                return record.hasSoundCloudData();
+            case "instagram":
+                return record.hasYtDlpData() && "Instagram".equalsIgnoreCase(record.getYtDlpSourceType());
+            case "tiktok":
+                return record.hasYtDlpData() && "TikTok".equalsIgnoreCase(record.getYtDlpSourceType());
+            case "twitter":
+                return record.hasYtDlpData()
+                        && ("Twitter".equalsIgnoreCase(record.getYtDlpSourceType())
+                        || "X".equalsIgnoreCase(record.getYtDlpSourceType()));
+            case "generic":
+                return isGenericYtDlpSource(record);
+            default:
+                return false;
+        }
+    }
+
+    private static boolean isGenericYtDlpSource(MusicHistory.PlayRecord record) {
+        return record.hasYtDlpData()
+                && !"Instagram".equalsIgnoreCase(record.getYtDlpSourceType())
+                && !"TikTok".equalsIgnoreCase(record.getYtDlpSourceType())
+                && !"Twitter".equalsIgnoreCase(record.getYtDlpSourceType())
+                && !"X".equalsIgnoreCase(record.getYtDlpSourceType())
+                && !"YouTube".equalsIgnoreCase(record.getYtDlpSourceType())
+                && !"SoundCloud".equalsIgnoreCase(record.getYtDlpSourceType());
+    }
+
+    private List<MusicHistory.PlayRecord> applyCommonFilters(
+            List<MusicHistory.PlayRecord> records,
+            String guildId,
+            List<String> types,
+            String requester,
+            String timeRange,
+            String startDate,
+            String endDate) {
+
+        List<MusicHistory.PlayRecord> filtered = records;
+
+        if (guildId != null && !guildId.isEmpty() && !guildId.equals("all")) {
+            filtered = filtered.stream()
+                    .filter(record -> guildId.equals(record.getGuildId()))
+                    .collect(Collectors.toList());
+        }
+
+        filtered = applyTypeFilter(filtered, types);
+
+        if (requester != null && !requester.isEmpty() && !requester.equals("all")) {
+            filtered = filtered.stream()
+                    .filter(record -> requester.equals(record.getRequesterName()))
+                    .collect(Collectors.toList());
+        }
+
+        filtered = applyTimeRangeFilter(filtered, timeRange);
+
+        if (startDate != null && !startDate.isEmpty()) {
+            filtered = applyStartEndDateFilter(filtered, startDate, endDate);
+        }
+
+        return filtered;
+    }
+
+    private List<MusicHistory.PlayRecord> applyTimeRangeFilter(List<MusicHistory.PlayRecord> records, String timeRange) {
+        if (timeRange == null || timeRange.isEmpty() || timeRange.equals("all")) {
+            return records;
+        }
+
+        final long currentTime = System.currentTimeMillis();
+        final long timeFilter;
+        switch (timeRange) {
+            case "today":
+                timeFilter = currentTime - (24 * 60 * 60 * 1000L);
+                break;
+            case "week":
+                timeFilter = currentTime - (7 * 24 * 60 * 60 * 1000L);
+                break;
+            case "month":
+                timeFilter = currentTime - (30L * 24 * 60 * 60 * 1000L);
+                break;
+            default:
+                timeFilter = 0;
+        }
+
+        if (timeFilter <= 0) {
+            return records;
+        }
+
+        return records.stream()
+                .filter(record -> record.getPlayedAt() >= timeFilter)
+                .collect(Collectors.toList());
+    }
+
+    private List<MusicHistory.PlayRecord> applyPagination(List<MusicHistory.PlayRecord> records, int limit, int offset) {
+        if (limit <= 0) {
+            return records;
+        }
+        int totalRecords = records.size();
+        int startIndex = Math.min(offset, totalRecords);
+        int endIndex = Math.min(offset + limit, totalRecords);
+        if (startIndex < endIndex) {
+            return records.subList(startIndex, endIndex);
+        }
+        return List.of();
+    }
+
+    private ResponseEntity<Map<String, Object>> successHistoryResponse(List<MusicHistory.PlayRecord> records, int totalRecords) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("history", enrichWithAvatars(records));
+        response.put("total", totalRecords);
+        return ResponseEntity.ok(response);
+    }
+
+    private ResponseEntity<Map<String, Object>> failureHistoryResponse(String message) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", message);
+        return ResponseEntity.ok(response);
+    }
+
+    private List<MusicHistory.PlayRecord> applyTextSearch(List<MusicHistory.PlayRecord> records, String query) {
+        String lowerQuery = query == null ? "" : query.trim().toLowerCase();
+        if (lowerQuery.isEmpty()) {
+            return records;
+        }
+
+        return records.stream()
+            .filter(record -> matchesAnyField(record, lowerQuery))
+                .collect(Collectors.toList());
+    }
+
+        private boolean matchesAnyField(MusicHistory.PlayRecord record, String query) {
+        return matchesCoreFields(record, query)
+            || matchesSpotifyFields(record, query)
+            || matchesRadioFields(record, query)
+            || containsIgnoreCase(record.getYoutubeVideoId(), query)
+            || matchesLocalFields(record, query)
+            || matchesGensokyoFields(record, query)
+            || matchesStreamFields(record, query)
+            || (record.hasSoundCloudData() && containsIgnoreCase(record.getSoundCloudArtworkUrl(), query))
+            || matchesYtDlpFields(record, query);
+        }
+
+        private boolean matchesCoreFields(MusicHistory.PlayRecord record, String query) {
+        return matchesAny(query,
+            record.getTitle(),
+            record.getArtist(),
+            record.getUrl(),
+            String.valueOf(record.getDuration()),
+            record.getFormattedDuration(),
+            String.valueOf(record.getPlayedAt()),
+            record.getFormattedPlayedAt(),
+            record.getRequesterId(),
+            record.getRequesterName(),
+            record.getGuildId(),
+            record.getGuildName());
+        }
+
+        private boolean matchesSpotifyFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasSpotifyData() && matchesAny(query,
+            record.getSpotifyTrackId(),
+            record.getSpotifyAlbumName(),
+            record.getSpotifyAlbumImageUrl(),
+            record.getSpotifyArtistName(),
+            record.getSpotifyReleaseYear());
+        }
+
+        private boolean matchesRadioFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasRadioData() && matchesAny(query,
+            record.getRadioStationName(),
+            record.getRadioLogoUrl(),
+            record.getRadioSongImageUrl());
+        }
+
+        private boolean matchesLocalFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasLocalData() && matchesAny(query,
+            record.getLocalAlbum(),
+            record.getLocalGenre(),
+            record.getLocalYear(),
+            record.getLocalArtworkHash());
+        }
+
+        private boolean matchesGensokyoFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasGensokyoData() && matchesAny(query,
+            record.getGensokyoTitle(),
+            record.getGensokyoArtist(),
+            record.getGensokyoAlbum(),
+            record.getGensokyoCircle(),
+            record.getGensokyoYear(),
+            record.getGensokyoAlbumArtUrl());
+        }
+
+        private boolean matchesStreamFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasStreamData() && matchesAny(query,
+            record.getStreamName(),
+            record.getStreamGenre(),
+            record.getStreamLogo(),
+            String.valueOf(record.isLiveStream()));
+        }
+
+        private boolean matchesYtDlpFields(MusicHistory.PlayRecord record, String query) {
+        return record.hasYtDlpData() && matchesAny(query,
+            record.getYtDlpSourceType(),
+            record.getYtDlpThumbnailUrl());
+        }
+
+        private boolean matchesAny(String query, String... values) {
+        return java.util.Arrays.stream(values).anyMatch(value -> containsIgnoreCase(value, query));
+        }
+
     /**
      * Get the music history
      * @param limit Optional limit of records to return
@@ -159,124 +401,21 @@ public class HistoryController {
             @RequestParam(value = "startDate", required = false) String startDate,
             @RequestParam(value = "endDate", required = false) String endDate) {
         
-        Map<String, Object> response = new HashMap<>();
-        
         try {
-            if (Bot.INSTANCE != null && Bot.INSTANCE.getMusicHistory() != null) {
-                MusicHistory musicHistory = Bot.INSTANCE.getMusicHistory();
-                List<MusicHistory.PlayRecord> allHistory = musicHistory.getHistory();
-                List<MusicHistory.PlayRecord> filteredHistory;
-                
-                // Filter by guild first if specified
-                if (guildId != null && !guildId.isEmpty() && !guildId.equals("all")) {
-                    filteredHistory = allHistory.stream()
-                            .filter(record -> guildId.equals(record.getGuildId()))
-                            .collect(Collectors.toList());
-                } else {
-                    filteredHistory = allHistory;
-                }
-                
-                // Filter by type if specified
-                if (types != null && !types.isEmpty() && !types.contains("all")) {
-                    filteredHistory = filteredHistory.stream()
-                            .filter(record -> {
-                                for(String type : types) {
-                                    switch (type) {
-                                        case "spotify": if (record.hasSpotifyData()) return true; break;
-                                        case "youtube": if (record.getYoutubeVideoId() != null && !record.getYoutubeVideoId().isEmpty()) return true; break;
-                                        case "radio": if (record.hasRadioData()) return true; break;
-                                        case "gensokyo": if (record.hasGensokyoData()) return true; break;
-                                        case "local": if (record.hasLocalData()) return true; break;
-                                        case "soundcloud": if (record.hasSoundCloudData()) return true; break;
-                                        case "instagram": if (record.hasYtDlpData() && "Instagram".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
-                                        case "tiktok": if (record.hasYtDlpData() && "TikTok".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
-                                        case "twitter": if (record.hasYtDlpData() && ("Twitter".equalsIgnoreCase(record.getYtDlpSourceType()) || "X".equalsIgnoreCase(record.getYtDlpSourceType()))) return true; break;
-                                        case "generic": if (record.hasYtDlpData() 
-                                                && !"Instagram".equalsIgnoreCase(record.getYtDlpSourceType())
-                                                && !"TikTok".equalsIgnoreCase(record.getYtDlpSourceType())
-                                                && !"Twitter".equalsIgnoreCase(record.getYtDlpSourceType())
-                                                && !"X".equalsIgnoreCase(record.getYtDlpSourceType())
-                                                && !"YouTube".equalsIgnoreCase(record.getYtDlpSourceType())
-                                                && !"SoundCloud".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
-                                    }
-                                }
-                                return false;
-                            })
-                            .collect(Collectors.toList());
-                }
-                
-                // Filter by requester if specified
-                if (requester != null && !requester.isEmpty() && !requester.equals("all")) {
-                    filteredHistory = filteredHistory.stream()
-                            .filter(record -> requester.equals(record.getRequesterName()))
-                            .collect(Collectors.toList());
-                }
-                
-                // Filter by time range if specified
-                if (timeRange != null && !timeRange.isEmpty() && !timeRange.equals("all")) {
-                    final long currentTime = System.currentTimeMillis();
-                    final long timeFilter;
-                    
-                    switch (timeRange) {
-                        case "today":
-                            // Last 24 hours
-                            timeFilter = currentTime - (24 * 60 * 60 * 1000L);
-                            break;
-                        case "week":
-                            // Last 7 days
-                            timeFilter = currentTime - (7 * 24 * 60 * 60 * 1000L);
-                            break;
-                        case "month":
-                            // Last 30 days
-                            timeFilter = currentTime - (30L * 24 * 60 * 60 * 1000L);
-                            break;
-                        default:
-                            timeFilter = 0; // All time
-                    }
-                    
-                    if (timeFilter > 0) {
-                        filteredHistory = filteredHistory.stream()
-                                .filter(record -> record.getPlayedAt() >= timeFilter)
-                                .collect(Collectors.toList());
-                    }
-                }
-
-                // Filter by explicit start/end date if specified (inclusive)
-                if (startDate != null && !startDate.isEmpty()) {
-                    filteredHistory = applyStartEndDateFilter(filteredHistory, startDate, endDate);
-                }
-                
-                // Calculate total before pagination for correct counts
-                int totalRecords = filteredHistory.size();
-                
-                // Apply pagination after filtering
-                if (limit > 0) {
-                    int startIndex = Math.min(offset, totalRecords);
-                    int endIndex = Math.min(offset + limit, totalRecords);
-                    
-                    if (startIndex < endIndex) {
-                        filteredHistory = filteredHistory.subList(startIndex, endIndex);
-                    } else {
-                        filteredHistory = List.of(); // Empty list if out of bounds
-                    }
-                }
-                
-                // Enrich with dynamic avatars
-                List<Map<String, Object>> enrichedHistory = enrichWithAvatars(filteredHistory);
-                
-                response.put("success", true);
-                response.put("history", enrichedHistory);
-                response.put("total", totalRecords); // Use the filtered total
-            } else {
-                response.put("success", false);
-                response.put("message", "Music history is not available");
+            if (Bot.INSTANCE == null || Bot.INSTANCE.getMusicHistory() == null) {
+                return failureHistoryResponse("Music history is not available");
             }
+
+            List<MusicHistory.PlayRecord> filteredHistory = applyCommonFilters(
+                    Bot.INSTANCE.getMusicHistory().getHistory(),
+                    guildId, types, requester, timeRange, startDate, endDate);
+
+            int totalRecords = filteredHistory.size();
+            filteredHistory = applyPagination(filteredHistory, limit, offset);
+            return successHistoryResponse(filteredHistory, totalRecords);
         } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "Error retrieving music history: " + e.getMessage());
+            return failureHistoryResponse("Error retrieving music history: " + e.getMessage());
         }
-        
-        return ResponseEntity.ok(response);
     }
     
     /**
@@ -302,196 +441,22 @@ public class HistoryController {
             @RequestParam(value = "startDate", required = false) String startDate,
             @RequestParam(value = "endDate", required = false) String endDate) {
         
-        Map<String, Object> response = new HashMap<>();
-        
         try {
-            if (Bot.INSTANCE != null && Bot.INSTANCE.getMusicHistory() != null) {
-                MusicHistory musicHistory = Bot.INSTANCE.getMusicHistory();
-                List<MusicHistory.PlayRecord> allHistory = musicHistory.getHistory();
-                
-                // Filter by guild if specified
-                if (guildId != null && !guildId.isEmpty() && !guildId.equals("all")) {
-                    allHistory = allHistory.stream()
-                            .filter(record -> guildId.equals(record.getGuildId()))
-                            .collect(Collectors.toList());
-                }
-                
-                // Filter by type if specified
-                if (types != null && !types.isEmpty() && !types.contains("all")) {
-                    allHistory = allHistory.stream()
-                            .filter(record -> {
-                                for(String type: types) {
-                                    switch (type) {
-                                        case "spotify": if (record.hasSpotifyData()) return true; break;
-                                        case "youtube": if (record.getYoutubeVideoId() != null && !record.getYoutubeVideoId().isEmpty()) return true; break;
-                                        case "radio": if (record.hasRadioData()) return true; break;
-                                        case "gensokyo": if (record.hasGensokyoData()) return true; break;
-                                        case "local": if (record.hasLocalData()) return true; break;
-                                        case "soundcloud": if (record.hasSoundCloudData()) return true; break;
-                                        case "instagram": if (record.hasYtDlpData() && "Instagram".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
-                                        case "tiktok": if (record.hasYtDlpData() && "TikTok".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
-                                        case "twitter": if (record.hasYtDlpData() && ("Twitter".equalsIgnoreCase(record.getYtDlpSourceType()) || "X".equalsIgnoreCase(record.getYtDlpSourceType()))) return true; break;
-                                        case "generic": if (record.hasYtDlpData() 
-                                                && !"Instagram".equalsIgnoreCase(record.getYtDlpSourceType())
-                                                && !"TikTok".equalsIgnoreCase(record.getYtDlpSourceType())
-                                                && !"Twitter".equalsIgnoreCase(record.getYtDlpSourceType())
-                                                && !"X".equalsIgnoreCase(record.getYtDlpSourceType())
-                                                && !"YouTube".equalsIgnoreCase(record.getYtDlpSourceType())
-                                                && !"SoundCloud".equalsIgnoreCase(record.getYtDlpSourceType())) return true; break;
-                                    }
-                                }
-                                return false;
-                            })
-                            .collect(Collectors.toList());
-                }
-                
-                // Filter by requester if specified
-                if (requester != null && !requester.isEmpty() && !requester.equals("all")) {
-                    allHistory = allHistory.stream()
-                            .filter(record -> requester.equals(record.getRequesterName()))
-                            .collect(Collectors.toList());
-                }
-                
-                // Filter by time range if specified
-                if (timeRange != null && !timeRange.isEmpty() && !timeRange.equals("all")) {
-                    final long currentTime = System.currentTimeMillis();
-                    final long timeFilter;
-                    
-                    switch (timeRange) {
-                        case "today":
-                            // Last 24 hours
-                            timeFilter = currentTime - (24 * 60 * 60 * 1000L);
-                            break;
-                        case "week":
-                            // Last 7 days
-                            timeFilter = currentTime - (7 * 24 * 60 * 60 * 1000L);
-                            break;
-                        case "month":
-                            // Last 30 days
-                            timeFilter = currentTime - (30L * 24 * 60 * 60 * 1000L);
-                            break;
-                        default:
-                            timeFilter = 0; // All time
-                    }
-                    
-                    if (timeFilter > 0) {
-                        allHistory = allHistory.stream()
-                                .filter(record -> record.getPlayedAt() >= timeFilter)
-                                .collect(Collectors.toList());
-                    }
-                }
-
-                // Filter by explicit start/end date if specified (inclusive)
-                if (startDate != null && !startDate.isEmpty()) {
-                    allHistory = applyStartEndDateFilter(allHistory, startDate, endDate);
-                }
-                
-                // Full-text search across all history fields (case-insensitive)
-                String lowerQuery = query == null ? "" : query.trim().toLowerCase();
-                List<MusicHistory.PlayRecord> filteredHistory = lowerQuery.isEmpty()
-                    ? allHistory
-                    : allHistory.stream()
-                    .filter(record ->
-                        // Core fields
-                        containsIgnoreCase(record.getTitle(), lowerQuery) ||
-                        containsIgnoreCase(record.getArtist(), lowerQuery) ||
-                        containsIgnoreCase(record.getUrl(), lowerQuery) ||
-                        containsIgnoreCase(String.valueOf(record.getDuration()), lowerQuery) ||
-                        containsIgnoreCase(record.getFormattedDuration(), lowerQuery) ||
-                        containsIgnoreCase(String.valueOf(record.getPlayedAt()), lowerQuery) ||
-                        containsIgnoreCase(record.getFormattedPlayedAt(), lowerQuery) ||
-                        containsIgnoreCase(record.getRequesterId(), lowerQuery) ||
-                        containsIgnoreCase(record.getRequesterName(), lowerQuery) ||
-                        containsIgnoreCase(record.getGuildId(), lowerQuery) ||
-                        containsIgnoreCase(record.getGuildName(), lowerQuery) ||
-
-                        // Spotify
-                        (record.hasSpotifyData() && (
-                            containsIgnoreCase(record.getSpotifyTrackId(), lowerQuery) ||
-                            containsIgnoreCase(record.getSpotifyAlbumName(), lowerQuery) ||
-                            containsIgnoreCase(record.getSpotifyAlbumImageUrl(), lowerQuery) ||
-                            containsIgnoreCase(record.getSpotifyArtistName(), lowerQuery) ||
-                            containsIgnoreCase(record.getSpotifyReleaseYear(), lowerQuery)
-                        )) ||
-
-                        // Radio
-                        (record.hasRadioData() && (
-                            containsIgnoreCase(record.getRadioStationName(), lowerQuery) ||
-                            containsIgnoreCase(record.getRadioLogoUrl(), lowerQuery) ||
-                            containsIgnoreCase(record.getRadioSongImageUrl(), lowerQuery)
-                        )) ||
-
-                        // YouTube
-                        containsIgnoreCase(record.getYoutubeVideoId(), lowerQuery) ||
-
-                        // Local files
-                        (record.hasLocalData() && (
-                            containsIgnoreCase(record.getLocalAlbum(), lowerQuery) ||
-                            containsIgnoreCase(record.getLocalGenre(), lowerQuery) ||
-                            containsIgnoreCase(record.getLocalYear(), lowerQuery) ||
-                            containsIgnoreCase(record.getLocalArtworkHash(), lowerQuery)
-                        )) ||
-
-                        // Gensokyo Radio
-                        (record.hasGensokyoData() && (
-                            containsIgnoreCase(record.getGensokyoTitle(), lowerQuery) ||
-                            containsIgnoreCase(record.getGensokyoArtist(), lowerQuery) ||
-                            containsIgnoreCase(record.getGensokyoAlbum(), lowerQuery) ||
-                            containsIgnoreCase(record.getGensokyoCircle(), lowerQuery) ||
-                            containsIgnoreCase(record.getGensokyoYear(), lowerQuery) ||
-                            containsIgnoreCase(record.getGensokyoAlbumArtUrl(), lowerQuery)
-                        )) ||
-
-                        // Streams
-                        (record.hasStreamData() && (
-                            containsIgnoreCase(record.getStreamName(), lowerQuery) ||
-                            containsIgnoreCase(record.getStreamGenre(), lowerQuery) ||
-                            containsIgnoreCase(record.getStreamLogo(), lowerQuery) ||
-                            containsIgnoreCase(String.valueOf(record.isLiveStream()), lowerQuery)
-                        )) ||
-
-                        // SoundCloud
-                        (record.hasSoundCloudData() && containsIgnoreCase(record.getSoundCloudArtworkUrl(), lowerQuery)) ||
-
-                        // yt-dlp (Instagram/TikTok/Twitter/etc.)
-                        (record.hasYtDlpData() && (
-                            containsIgnoreCase(record.getYtDlpSourceType(), lowerQuery) ||
-                            containsIgnoreCase(record.getYtDlpThumbnailUrl(), lowerQuery)
-                        ))
-                    )
-                    .collect(Collectors.toList());
-                
-                // Calculate total records before limiting
-                int totalRecords = filteredHistory.size();
-                
-                // Apply pagination after search filtering is done
-                if (limit > 0) {
-                    int startIndex = Math.min(offset, totalRecords);
-                    int endIndex = Math.min(offset + limit, totalRecords);
-                    
-                    if (startIndex < endIndex) {
-                        filteredHistory = filteredHistory.subList(startIndex, endIndex);
-                    } else {
-                        filteredHistory = List.of(); // Empty list if out of bounds
-                    }
-                }
-                
-                // Enrich with dynamic avatars
-                List<Map<String, Object>> enrichedHistory = enrichWithAvatars(filteredHistory);
-                
-                response.put("success", true);
-                response.put("history", enrichedHistory);
-                response.put("total", totalRecords);
-            } else {
-                response.put("success", false);
-                response.put("message", "Music history is not available");
+            if (Bot.INSTANCE == null || Bot.INSTANCE.getMusicHistory() == null) {
+                return failureHistoryResponse("Music history is not available");
             }
+
+            List<MusicHistory.PlayRecord> filtered = applyCommonFilters(
+                    Bot.INSTANCE.getMusicHistory().getHistory(),
+                    guildId, types, requester, timeRange, startDate, endDate);
+
+            List<MusicHistory.PlayRecord> searched = applyTextSearch(filtered, query);
+            int totalRecords = searched.size();
+            searched = applyPagination(searched, limit, offset);
+            return successHistoryResponse(searched, totalRecords);
         } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "Error searching music history: " + e.getMessage());
+            return failureHistoryResponse("Error searching music history: " + e.getMessage());
         }
-        
-        return ResponseEntity.ok(response);
     }
     
     /**

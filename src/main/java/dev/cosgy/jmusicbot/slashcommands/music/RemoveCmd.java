@@ -15,8 +15,8 @@
  */
 package dev.cosgy.jmusicbot.slashcommands.music;
 
-import com.jagrosh.jdautilities.command.CommandEvent;
-import com.jagrosh.jdautilities.command.SlashCommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.audio.QueuedTrack;
@@ -54,7 +54,7 @@ public class RemoveCmd extends MusicCommand {
             event.replyError("There is nothing in the queue.");
             return;
         }
-        if (event.getArgs().toLowerCase().matches("(all|すべて)")) {
+        if (event.getArgs().toLowerCase().matches("(all)")) {
             int count = handler.getQueue().removeAll(event.getAuthor().getIdLong());
             if (count == 0)
                 event.replyWarning("There are no songs in the queue.");
@@ -103,7 +103,7 @@ public class RemoveCmd extends MusicCommand {
             return;
         }
 
-        if (event.getOption("input").getAsString().toLowerCase().matches("(all|すべて)")) {
+        if (event.getOption("input").getAsString().toLowerCase().matches("(all)")) {
             int count = handler.getQueue().removeAll(event.getUser().getIdLong());
             if (count == 0)
                 event.reply(event.getClient().getWarning() + "There are no songs in the queue.").queue();

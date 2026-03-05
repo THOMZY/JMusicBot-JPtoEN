@@ -15,10 +15,10 @@
  */
 package dev.cosgy.jmusicbot.slashcommands.admin;
 
-import com.jagrosh.jdautilities.command.CommandEvent;
-import com.jagrosh.jdautilities.command.SlashCommand;
-import com.jagrosh.jdautilities.command.SlashCommandEvent;
-import com.jagrosh.jdautilities.commons.utils.FinderUtil;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommand;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.commons.utils.FinderUtil;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
@@ -58,7 +58,7 @@ public class SetdjCmd extends AdminCommand {
             event.reply(event.getClient().getSuccess() + "The DJ role has been set so users with the role **" + event.getOption("role").getAsRole().getName() + "** can use the DJ commands.").queue();
             return;
         }
-        if (event.getOption("none").getAsString().toLowerCase().matches("(none|なし)")) {
+        if (event.getOption("none").getAsString().toLowerCase().matches("(none)")) {
             s.setDJRole(null);
             event.reply(event.getClient().getSuccess() + "The DJ role has been reset. Only administrators can use the DJ commands now.").queue();
         } else {
@@ -74,7 +74,7 @@ public class SetdjCmd extends AdminCommand {
             return;
         }
         Settings s = event.getClient().getSettingsFor(event.getGuild());
-        if (event.getArgs().toLowerCase().matches("(none|なし)")) {
+        if (event.getArgs().toLowerCase().matches("(none)")) {
             s.setDJRole(null);
             event.reply(event.getClient().getSuccess() + "The DJ role has been reset. Only administrators can use the DJ commands now.");
         } else {

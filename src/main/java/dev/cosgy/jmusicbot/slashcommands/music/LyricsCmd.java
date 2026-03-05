@@ -16,8 +16,8 @@
  */
 package dev.cosgy.jmusicbot.slashcommands.music;
 
-import com.jagrosh.jdautilities.command.CommandEvent;
-import com.jagrosh.jdautilities.command.SlashCommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jlyrics.LyricsClient;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
@@ -63,95 +63,79 @@ public class LyricsCmd extends MusicCommand {
     @Override
     public void doCommand(SlashCommandEvent event) {
         event.getChannel().sendTyping().queue();
-        String title;
-        if (event.getOption("name") == null || event.getOption("name").getAsString().isEmpty()) {
-            AudioHandler sendingHandler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-            if (sendingHandler.isMusicPlaying(event.getJDA()))
-                title = sendingHandler.getPlayer().getPlayingTrack().getInfo().title;
-            else {
-                event.reply(event.getClient().getError() + "The command can't be used as no song is currently playing.").queue();
-                return;
-            }
-        } else
-            title = event.getOption("name").getAsString();
-            
-        // Clean up the title to improve search results
-        title = cleanupTitle(title);
-        
-        // First try with the JLyrics library
-        final String finalTitle = title;
-        lClient.getLyrics(finalTitle).thenAccept(lyrics -> {
+        boolean hasManualTitle = event.getOption("name") != null && !event.getOption("name").getAsString().isEmpty();
+        String title = resolveSlashTitle(event, hasManualTitle);
+        if (title == null) {
+            return;
+        }
+        handleSlashLyricsLookup(event, title, hasManualTitle);
+    }
+
+    private String resolveSlashTitle(SlashCommandEvent event, boolean hasManualTitle) {
+        if (hasManualTitle) {
+            return cleanupTitle(event.getOption("name").getAsString());
+        }
+
+        AudioHandler sendingHandler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+        if (sendingHandler.isMusicPlaying(event.getJDA())) {
+            return cleanupTitle(sendingHandler.getPlayer().getPlayingTrack().getInfo().title);
+        }
+
+        event.reply(event.getClient().getError() + "The command can't be used as no song is currently playing.").queue();
+        return null;
+    }
+
+    private void handleSlashLyricsLookup(SlashCommandEvent event, String title, boolean hasManualTitle) {
+        lClient.getLyrics(title).thenAccept(lyrics -> {
             if (lyrics != null) {
-                sendLyricsEmbed(event, lyrics, finalTitle);
+                sendLyricsEmbed(event, lyrics, title);
                 return;
             }
-            
-            // If JLyrics fails, try with lyrics.ovh API
-            String lyricsText = searchLyricsOvh(finalTitle);
-            if (lyricsText != null && !lyricsText.isEmpty()) {
-                EmbedBuilder eb = new EmbedBuilder()
-                        .setAuthor("Lyrics for: " + finalTitle)
-                        .setColor(event.getMember().getColor())
-                        .setTitle(finalTitle, null);
-                
-                if (lyricsText.length() > 2000) {
-                    String content = lyricsText.trim();
-                    while (content.length() > 2000) {
-                        int index = content.lastIndexOf("\n\n", 2000);
-                        if (index == -1)
-                            index = content.lastIndexOf("\n", 2000);
-                        if (index == -1)
-                            index = content.lastIndexOf(" ", 2000);
-                        if (index == -1)
-                            index = 2000;
-                        event.replyEmbeds(eb.setDescription(content.substring(0, index).trim()).build()).queue();
-                        content = content.substring(index).trim();
-                        eb.setAuthor(null).setTitle(null, null);
-                    }
-                    event.replyEmbeds(eb.setDescription(content).build()).queue();
-                } else
-                    event.replyEmbeds(eb.setDescription(lyricsText).build()).queue();
-            } else {
-                // Try once more with a simplified title if it contains a dash
-                if (finalTitle.contains("-")) {
-                    String simplifiedTitle = finalTitle.substring(finalTitle.indexOf("-") + 1).trim();
-                    String simplifiedLyrics = searchLyricsOvh(simplifiedTitle);
-                    
-                    if (simplifiedLyrics != null && !simplifiedLyrics.isEmpty()) {
-                        EmbedBuilder eb = new EmbedBuilder()
-                                .setAuthor("Lyrics for: " + finalTitle)
-                                .setColor(event.getMember().getColor())
-                                .setTitle(finalTitle, null);
-                                
-                        if (simplifiedLyrics.length() > 2000) {
-                            String content = simplifiedLyrics.trim();
-                            while (content.length() > 2000) {
-                                int index = content.lastIndexOf("\n\n", 2000);
-                                if (index == -1)
-                                    index = content.lastIndexOf("\n", 2000);
-                                if (index == -1)
-                                    index = content.lastIndexOf(" ", 2000);
-                                if (index == -1)
-                                    index = 2000;
-                                event.replyEmbeds(eb.setDescription(content.substring(0, index).trim()).build()).queue();
-                                content = content.substring(index).trim();
-                                eb.setAuthor(null).setTitle(null, null);
-                            }
-                            event.replyEmbeds(eb.setDescription(content).build()).queue();
-                        } else
-                            event.replyEmbeds(eb.setDescription(simplifiedLyrics).build()).queue();
-                    } else {
-                        event.reply(event.getClient().getError() + "No lyrics found for `" + finalTitle + "`." + 
-                                 (event.getOption("name") == null || event.getOption("name").getAsString().isEmpty() ? 
-                                  " Try manually entering the song name (`lyrics [song name]`)." : "")).queue();
-                    }
-                } else {
-                    event.reply(event.getClient().getError() + "No lyrics found for `" + finalTitle + "`." + 
-                             (event.getOption("name") == null || event.getOption("name").getAsString().isEmpty() ? 
-                              " Try manually entering the song name (`lyrics [song name]`)." : "")).queue();
+
+            if (replyWithOvhLyricsForSlash(event, title, title)) {
+                return;
+            }
+
+            if (title.contains("-")) {
+                String simplifiedTitle = title.substring(title.indexOf("-") + 1).trim();
+                if (replyWithOvhLyricsForSlash(event, simplifiedTitle, title)) {
+                    return;
                 }
             }
+
+            event.reply(event.getClient().getError() + "No lyrics found for `" + title + "`."
+                    + (hasManualTitle ? "" : " Try manually entering the song name (`lyrics [song name]`).")).queue();
         });
+    }
+
+    private boolean replyWithOvhLyricsForSlash(SlashCommandEvent event, String lookupTitle, String displayTitle) {
+        String lyricsText = searchLyricsOvh(lookupTitle);
+        if (lyricsText == null || lyricsText.isEmpty()) {
+            return false;
+        }
+
+        EmbedBuilder eb = new EmbedBuilder()
+                .setAuthor("Lyrics for: " + displayTitle)
+                .setColor(event.getMember().getColor())
+                .setTitle(displayTitle, null);
+        sendChunkedSlashLyrics(event, eb, lyricsText);
+        return true;
+    }
+
+    private void sendChunkedSlashLyrics(SlashCommandEvent event, EmbedBuilder eb, String lyricsText) {
+        if (lyricsText.length() <= 2000) {
+            event.replyEmbeds(eb.setDescription(lyricsText).build()).queue();
+            return;
+        }
+
+        String content = lyricsText.trim();
+        while (content.length() > 2000) {
+            int index = findLyricsSplitIndex(content);
+            event.replyEmbeds(eb.setDescription(content.substring(0, index).trim()).build()).queue();
+            content = content.substring(index).trim();
+            eb.setAuthor(null).setTitle(null, null);
+        }
+        event.replyEmbeds(eb.setDescription(content).build()).queue();
     }
     
     private String searchLyricsOvh(String title) {
@@ -242,92 +226,90 @@ public class LyricsCmd extends MusicCommand {
     @Override
     public void doCommand(CommandEvent event) {
         event.getChannel().sendTyping().queue();
-        String title;
-        if (event.getArgs().isEmpty()) {
-            AudioHandler sendingHandler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
-            if (sendingHandler.isMusicPlaying(event.getJDA()))
-                title = sendingHandler.getPlayer().getPlayingTrack().getInfo().title;
-            else {
-                event.replyError("The command can't be used as no song is currently playing.");
-                return;
-            }
-        } else
-            title = event.getArgs();
-            
-        // Clean up the title to improve search results
-        title = cleanupTitle(title);
-                     
-        final String finalTitle = title;
-        lClient.getLyrics(finalTitle).thenAccept(lyrics -> {
+        boolean hasManualTitle = !event.getArgs().isEmpty();
+        String title = resolveCommandTitle(event, hasManualTitle);
+        if (title == null) {
+            return;
+        }
+        handleCommandLyricsLookup(event, title, hasManualTitle);
+    }
+
+    private String resolveCommandTitle(CommandEvent event, boolean hasManualTitle) {
+        if (hasManualTitle) {
+            return cleanupTitle(event.getArgs());
+        }
+
+        AudioHandler sendingHandler = (AudioHandler) event.getGuild().getAudioManager().getSendingHandler();
+        if (sendingHandler.isMusicPlaying(event.getJDA())) {
+            return cleanupTitle(sendingHandler.getPlayer().getPlayingTrack().getInfo().title);
+        }
+
+        event.replyError("The command can't be used as no song is currently playing.");
+        return null;
+    }
+
+    private void handleCommandLyricsLookup(CommandEvent event, String title, boolean hasManualTitle) {
+        lClient.getLyrics(title).thenAccept(lyrics -> {
             if (lyrics != null) {
-                sendLyricsEmbed(event, lyrics, finalTitle);
+                sendLyricsEmbed(event, lyrics, title);
                 return;
             }
-            
-            // If JLyrics fails, try with lyrics.ovh API
-            String lyricsText = searchLyricsOvh(finalTitle);
-            if (lyricsText != null && !lyricsText.isEmpty()) {
-                EmbedBuilder eb = new EmbedBuilder()
-                        .setAuthor("Lyrics for: " + finalTitle)
-                    .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
-                        .setTitle(finalTitle, null);
-                
-                if (lyricsText.length() > 2000) {
-                    String content = lyricsText.trim();
-                    while (content.length() > 2000) {
-                        int index = content.lastIndexOf("\n\n", 2000);
-                        if (index == -1)
-                            index = content.lastIndexOf("\n", 2000);
-                        if (index == -1)
-                            index = content.lastIndexOf(" ", 2000);
-                        if (index == -1)
-                            index = 2000;
-                        event.reply(eb.setDescription(content.substring(0, index).trim()).build());
-                        content = content.substring(index).trim();
-                        eb.setAuthor(null).setTitle(null, null);
-                    }
-                    event.reply(eb.setDescription(content).build());
-                } else
-                    event.reply(eb.setDescription(lyricsText).build());
-            } else {
-                // Try once more with a simplified title if it contains a dash
-                if (finalTitle.contains("-")) {
-                    String simplifiedTitle = finalTitle.substring(finalTitle.indexOf("-") + 1).trim();
-                    String simplifiedLyrics = searchLyricsOvh(simplifiedTitle);
-                    
-                    if (simplifiedLyrics != null && !simplifiedLyrics.isEmpty()) {
-                        EmbedBuilder eb = new EmbedBuilder()
-                                .setAuthor("Lyrics for: " + finalTitle)
-                            .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
-                                .setTitle(finalTitle, null);
-                                
-                        if (simplifiedLyrics.length() > 2000) {
-                            String content = simplifiedLyrics.trim();
-                            while (content.length() > 2000) {
-                                int index = content.lastIndexOf("\n\n", 2000);
-                                if (index == -1)
-                                    index = content.lastIndexOf("\n", 2000);
-                                if (index == -1)
-                                    index = content.lastIndexOf(" ", 2000);
-                                if (index == -1)
-                                    index = 2000;
-                                event.reply(eb.setDescription(content.substring(0, index).trim()).build());
-                                content = content.substring(index).trim();
-                                eb.setAuthor(null).setTitle(null, null);
-                            }
-                            event.reply(eb.setDescription(content).build());
-                        } else
-                            event.reply(eb.setDescription(simplifiedLyrics).build());
-                    } else {
-                        event.replyError("No lyrics found for `" + finalTitle + "`." + 
-                                    (event.getArgs().isEmpty() ? " Try manually entering the song name (`lyrics [song name]`)." : ""));
-                    }
-                } else {
-                    event.replyError("No lyrics found for `" + finalTitle + "`." + 
-                                (event.getArgs().isEmpty() ? " Try manually entering the song name (`lyrics [song name]`)." : ""));
+
+            if (replyWithOvhLyricsForCommand(event, title, title)) {
+                return;
+            }
+
+            if (title.contains("-")) {
+                String simplifiedTitle = title.substring(title.indexOf("-") + 1).trim();
+                if (replyWithOvhLyricsForCommand(event, simplifiedTitle, title)) {
+                    return;
                 }
             }
+
+            event.replyError("No lyrics found for `" + title + "`."
+                    + (hasManualTitle ? "" : " Try manually entering the song name (`lyrics [song name]`)."));
         });
+    }
+
+    private boolean replyWithOvhLyricsForCommand(CommandEvent event, String lookupTitle, String displayTitle) {
+        String lyricsText = searchLyricsOvh(lookupTitle);
+        if (lyricsText == null || lyricsText.isEmpty()) {
+            return false;
+        }
+
+        EmbedBuilder eb = new EmbedBuilder()
+                .setAuthor("Lyrics for: " + displayTitle)
+                .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
+                .setTitle(displayTitle, null);
+        sendChunkedCommandLyrics(event, eb, lyricsText);
+        return true;
+    }
+
+    private void sendChunkedCommandLyrics(CommandEvent event, EmbedBuilder eb, String lyricsText) {
+        if (lyricsText.length() <= 2000) {
+            event.reply(eb.setDescription(lyricsText).build());
+            return;
+        }
+
+        String content = lyricsText.trim();
+        while (content.length() > 2000) {
+            int index = findLyricsSplitIndex(content);
+            event.reply(eb.setDescription(content.substring(0, index).trim()).build());
+            content = content.substring(index).trim();
+            eb.setAuthor(null).setTitle(null, null);
+        }
+        event.reply(eb.setDescription(content).build());
+    }
+
+    private int findLyricsSplitIndex(String content) {
+        int index = content.lastIndexOf("\n\n", 2000);
+        if (index == -1)
+            index = content.lastIndexOf("\n", 2000);
+        if (index == -1)
+            index = content.lastIndexOf(" ", 2000);
+        if (index == -1)
+            index = 2000;
+        return index;
     }
     
     private void sendLyricsEmbed(CommandEvent event, com.jagrosh.jlyrics.Lyrics lyrics, String title) {

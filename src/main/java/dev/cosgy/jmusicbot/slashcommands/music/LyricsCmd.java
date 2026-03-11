@@ -16,9 +16,10 @@
  */
 package dev.cosgy.jmusicbot.slashcommands.music;
 
+import dev.cosgy.jlyrics.LyricsClient;
+import dev.cosgy.jlyrics.Lyrics;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
-import com.jagrosh.jlyrics.LyricsClient;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
@@ -197,7 +198,7 @@ public class LyricsCmd extends MusicCommand {
                     .trim();
     }
     
-    private void sendLyricsEmbed(SlashCommandEvent event, com.jagrosh.jlyrics.Lyrics lyrics, String title) {
+    private void sendLyricsEmbed(SlashCommandEvent event, Lyrics lyrics, String title) {
         EmbedBuilder eb = new EmbedBuilder()
                 .setAuthor(lyrics.getAuthor())
                 .setColor(event.getMember().getColor())
@@ -312,7 +313,7 @@ public class LyricsCmd extends MusicCommand {
         return index;
     }
     
-    private void sendLyricsEmbed(CommandEvent event, com.jagrosh.jlyrics.Lyrics lyrics, String title) {
+    private void sendLyricsEmbed(CommandEvent event, Lyrics lyrics, String title) {
         EmbedBuilder eb = new EmbedBuilder()
                 .setAuthor(lyrics.getAuthor())
             .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())

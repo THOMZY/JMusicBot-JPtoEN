@@ -44,7 +44,6 @@ import dev.cosgy.jmusicbot.util.Cache;
 import dev.cosgy.jmusicbot.util.DiscordCompat;
 import dev.cosgy.jmusicbot.util.StackTraceUtil;
 import net.dv8tion.jda.api.JDA;
-import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -68,8 +67,8 @@ import java.util.regex.Matcher;
  * @author John Grosh <john.a.grosh@gmail.com>
  */
 public class PlayCmd extends MusicCommand {
-    private final static String LOAD = "\uD83D\uDCE5"; // 📥
-    private final static String CANCEL = "\uD83D\uDEAB"; // 🚫
+    private static final String LOAD_PLAYLIST = "🎶 Load playlist";
+    private static final String LOAD_TRACK_ONLY = "🎵 Only this track";
 
     private final String loadingEmoji;
     private SpotifyCmd spotifyCmd;
@@ -447,22 +446,22 @@ public class PlayCmd extends MusicCommand {
             String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
                     + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue. "));
             
-            if (playlist == null || !DiscordCompat.getSelfMember(event.getGuild()).hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION))
+            if (playlist == null)
                 m.editOriginal(addMsg).queue();
             else {
                 new ButtonMenu.Builder()
-                        .setText(addMsg + "\n" + event.getClient().getWarning() + " This playlist has **" + playlist.getTracks().size() + "** additional tracks. Select " + LOAD + " to load the tracks.")
-                        .setChoices(LOAD, CANCEL)
+                        .setText(addMsg + "\n" + event.getClient().getWarning() + " This playlist has **" + playlist.getTracks().size() + "** additional tracks. Choose what to queue.")
+                        .setChoices(LOAD_PLAYLIST, LOAD_TRACK_ONLY)
                         .setEventWaiter(bot.getWaiter())
                         .setTimeout(30, TimeUnit.SECONDS)
                         .setAction(re -> {
-                            if (re.getName().equals(LOAD))
+                            if (re.getName().equals(LOAD_PLAYLIST))
                                 m.editOriginal(addMsg + "\n" + event.getClient().getSuccess() + "Added **" + loadPlaylist(playlist, track) + "** tracks to the queue!").queue();
                             else
                                 m.editOriginal(addMsg).queue();
                         }).setFinalAction(m -> {
                             try {
-                                m.clearReactions().queue();
+                                m.editMessageComponents().queue();
                                 m.delete().queue();
                             } catch (PermissionException ignore) {
                             }
@@ -618,24 +617,24 @@ public class PlayCmd extends MusicCommand {
             String addMsg = FormatUtil.filter(event.getClient().getSuccess() + " **" + title
                     + "** (`" + FormatUtil.formatTime(track.getDuration()) + "`) " + (pos == 0 ? "has been added." : "has been added at position " + pos + " in the queue. "));
             
-            if (playlist == null || !DiscordCompat.getSelfMember(event.getGuild()).hasPermission(event.getTextChannel(), Permission.MESSAGE_ADD_REACTION))
+            if (playlist == null)
                 m.editMessage(addMsg).queue();
             else {
                 new ButtonMenu.Builder()
-                        .setText(addMsg + "\n" + event.getClient().getWarning() + " This playlist includes **" + playlist.getTracks().size() + "** additional tracks. Select " + LOAD + " to load the tracks.")
-                        .setChoices(LOAD, CANCEL)
+                        .setText(addMsg + "\n" + event.getClient().getWarning() + " This playlist includes **" + playlist.getTracks().size() + "** additional tracks. Choose what to queue.")
+                        .setChoices(LOAD_PLAYLIST, LOAD_TRACK_ONLY)
                         .setEventWaiter(bot.getWaiter())
                         .setTimeout(30, TimeUnit.SECONDS)
                         .setAction(re ->
                         {
-                            if (re.getName().equals(LOAD))
+                            if (re.getName().equals(LOAD_PLAYLIST))
                                 m.editMessage(addMsg + "\n" + event.getClient().getSuccess() + "Added **" + loadPlaylist(playlist, track) + "** tracks to the queue!").queue();
                             else
                                 m.editMessage(addMsg).queue();
                         }).setFinalAction(m ->
                         {
                             try {
-                                m.clearReactions().queue();
+                                m.editMessageComponents().queue();
                             } catch (PermissionException ignore) {
                             }
                         }).build().display(m);

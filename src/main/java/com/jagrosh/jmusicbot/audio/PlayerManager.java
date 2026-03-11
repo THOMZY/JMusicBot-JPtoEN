@@ -49,8 +49,11 @@ import org.apache.http.protocol.HttpContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -61,6 +64,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -72,6 +76,9 @@ public class PlayerManager extends DefaultAudioPlayerManager {
     private final Bot bot;
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
     private Path ytDlpPath;
+    private volatile String ytDlpVersion;
+    private volatile boolean ffmpegAvailable;
+    private volatile boolean ffprobeAvailable;
     private YtDlpManager ytDlpManager;
     private AbstractRoutePlanner ipv6RoutePlanner;
 
@@ -86,6 +93,7 @@ public class PlayerManager extends DefaultAudioPlayerManager {
     private void initInternal() {
         initIpv6Rotation();
         initYtDlpFallback();
+        verifyFfmpegAvailability();
 
         if (bot.getConfig().isNicoNicoEnabled()) {
             registerSourceManager(
@@ -181,15 +189,104 @@ public class PlayerManager extends DefaultAudioPlayerManager {
             this.ytDlpManager = new YtDlpManager(
                     botDir,
                     bot.getConfig().getYtDlpDenoPath(),
-                    bot.getConfig().getYtDlpCookiesPath()
+                    bot.getConfig().getYtDlpCookiesPath(),
+                    bot.getConfig().getYouTubeEmailAddress(),
+                    bot.getConfig().getYouTubePassword()
             );
             this.ytDlpPath = ytDlpManager.prepare();
+            this.ytDlpVersion = probeYtDlpVersion();
             ytDlpManager.startAutoUpdate(Duration.ofHours(6));
             logger.info("yt-dlp ready at {}", ytDlpPath);
+            if (ytDlpVersion != null) {
+                logger.info("yt-dlp version detected: {}", ytDlpVersion);
+            }
         } catch (Exception e) {
             logger.error("Failed to initialize yt-dlp. YouTube fallback is disabled.", e);
             this.ytDlpPath = null;
             this.ytDlpManager = null;
+            this.ytDlpVersion = null;
+        }
+    }
+
+    private void verifyFfmpegAvailability() {
+        boolean ffmpegOk = isCommandAvailable("ffmpeg");
+        boolean ffprobeOk = isCommandAvailable("ffprobe");
+        this.ffmpegAvailable = ffmpegOk;
+        this.ffprobeAvailable = ffprobeOk;
+
+        if (ffmpegOk && ffprobeOk) {
+            logger.info("Detected ffmpeg / ffprobe executables.");
+        } else if (ffmpegOk) {
+            logger.warn("ffmpeg detected, but ffprobe is missing.");
+        } else if (ffprobeOk) {
+            logger.warn("ffprobe detected, but ffmpeg is missing.");
+        } else {
+            logger.warn("Neither ffmpeg nor ffprobe was detected on PATH.");
+        }
+    }
+
+    private boolean isCommandAvailable(String command) {
+        try {
+            Process process = new ProcessBuilder(command, "-version")
+                    .redirectErrorStream(true)
+                    .start();
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return false;
+            }
+            return process.exitValue() == 0;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public boolean isFfmpegAvailable() {
+        return ffmpegAvailable;
+    }
+
+    public boolean isFfprobeAvailable() {
+        return ffprobeAvailable;
+    }
+
+    public String getYtDlpVersion() {
+        String latest = probeYtDlpVersion();
+        if (latest != null) {
+            ytDlpVersion = latest;
+        }
+        return ytDlpVersion;
+    }
+
+    private String probeYtDlpVersion() {
+        if (ytDlpPath == null || !Files.isRegularFile(ytDlpPath)) {
+            return null;
+        }
+        try {
+            Process process = new ProcessBuilder(ytDlpPath.toString(), "--version")
+                    .redirectErrorStream(true)
+                    .start();
+
+            String lastNonEmpty = null;
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    String trimmed = line.trim();
+                    if (!trimmed.isEmpty()) {
+                        lastNonEmpty = trimmed;
+                    }
+                }
+            }
+
+            if (!process.waitFor(10, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return null;
+            }
+            if (lastNonEmpty != null) {
+                return lastNonEmpty;
+            }
+            return process.exitValue() == 0 ? ytDlpVersion : null;
+        } catch (Exception ignored) {
+            return null;
         }
     }
     

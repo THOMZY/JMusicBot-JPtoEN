@@ -1452,14 +1452,18 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
 
     private void appendYoutubeChapterSection(StringBuilder description, AudioTrack track) {
         YouTubeChapterManager chapterManager = manager.getBot().getYoutubeChapterManager();
+        List<com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor.Chapter> chapters = chapterManager.getCachedChapters(track);
+        if (chapters.isEmpty()) {
+            return;
+        }
+
         com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor.Chapter currentChapter =
-                chapterManager.getCurrentChapter(track, track.getPosition());
+                com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor.getCurrentChapter(chapters, track.getPosition());
         if (currentChapter == null) {
             return;
         }
 
         description.append("**Current Chapter:** ").append(currentChapter.getName()).append("\n\n");
-        List<com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor.Chapter> chapters = chapterManager.getChapters(track);
         if (chapters.size() <= 1) {
             return;
         }

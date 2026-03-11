@@ -29,8 +29,11 @@ import java.time.Duration;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.Map;
 import java.util.HashMap;
@@ -60,20 +63,30 @@ public final class YtDlpManager {
     private final Path binDir;
     private final Path exePath;
     private final String assetName;
+    private final List<String> assetCandidates;
     private volatile Path preparedExe;
     private final String denoPath;
     private final String cookiesPath;
+    private final String ytEmail;
+    private final String ytPass;
     private final Map<FallbackPlatform, List<String>> extractorArgs = new HashMap<>();
     private final Map<FallbackPlatform, String> formatOverrides = new HashMap<>();
 
     public YtDlpManager(Path botDir, String denoPath, String cookiesPath) {
+        this(botDir, denoPath, cookiesPath, null, null);
+    }
+
+    public YtDlpManager(Path botDir, String denoPath, String cookiesPath, String ytEmail, String ytPass) {
         this.botRoot = Objects.requireNonNull(botDir, "botDir").toAbsolutePath().normalize();
         Path baseDir = botRoot.resolve(ROOT_DIR);
         this.binDir = baseDir.resolve("bin");
-        this.assetName = pickAssetForCurrentPlatform();
+        this.assetCandidates = pickAssetCandidatesForCurrentPlatform();
+        this.assetName = assetCandidates.get(0);
         this.exePath = binDir.resolve(assetNameForLocal(assetName));
         this.denoPath = (denoPath == null || denoPath.isBlank()) ? null : denoPath.trim();
         this.cookiesPath = (cookiesPath == null || cookiesPath.isBlank()) ? null : cookiesPath.trim();
+        this.ytEmail = (ytEmail == null || ytEmail.isBlank()) ? null : ytEmail.trim();
+        this.ytPass = (ytPass == null || ytPass.isBlank()) ? null : ytPass;
 
         // Minimal sensible defaults; can be extended later or sourced from config
         extractorArgs.put(FallbackPlatform.TIKTOK, List.of("--extractor-args", "tiktok:player_client=web,download=h264-yes"));
@@ -108,7 +121,7 @@ public final class YtDlpManager {
         }
 
         if (needsDownload) {
-            downloadBinary(assetName, exePath);
+            downloadBinaryWithFallback(assetCandidates, exePath);
             grantExecuteIfNeeded(exePath);
         }
 
@@ -124,10 +137,7 @@ public final class YtDlpManager {
     }
 
     public YtDlpResult download(String input) throws Exception {
-        FallbackPlatform platform = detectPlatform(input);
-        if (platform == FallbackPlatform.NONE) {
-            throw new IllegalArgumentException("Unsupported fallback platform for: " + input);
-        }
+        FallbackPlatform platform = requireSupportedPlatform(input);
         Path cacheDir = getCacheDir();
         Files.createDirectories(cacheDir);
 
@@ -135,45 +145,58 @@ public final class YtDlpManager {
         log.info("Downloading via yt-dlp ({}): {}", platform, url);
 
         List<String> cmd = buildDownloadCommand(platform, cacheDir, url);
+        YtDlpRunResult result = runDownloadWithRetries(cmd, platform);
+        DownloadOutput output = requireSuccessfulDownload(result);
+        Path out = resolveOutputPath(cacheDir, url, platform, output);
+        log.info("yt-dlp finished: {}", out);
+        return new YtDlpResult(out, metadataOrDefault(output.metadata, url, platform));
+    }
 
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        pb.directory(botRoot.toFile());
-        pb.redirectErrorStream(true);
-        pb.environment().put("PYTHONIOENCODING", "utf-8");
-        // Ensure console encoding for Windows compatibility
-        if (System.getProperty("os.name").toLowerCase().contains("win")) {
-            pb.environment().put("PYTHONUTF8", "1");
+    private FallbackPlatform requireSupportedPlatform(String input) {
+        FallbackPlatform platform = detectPlatform(input);
+        if (platform == FallbackPlatform.NONE) {
+            throw new IllegalArgumentException("Unsupported fallback platform for: " + input);
         }
+        return platform;
+    }
 
-        Process proc = pb.start();
-        DownloadOutput output = readDownloadOutput(proc, platform);
+    private YtDlpRunResult runDownloadWithRetries(List<String> command, FallbackPlatform platform) throws Exception {
+        YtDlpRunResult result = null;
+        for (List<String> extra : retryExtrasForPlatform(platform)) {
+            List<String> attempt = applyExtraArgsBeforeUrl(command, extra);
+            result = runDownloadAttempt(attempt, platform);
+            if (!result.timedOut && result.exitCode == 0) {
+                break;
+            }
+            log.warn("yt-dlp failed (platform={}, exit={}, extra={}): {}",
+                    platform,
+                    result.exitCode,
+                    extra,
+                    result.outputTail);
+        }
+        return result;
+    }
 
-        if (!proc.waitFor(600, TimeUnit.SECONDS)) {
-            proc.destroyForcibly();
+    private DownloadOutput requireSuccessfulDownload(YtDlpRunResult result) {
+        if (result == null) {
+            throw new RuntimeException("yt-dlp failed: no attempt result");
+        }
+        if (result.timedOut) {
             throw new RuntimeException("yt-dlp timeout (600s)");
         }
-        if (proc.exitValue() != 0) {
-            String tail = output.combinedOutput.size() > 10
-                    ? String.join("\n", output.combinedOutput.subList(Math.max(0, output.combinedOutput.size() - 10), output.combinedOutput.size()))
-                    : String.join("\n", output.combinedOutput);
-            throw new RuntimeException("yt-dlp exit code=" + proc.exitValue() + " tail=" + tail);
+        if (result.exitCode != 0) {
+            String suffix = result.outputTail.isBlank() ? "" : " tail=" + result.outputTail;
+            throw new RuntimeException("yt-dlp exit code=" + result.exitCode + suffix);
         }
+        if (result.output == null) {
+            throw new RuntimeException("yt-dlp failed: missing output payload");
+        }
+        return result.output;
+    }
 
+    private Path resolveOutputPath(Path cacheDir, String url, FallbackPlatform platform, DownloadOutput output) throws IOException {
         if (output.lastNonEmpty == null) {
-            if (platform == FallbackPlatform.YOUTUBE) {
-                String id = tryExtractYoutubeId(url);
-                if (id != null) {
-                    Path guessWebm = cacheDir.resolve(id + ".webm");
-                    if (Files.isRegularFile(guessWebm)) {
-                        return new YtDlpResult(guessWebm, output.metadata != null ? output.metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
-                    }
-                    Path guessM4a = cacheDir.resolve(id + ".m4a");
-                    if (Files.isRegularFile(guessM4a)) {
-                        return new YtDlpResult(guessM4a, output.metadata != null ? output.metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
-                    }
-                }
-            }
-            throw new FileNotFoundException("yt-dlp output is unknown");
+            return resolveFallbackOutputPath(cacheDir, url, platform);
         }
 
         Path out = Paths.get(output.lastNonEmpty);
@@ -183,8 +206,56 @@ public final class YtDlpManager {
         if (!Files.isRegularFile(out)) {
             throw new FileNotFoundException("yt-dlp output missing: " + out);
         }
-        log.info("yt-dlp finished: {}", out);
-        return new YtDlpResult(out, output.metadata != null ? output.metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform));
+        return out;
+    }
+
+    private Path resolveFallbackOutputPath(Path cacheDir, String url, FallbackPlatform platform) throws IOException {
+        if (platform == FallbackPlatform.YOUTUBE) {
+            String id = tryExtractYoutubeId(url);
+            if (id != null) {
+                Path guessWebm = cacheDir.resolve(id + ".webm");
+                if (Files.isRegularFile(guessWebm)) {
+                    return guessWebm;
+                }
+                Path guessM4a = cacheDir.resolve(id + ".m4a");
+                if (Files.isRegularFile(guessM4a)) {
+                    return guessM4a;
+                }
+            }
+        }
+        throw new FileNotFoundException("yt-dlp output is unknown");
+    }
+
+    private static YtDlpMetadata metadataOrDefault(YtDlpMetadata metadata, String url, FallbackPlatform platform) {
+        return metadata != null ? metadata : new YtDlpMetadata(null, null, url, null, null, -1, platform);
+    }
+
+    static List<List<String>> retryExtrasForPlatform(FallbackPlatform platform) {
+        List<List<String>> extras = new ArrayList<>();
+        extras.add(Collections.emptyList());
+
+        if (platform == FallbackPlatform.YOUTUBE) {
+            extras.add(List.of("--force-ipv4"));
+            extras.add(List.of("--extractor-args", "youtube:player_client=tv,ios,web"));
+        }
+
+        return List.copyOf(extras);
+    }
+
+    static List<String> applyExtraArgsBeforeUrl(List<String> command, List<String> extra) {
+        if (command == null || command.isEmpty()) {
+            return List.of();
+        }
+        if (extra == null || extra.isEmpty()) {
+            return new ArrayList<>(command);
+        }
+
+        int urlIndex = command.size() - 1;
+        List<String> attempt = new ArrayList<>(command.size() + extra.size());
+        attempt.addAll(command.subList(0, urlIndex));
+        attempt.addAll(extra);
+        attempt.add(command.get(urlIndex));
+        return attempt;
     }
 
     private List<String> buildDownloadCommand(FallbackPlatform platform, Path cacheDir, String url) {
@@ -200,6 +271,13 @@ public final class YtDlpManager {
         if (cookieFile != null) {
             cmd.add("--cookies");
             cmd.add(cookieFile.toString());
+        }
+
+        if (ytEmail != null && ytPass != null) {
+            cmd.add("--username");
+            cmd.add(ytEmail);
+            cmd.add("--password");
+            cmd.add(ytPass);
         }
 
         String format = formatOverrides.getOrDefault(platform, "bestaudio[ext=webm][acodec=opus]/bestaudio[ext=m4a]/bestaudio");
@@ -260,6 +338,43 @@ public final class YtDlpManager {
         return new DownloadOutput(lastNonEmpty, metadata, combinedOutput);
     }
 
+    private YtDlpRunResult runDownloadAttempt(List<String> cmd, FallbackPlatform platform) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.directory(botRoot.toFile());
+        pb.redirectErrorStream(true);
+        pb.environment().put("PYTHONIOENCODING", "utf-8");
+        // Ensure console encoding for Windows compatibility
+        if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win")) {
+            pb.environment().put("PYTHONUTF8", "1");
+        }
+
+        Process proc = pb.start();
+        DownloadOutput output = readDownloadOutput(proc, platform);
+
+        boolean finished = proc.waitFor(600, TimeUnit.SECONDS);
+        if (!finished) {
+            proc.destroyForcibly();
+            return new YtDlpRunResult(-1, true, output, tail(output.combinedOutput));
+        }
+
+        int exitCode = proc.exitValue();
+        return new YtDlpRunResult(exitCode, false, output, tail(output.combinedOutput));
+    }
+
+    private static String tail(List<String> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return "";
+        }
+        Deque<String> tail = new ArrayDeque<>(12);
+        for (String line : lines) {
+            if (tail.size() >= 12) {
+                tail.removeFirst();
+            }
+            tail.addLast(line);
+        }
+        return String.join(" | ", tail);
+    }
+
     private static final class DownloadOutput {
         private final String lastNonEmpty;
         private final YtDlpMetadata metadata;
@@ -269,6 +384,20 @@ public final class YtDlpManager {
             this.lastNonEmpty = lastNonEmpty;
             this.metadata = metadata;
             this.combinedOutput = combinedOutput;
+        }
+    }
+
+    private static final class YtDlpRunResult {
+        private final int exitCode;
+        private final boolean timedOut;
+        private final DownloadOutput output;
+        private final String outputTail;
+
+        private YtDlpRunResult(int exitCode, boolean timedOut, DownloadOutput output, String outputTail) {
+            this.exitCode = exitCode;
+            this.timedOut = timedOut;
+            this.output = output;
+            this.outputTail = outputTail == null ? "" : outputTail;
         }
     }
 
@@ -376,6 +505,31 @@ public final class YtDlpManager {
         log.info("yt-dlp downloaded to {}", dest);
     }
 
+    private void downloadBinaryWithFallback(List<String> candidates, Path dest) throws Exception {
+        Exception lastError = null;
+        for (String candidate : candidates) {
+            try {
+                downloadBinary(candidate, dest);
+                if (isExecutableOk(dest)) {
+                    if (!candidate.equals(assetName)) {
+                        log.warn("Primary yt-dlp asset '{}' failed; using fallback '{}'", assetName, candidate);
+                    }
+                    return;
+                }
+                lastError = new IOException("Downloaded asset is not executable: " + candidate);
+                log.warn("Downloaded yt-dlp asset is not executable: {}", candidate);
+            } catch (Exception e) {
+                lastError = e;
+                log.warn("Failed to download/verify yt-dlp asset '{}': {}", candidate, e.toString());
+            }
+        }
+
+        if (lastError != null) {
+            throw new IOException("Failed to prepare yt-dlp from candidates: " + String.join(", ", candidates), lastError);
+        }
+        throw new IOException("No yt-dlp candidates available");
+    }
+
     private static void runUpdateCommand(Path exe) throws Exception {
         if (exe == null || !Files.isRegularFile(exe)) return;
         log.info("Checking for yt-dlp updates...");
@@ -393,19 +547,64 @@ public final class YtDlpManager {
     }
 
     private static String pickAssetForCurrentPlatform() {
-        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
-        String arch = System.getProperty("os.arch", "").toLowerCase(Locale.ROOT);
-        if (os.contains("win")) {
+        return pickAssetForPlatform(
+                System.getProperty("os.name", ""),
+                System.getProperty("os.arch", ""));
+    }
+
+    private static List<String> pickAssetCandidatesForCurrentPlatform() {
+        return pickAssetCandidatesForPlatform(
+                System.getProperty("os.name", ""),
+                System.getProperty("os.arch", ""));
+    }
+
+    static List<String> pickAssetCandidatesForPlatform(String osName, String archName) {
+        String primary = pickAssetForPlatform(osName, archName);
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(primary);
+
+        // For Linux native binaries, keep zipimport build as fallback for compatibility.
+        if ("yt-dlp_linux".equals(primary) || "yt-dlp_linux_aarch64".equals(primary)) {
+            candidates.add("yt-dlp");
+        }
+
+        return List.copyOf(candidates);
+    }
+
+    static String pickAssetForPlatform(String osName, String archName) {
+        String os = osName == null ? "" : osName.toLowerCase(Locale.ROOT);
+        String arch = archName == null ? "" : archName.toLowerCase(Locale.ROOT);
+
+        // Check macOS first: "darwin" contains "win".
+        if (os.contains("mac") || os.contains("darwin")) {
+            return "yt-dlp_macos";
+        }
+
+        boolean windowsLike = os.contains("win") || os.contains("mingw") || os.contains("msys") || os.contains("cygwin");
+        if (windowsLike) {
             if (arch.contains("aarch64") || arch.contains("arm64")) {
                 return "yt-dlp_arm64.exe";
             }
             return "yt-dlp.exe";
         }
-        if (os.contains("mac") || os.contains("darwin")) {
-            return "yt-dlp_macos";
+
+        if (os.contains("linux")) {
+            if (arch.contains("aarch64") || arch.contains("arm64") || arch.contains("armv8")) {
+                return "yt-dlp_linux_aarch64";
+            }
+            if (arch.contains("amd64") || arch.contains("x86_64") || arch.contains("x64")) {
+                return "yt-dlp_linux";
+            }
+            // Unknown Linux arch: prefer generic build.
+            return "yt-dlp";
         }
-        // Use the platform-independent zipimport binary for Linux/BSD (recommended by yt-dlp)
-        // This requires Python but is more portable and compatible than yt-dlp_linux
+
+        // Non-Linux Unix-like systems generally work better with generic build.
+        if (os.contains("bsd") || os.contains("sunos") || os.contains("unix")) {
+            return "yt-dlp";
+        }
+
+        // Safe fallback for unknown platforms.
         return "yt-dlp";
     }
 

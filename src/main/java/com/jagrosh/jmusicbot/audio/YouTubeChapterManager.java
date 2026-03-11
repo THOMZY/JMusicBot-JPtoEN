@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +26,7 @@ public class YouTubeChapterManager {
     private static final Logger log = LoggerFactory.getLogger(YouTubeChapterManager.class);
     
     private final Map<String, List<YouTubeChapterExtractor.Chapter>> chapterCache = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> chapterFetchInFlight = new ConcurrentHashMap<>();
     private final ScheduledExecutorService cleanupExecutor = Executors.newSingleThreadScheduledExecutor();
     
     public YouTubeChapterManager() {
@@ -38,23 +40,67 @@ public class YouTubeChapterManager {
      * @return List of chapters or empty list if none or not a YouTube track
      */
     public List<YouTubeChapterExtractor.Chapter> getChapters(AudioTrack track) {
-        if (track == null) {
-            return List.of();
-        }
-
-        // Prefer canonical YouTube video id when available, but fall back to full URL (yt-dlp cases)
-        String videoId = extractYoutubeVideoId(track);
-        String youtubeUrl = resolveYoutubeUrl(track, videoId);
-        String cacheKey = videoId != null ? videoId : youtubeUrl;
-        if (cacheKey == null || cacheKey.isEmpty()) {
+        ChapterLookup lookup = buildChapterLookup(track);
+        if (lookup == null) {
             return List.of();
         }
 
         // Check cache first
-        if (chapterCache.containsKey(cacheKey)) {
-            return chapterCache.get(cacheKey);
+        if (chapterCache.containsKey(lookup.cacheKey)) {
+            return chapterCache.get(lookup.cacheKey);
         }
 
+        List<YouTubeChapterExtractor.Chapter> chapters = fetchChapters(lookup.videoId, lookup.youtubeUrl);
+        if (!chapters.isEmpty()) {
+            chapterCache.put(lookup.cacheKey, chapters);
+        }
+
+        return chapters;
+    }
+
+    /**
+     * Returns chapters only if already cached. If cache is empty, starts async prefetch and returns empty.
+     */
+    public List<YouTubeChapterExtractor.Chapter> getCachedChapters(AudioTrack track) {
+        ChapterLookup lookup = buildChapterLookup(track);
+        if (lookup == null) {
+            return List.of();
+        }
+
+        List<YouTubeChapterExtractor.Chapter> cached = chapterCache.get(lookup.cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        prefetchChapters(track);
+        return List.of();
+    }
+
+    public void prefetchChapters(AudioTrack track) {
+        ChapterLookup lookup = buildChapterLookup(track);
+        if (lookup == null || chapterCache.containsKey(lookup.cacheKey)) {
+            return;
+        }
+
+        if (chapterFetchInFlight.putIfAbsent(lookup.cacheKey, Boolean.TRUE) != null) {
+            return;
+        }
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                List<YouTubeChapterExtractor.Chapter> chapters = fetchChapters(lookup.videoId, lookup.youtubeUrl);
+                if (!chapters.isEmpty()) {
+                    chapterCache.put(lookup.cacheKey, chapters);
+                }
+            } catch (Exception e) {
+                log.debug("Async chapter prefetch failed for key {}: {}", lookup.cacheKey, e.toString());
+            } finally {
+                chapterFetchInFlight.remove(lookup.cacheKey);
+            }
+        });
+    }
+
+    private List<YouTubeChapterExtractor.Chapter> fetchChapters(String videoId, String youtubeUrl) {
         List<YouTubeChapterExtractor.Chapter> chapters = List.of();
 
         // 1) Try built-in HTML scraper
@@ -67,11 +113,34 @@ public class YouTubeChapterManager {
             chapters = YouTubeChapterExtractor.extractChaptersWithYtDlp(youtubeUrl);
         }
 
-        if (!chapters.isEmpty()) {
-            chapterCache.put(cacheKey, chapters);
+        return chapters;
+    }
+
+    private ChapterLookup buildChapterLookup(AudioTrack track) {
+        if (track == null) {
+            return null;
         }
 
-        return chapters;
+        // Prefer canonical YouTube video id when available, but fall back to full URL (yt-dlp cases)
+        String videoId = extractYoutubeVideoId(track);
+        String youtubeUrl = resolveYoutubeUrl(track, videoId);
+        String cacheKey = videoId != null ? videoId : youtubeUrl;
+        if (cacheKey == null || cacheKey.isEmpty()) {
+            return null;
+        }
+        return new ChapterLookup(cacheKey, videoId, youtubeUrl);
+    }
+
+    private static final class ChapterLookup {
+        private final String cacheKey;
+        private final String videoId;
+        private final String youtubeUrl;
+
+        private ChapterLookup(String cacheKey, String videoId, String youtubeUrl) {
+            this.cacheKey = cacheKey;
+            this.videoId = videoId;
+            this.youtubeUrl = youtubeUrl;
+        }
     }
 
     /**
@@ -188,5 +257,6 @@ public class YouTubeChapterManager {
      */
     public void shutdown() {
         cleanupExecutor.shutdownNow();
+        chapterFetchInFlight.clear();
     }
 } 

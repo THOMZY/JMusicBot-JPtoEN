@@ -2,6 +2,36 @@
 
 ---
 
+# 11 March 2026
+
+## ▶️ Multiples fixes.
+
+### 🔧 Changes
+- Fixed slow /nowplaying command for Youtube tracks.
+- Fixed /help command.
+- Fixed local files thumbnails in webpanel queue.
+- Real buttons to load playlists instead of emojis.
+- New GUI with player control.
+
+Upstream changes added :
+- Fixed bot status stuck at "Loading..." when booting.
+- New GUI with more info ( original fork [Cosgy](https://github.com/Cosgy-Dev/JMusicBot-JP/commit/3d3a5e0353480fa7a6b65b2928ee20114183c784) )
+- [JLyrics](https://github.com/Cosgy-Dev/JLyrics) update.
+- Updated yt-dlp [logic](https://github.com/Cosgy-Dev/JMusicBot-JP/commit/1a8b5f4cb90b58ce291a4e4fd6c03bd1df3f1981).
+
+### 📦 Dependency Updates
+- **JLyrics**: `0.5` → `v0.8`
+- **logback-classic**: `1.5.18` → `1.5.32`
+- **commons-io**: `2.19.0` → `2.21.0`
+- **junit-jupiter-engine**: `5.13.0-M2` → `6.1.0-M1`
+- **msgpack-core**: `0.9.9` → `0.9.11`
+- **jackson-dataformat-msgpack**: `0.9.9` → `0.9.11`
+- **jsoup**: `1.19.1` → `1.22.1`
+- **unirest-java-core**: `4.4.6` → `4.7.4`
+- **flatlaf**: `3.7.1`
+
+---
+
 # 05 March 2026
 
 ## ▶️ Fixed slash commands. ( merge original fork [Cosgy](https://github.com/Cosgy-Dev/JMusicBot-JP) )
@@ -11,7 +41,6 @@
 
 ### 📦 Dependency Updates
 - Removed **jda-chewtils** for Cosgy implementation.
-
 
 ---
 

@@ -103,10 +103,15 @@ const Player = (function() {
         item.setAttribute('data-index', index);
         item.setAttribute('draggable', 'true');
 
+        const isLocalArtworkThumbnail = (url) => {
+            if (!url) return false;
+            return url.startsWith('local_artwork/') || url.includes('/local_artwork/');
+        };
+
         let thumbnailUrl = makeSafeThumbnail(track.thumbnail);
         if (!thumbnailUrl) {
             thumbnailUrl = makeSafeThumbnail(getDefaultThumbnail(track.sourceType));
-        } else if (track.sourceType === 'Local File' && !thumbnailUrl.startsWith('local_artwork/')) {
+        } else if (track.sourceType === 'Local File' && !isLocalArtworkThumbnail(thumbnailUrl)) {
             console.warn('[fetchQueue] Local File track.thumbnail does not seem to be a local_artwork path:', thumbnailUrl);
             thumbnailUrl = makeSafeThumbnail('https://cdn-icons-png.flaticon.com/512/4725/4725478.png');
         }

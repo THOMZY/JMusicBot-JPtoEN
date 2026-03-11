@@ -16,35 +16,33 @@
  */
 package dev.cosgy.jmusicbot.slashcommands.music;
 
-import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
-import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
+import com.jagrosh.jmusicbot.audio.YouTubeChapterManager;
+import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
+import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
 import net.dv8tion.jda.api.Permission;
-import net.dv8tion.jda.api.utils.messages.MessageCreateData;
-import net.dv8tion.jda.api.EmbedBuilder;
-import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
-import java.util.function.Consumer;
 import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
-import net.dv8tion.jda.api.JDA;
-import com.jagrosh.jmusicbot.JMusicBot;
-import com.jagrosh.jmusicbot.utils.FormatUtil;
-import com.jagrosh.jmusicbot.audio.RequestMetadata;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.utils.messages.MessageCreateData;
+import net.dv8tion.jda.api.utils.messages.MessageEditData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.function.Consumer;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Command that displays the currently playing track
  * @author John Grosh <john.a.grosh@gmail.com>
  */
 public class NowplayingCmd extends MusicCommand {
+    private static final Logger log = LoggerFactory.getLogger(NowplayingCmd.class);
+    private static final int CHAPTER_REFRESH_MAX_ATTEMPTS = 20;
+    private static final long CHAPTER_REFRESH_DELAY_SECONDS = 1;
 
     public NowplayingCmd(Bot bot) {
         super(bot);
@@ -71,12 +69,16 @@ public class NowplayingCmd extends MusicCommand {
             event.reply("Error getting now playing information: " + e.getMessage());
             return;
         }
-        
+
         if (np == null) {
             event.reply(handler.getNoMusicPlaying(event.getJDA()));
             bot.getNowplayingHandler().clearLastNPMessage(event.getGuild());
         } else {
-            event.reply(np, bot.getNowplayingHandler()::setLastNPMessage);
+            AudioTrack initialTrack = handler.getPlayer().getPlayingTrack();
+            event.reply(np, message -> {
+                bot.getNowplayingHandler().setLastNPMessage(message);
+                scheduleChapterRefreshForMessage(event.getGuild(), handler, initialTrack, message);
+            });
         }
     }
 
@@ -89,9 +91,6 @@ public class NowplayingCmd extends MusicCommand {
             return;
         }
 
-        event.reply("Displaying the currently playing track...").queue(h -> h.deleteOriginal().queue());
-
-        // Get nowplaying information from AudioHandler
         MessageCreateData np;
         try {
             np = handler.getNowPlaying(event.getJDA());
@@ -99,12 +98,82 @@ public class NowplayingCmd extends MusicCommand {
             event.reply("Error getting now playing information: " + e.getMessage()).queue();
             return;
         }
-        
+
         if (np == null) {
-            event.getChannel().sendMessage(handler.getNoMusicPlaying(event.getJDA())).queue();
+            event.reply(handler.getNoMusicPlaying(event.getJDA())).queue();
             bot.getNowplayingHandler().clearLastNPMessage(event.getGuild());
-        } else {
-            event.getChannel().sendMessage(np).queue(m -> bot.getNowplayingHandler().setLastNPMessage(m));
+            return;
         }
+
+        AudioTrack initialTrack = handler.getPlayer().getPlayingTrack();
+        event.reply(np).queue(hook -> {
+            hook.retrieveOriginal().queue(bot.getNowplayingHandler()::setLastNPMessage, t -> {
+            });
+            scheduleChapterRefreshForHook(event.getGuild(), handler, initialTrack, hook);
+        });
+    }
+
+    private void scheduleChapterRefreshForMessage(Guild guild, AudioHandler handler, AudioTrack initialTrack, Message message) {
+        scheduleChapterRefresh(guild, handler, initialTrack, editData ->
+                message.editMessage(editData).queue(bot.getNowplayingHandler()::setLastNPMessage, t -> {
+                }));
+    }
+
+    private void scheduleChapterRefreshForHook(Guild guild, AudioHandler handler, AudioTrack initialTrack, InteractionHook hook) {
+        scheduleChapterRefresh(guild, handler, initialTrack, editData -> hook.editOriginal(editData).queue());
+    }
+
+    private void scheduleChapterRefresh(Guild guild, AudioHandler handler, AudioTrack initialTrack, Consumer<MessageEditData> editor) {
+        if (handler == null || initialTrack == null) {
+            return;
+        }
+
+        YouTubeChapterManager chapterManager = bot.getYoutubeChapterManager();
+        if (chapterManager == null) {
+            return;
+        }
+
+        if (!chapterManager.getCachedChapters(initialTrack).isEmpty()) {
+            return;
+        }
+
+        chapterManager.prefetchChapters(initialTrack);
+        waitForChaptersAndEdit(guild, handler, initialTrack, chapterManager, editor, 0);
+    }
+
+    private void waitForChaptersAndEdit(
+            Guild guild,
+            AudioHandler handler,
+            AudioTrack initialTrack,
+            YouTubeChapterManager chapterManager,
+            Consumer<MessageEditData> editor,
+            int attempt
+    ) {
+        if (attempt >= CHAPTER_REFRESH_MAX_ATTEMPTS) {
+            return;
+        }
+
+        bot.getThreadpool().schedule(() -> {
+            try {
+                AudioTrack currentTrack = handler.getPlayer().getPlayingTrack();
+                if (currentTrack == null || currentTrack != initialTrack) {
+                    return;
+                }
+
+                if (chapterManager.getCachedChapters(initialTrack).isEmpty()) {
+                    waitForChaptersAndEdit(guild, handler, initialTrack, chapterManager, editor, attempt + 1);
+                    return;
+                }
+
+                MessageCreateData refreshed = handler.getNowPlaying(bot.getJDA());
+                if (refreshed == null) {
+                    return;
+                }
+
+                editor.accept(MessageEditData.fromCreateData(refreshed));
+            } catch (Exception e) {
+                log.debug("Failed to refresh nowplaying with chapters for guild {}: {}", guild.getIdLong(), e.toString());
+            }
+        }, CHAPTER_REFRESH_DELAY_SECONDS, TimeUnit.SECONDS);
     }
 }

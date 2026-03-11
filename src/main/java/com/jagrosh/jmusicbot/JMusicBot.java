@@ -138,7 +138,6 @@ public class JMusicBot {
             return;
         }
 
-        GUI gui = initializeGui(prompt, log);
         installOAuthRefreshTokenCapture(config);
 
         enableCommandAuditIfConfigured(config, log);
@@ -149,12 +148,8 @@ public class JMusicBot {
 
         Bot bot = new Bot(waiter, config, settings);
         Bot.INSTANCE = bot;
-        
-        // If GUI was created earlier, now set the bot and initialize the window
-        final GUI finalGui = gui;
-        if (finalGui != null) {
-            finalGui.setBot(bot);
-        }
+
+        initializeGui(bot, prompt, log);
 
         AboutCommand aboutCommand = new AboutCommand(Color.BLUE.brighter(),
                 "[JMusicBot (v" + version + ")](https://github.com/THOMZY/JMusicBot-JPtoEN)",
@@ -184,8 +179,6 @@ public class JMusicBot {
             cb.addCommand(new EvalCmd(bot));
         boolean nogame = configureCommandClientPresence(cb, config);
 
-        initializeGuiWindow(finalGui, bot, log);
-
         log.info("Loaded settings from {}", config.getConfigLocation());
 
         final JDA[] jdaRef = new JDA[1];
@@ -203,19 +196,6 @@ public class JMusicBot {
         }
         COMMAND_AUDIT_ENABLED = true;
         log.info("Command execution logging has been enabled.");
-    }
-
-    private static void initializeGuiWindow(GUI gui, Bot bot, Logger log) {
-        if (gui == null) {
-            return;
-        }
-        try {
-            bot.setGUI(gui);
-            gui.init();
-            log.info("GUI window initialized and visible");
-        } catch (Exception e) {
-            log.error("Could not initialize the GUI window: " + e.getMessage());
-        }
     }
 
     private static JDA startJdaOrExit(BotConfig config, CommandClientBuilder cb, EventWaiter waiter, Bot bot,
@@ -423,20 +403,41 @@ public class JMusicBot {
         }
     }
 
-    private static GUI initializeGui(Prompt prompt, Logger log) {
-        GUI gui = null;
+    private static void initializeGui(Bot bot, Prompt prompt, Logger log) {
         if (!prompt.isNoGUI()) {
             try {
-                gui = new GUI();
-                log.info("GUI console initialized - all logs will appear in the GUI");
-            } catch (Exception e) {
+                final GUI[] guiRef = new GUI[1];
+                if (EventQueue.isDispatchThread()) {
+                    guiRef[0] = new GUI(bot);
+                    guiRef[0].init();
+                } else {
+                    EventQueue.invokeAndWait(() -> {
+                        guiRef[0] = new GUI(bot);
+                        guiRef[0].init();
+                    });
+                }
+
+                GUI gui = guiRef[0];
+                if (gui != null) {
+                    bot.setGUI(gui);
+                    if (!gui.isVisible()) {
+                        EventQueue.invokeLater(() -> {
+                            gui.setVisible(true);
+                            gui.setState(Frame.NORMAL);
+                            gui.toFront();
+                            gui.requestFocus();
+                        });
+                    }
+                }
+
+                log.info("GUI initialized and visible");
+            } catch (Throwable t) {
                 log.error("Could not create the GUI. The following factors may be causing this:\n"
                         + "Running on a server\n"
                         + "Running in an environment without a display\n"
-                        + "To hide this error, use the -Dnogui=true flag to run in GUI-less mode.");
+                        + "To hide this error, use the -Dnogui=true flag to run in GUI-less mode.", t);
             }
         }
-        return gui;
     }
 
     private static void installOAuthRefreshTokenCapture(BotConfig config) {

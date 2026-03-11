@@ -27,6 +27,7 @@ public class Paginator {
     private final Consumer<Message> finalAction;
     private final EventWaiter waiter;
     private final Set<String> userIds;
+    private final boolean waitOnSinglePage;
     private final long timeout;
     private final TimeUnit timeoutUnit;
 
@@ -38,6 +39,7 @@ public class Paginator {
         this.finalAction = builder.finalAction;
         this.waiter = builder.waiter;
         this.userIds = Set.copyOf(builder.userIds);
+        this.waitOnSinglePage = builder.waitOnSinglePage;
         this.timeout = builder.timeout;
         this.timeoutUnit = builder.timeoutUnit;
     }
@@ -47,47 +49,102 @@ public class Paginator {
         AtomicInteger current = new AtomicInteger(Math.max(1, Math.min(pageNum, totalPages)));
         String baseId = "paginator:" + Long.toHexString(System.nanoTime());
 
-        channel.sendMessageEmbeds(buildPage(current.get(), totalPages)).setComponents(ActionRow.of(
-                Button.secondary(baseId + ":prev", "Previous"),
-                Button.secondary(baseId + ":next", "Next"),
-                Button.danger(baseId + ":close", "Close")
-        )).queue(message -> {
+        // Skip controls when explicitly disabled for single-page output.
+        if (totalPages == 1 && !waitOnSinglePage) {
+            channel.sendMessageEmbeds(buildPage(current.get(), totalPages)).queue(message -> {
+                if (finalAction != null) {
+                    finalAction.accept(message);
+                }
+            });
+            return;
+        }
+
+        List<Button> initialButtons = buildNavigationButtons(baseId, current.get(), totalPages);
+        if (initialButtons.isEmpty()) {
+            channel.sendMessageEmbeds(buildPage(current.get(), totalPages)).queue(message -> {
+                if (finalAction != null) {
+                    finalAction.accept(message);
+                }
+            });
+            return;
+        }
+
+        channel.sendMessageEmbeds(buildPage(current.get(), totalPages)).setComponents(ActionRow.of(initialButtons)).queue(message -> {
             if (waiter == null) {
                 if (finalAction != null) finalAction.accept(message);
                 return;
             }
-
-            waiter.waitForEvent(
-                    ButtonInteractionEvent.class,
-                    ev -> ev.getMessageIdLong() == message.getIdLong()
-                            && ev.getComponentId().startsWith(baseId)
-                            && (userIds.isEmpty() || userIds.contains(ev.getUser().getId())),
-                    ev -> {
-                        String id = ev.getComponentId();
-                        if (id.endsWith(":close")) {
-                            ev.deferEdit().queue();
-                            message.editMessageComponents().queue();
-                            if (finalAction != null) finalAction.accept(message);
-                            return;
-                        }
-
-                        int nextPage = current.get();
-                        if (id.endsWith(":prev")) {
-                            nextPage = Math.max(1, current.get() - 1);
-                        } else if (id.endsWith(":next")) {
-                            nextPage = Math.min(totalPages, current.get() + 1);
-                        }
-                        current.set(nextPage);
-                        ev.editMessageEmbeds(buildPage(nextPage, totalPages)).queue();
-                    },
-                    timeout,
-                    timeoutUnit,
-                    () -> {
-                        message.editMessageComponents().queue();
-                        if (finalAction != null) finalAction.accept(message);
-                    }
-            );
+            waitForNavigationEvent(message, baseId, current, totalPages);
         });
+    }
+
+    private void waitForNavigationEvent(Message message, String baseId, AtomicInteger current, int totalPages) {
+        waiter.waitForEvent(
+                ButtonInteractionEvent.class,
+                ev -> ev.getMessageIdLong() == message.getIdLong()
+                        && ev.getComponentId().startsWith(baseId)
+                        && (userIds.isEmpty() || userIds.contains(ev.getUser().getId())),
+                ev -> handleNavigationEvent(ev, message, baseId, current, totalPages),
+                timeout,
+                timeoutUnit,
+                () -> {
+                    message.editMessageComponents().queue();
+                    if (finalAction != null) finalAction.accept(message);
+                }
+        );
+    }
+
+    private void handleNavigationEvent(ButtonInteractionEvent ev, Message message, String baseId, AtomicInteger current, int totalPages) {
+        Integer nextPage = computeNextPage(ev.getComponentId(), current.get(), totalPages);
+        if (nextPage == null) {
+            ev.deferEdit().queue(
+                    success -> continueWaiting(message, baseId, current, totalPages),
+                    failure -> continueWaiting(message, baseId, current, totalPages)
+            );
+            return;
+        }
+
+        current.set(nextPage);
+        List<Button> pageButtons = buildNavigationButtons(baseId, nextPage, totalPages);
+        if (pageButtons.isEmpty()) {
+            ev.editMessageEmbeds(buildPage(nextPage, totalPages)).setComponents().queue(
+                    success -> continueWaiting(message, baseId, current, totalPages),
+                    failure -> continueWaiting(message, baseId, current, totalPages)
+            );
+            return;
+        }
+
+        ev.editMessageEmbeds(buildPage(nextPage, totalPages))
+                .setComponents(ActionRow.of(pageButtons))
+                .queue(
+                        success -> continueWaiting(message, baseId, current, totalPages),
+                        failure -> continueWaiting(message, baseId, current, totalPages)
+                );
+    }
+
+    private Integer computeNextPage(String componentId, int currentPage, int totalPages) {
+        if (componentId.endsWith(":prev") && currentPage > 1) {
+            return currentPage - 1;
+        }
+        if (componentId.endsWith(":next") && currentPage < totalPages) {
+            return currentPage + 1;
+        }
+        return null;
+    }
+
+    private void continueWaiting(Message message, String baseId, AtomicInteger current, int totalPages) {
+        waitForNavigationEvent(message, baseId, current, totalPages);
+    }
+
+    private List<Button> buildNavigationButtons(String baseId, int currentPage, int totalPages) {
+        List<Button> buttons = new ArrayList<>(2);
+        if (currentPage > 1) {
+            buttons.add(Button.secondary(baseId + ":prev", "Previous"));
+        }
+        if (currentPage < totalPages) {
+            buttons.add(Button.secondary(baseId + ":next", "Next"));
+        }
+        return buttons;
     }
 
     private net.dv8tion.jda.api.entities.MessageEmbed buildPage(int current, int totalPages) {
@@ -116,6 +173,7 @@ public class Paginator {
         private Consumer<Message> finalAction;
         private EventWaiter waiter;
         private final Set<String> userIds = new HashSet<>();
+        private boolean waitOnSinglePage = true;
         private long timeout = 1;
         private TimeUnit timeoutUnit = TimeUnit.MINUTES;
 
@@ -131,7 +189,10 @@ public class Paginator {
             return this;
         }
 
-        public Builder waitOnSinglePage(boolean ignored) { return this; }
+        public Builder waitOnSinglePage(boolean waitOnSinglePage) {
+            this.waitOnSinglePage = waitOnSinglePage;
+            return this;
+        }
 
         public Builder useNumberedItems(boolean ignored) { return this; }
 

@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="css/queue.css">
     <link rel="stylesheet" href="css/add-track.css">
     <link rel="stylesheet" href="css/youtube-chapters.css">
+    <link rel="stylesheet" href="css/filters.css">
     <link rel="stylesheet" href="css/history.css">
     <link rel="stylesheet" href="css/channels.css">
     
@@ -45,6 +46,11 @@
         <div id="chapters-component" style="display: none;"></div>
     </aside>
 
+    <!-- Filters sidebar (left side) -->
+    <aside id="filters-sidebar" class="filters-sidebar" aria-hidden="true">
+        <div id="filters-component"></div>
+    </aside>
+
     <!-- Modals Container -->
     <div id="modals-container">
         <!-- Modals will be loaded here by components.js -->
@@ -70,11 +76,14 @@
                     loadScript('js/modules/player.js'),
                     loadScript('js/modules/ui.js'),
                     loadScript('js/modules/youtube-chapters.js'),
+                    loadScript('js/modules/filters.js'),
                     loadScript('js/modules/bot-profile.js'),
                     loadScript('js/modules/config-manager.js'),
                     loadScript('js/modules/console-manager.js'),
                     loadScript('js/modules/channels-manager.js'),
-                    loadScript('js/modules/commands.js')
+                    loadScript('js/modules/commands.js'),
+                    loadScript('js/modules/cursors.js'),
+                    loadScript('js/modules/events.js')
                 ]);
                 
                 // Initialize app core

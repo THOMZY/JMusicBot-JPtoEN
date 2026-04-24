@@ -4,6 +4,7 @@ import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommand;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import dev.cosgy.jmusicbot.framework.jdautilities.commons.utils.FinderUtil;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
@@ -64,7 +65,7 @@ public class UserInfo extends SlashCommand {
     }
 
     private EmbedBuilder buildUserInfoEmbed(Member memb) {
-        EmbedBuilder eb = new EmbedBuilder().setColor(memb.getColor());
+        EmbedBuilder eb = new EmbedBuilder().setColor(DiscordCompat.getMemberColor(memb));
         String name = memb.getEffectiveName();
         String tag = "#" + memb.getUser().getDiscriminator();
         String guildJoinDate = memb.getTimeJoined().format(DATE_FORMATTER);

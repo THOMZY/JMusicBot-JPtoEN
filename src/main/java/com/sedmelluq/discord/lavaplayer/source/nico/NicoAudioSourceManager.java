@@ -5,7 +5,6 @@ import com.sedmelluq.discord.lavaplayer.container.*;
 import com.sedmelluq.discord.lavaplayer.container.wav.WavContainerProbe;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManager;
-import com.sedmelluq.discord.lavaplayer.source.local.LocalSeekableInputStream;
 import com.sedmelluq.discord.lavaplayer.tools.DataFormatTools;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
 import com.sedmelluq.discord.lavaplayer.tools.io.HttpClientTools;
@@ -116,13 +115,13 @@ public class NicoAudioSourceManager implements AudioSourceManager, HttpConfigura
         Runtime runtime = Runtime.getRuntime();
         try {
             log.info("Checking if python3 is available.");
-            Process checkPython3 = runtime.exec("python3 --version");
+            Process checkPython3 = runtime.exec(new String[]{"python3", "--version"});
             int python3ExitCode = checkPython3.waitFor();
 
             String pythonCommand = "python3";
             if (python3ExitCode != 0) {
                 log.info("python3 not found. Checking if python is Python 3.");
-                Process checkPython = runtime.exec("python --version");
+                Process checkPython = runtime.exec(new String[]{"python", "--version"});
                 BufferedReader reader = new BufferedReader(new InputStreamReader(checkPython.getInputStream()));
                 String pythonVersion = reader.readLine();
                 checkPython.waitFor();
@@ -137,7 +136,7 @@ public class NicoAudioSourceManager implements AudioSourceManager, HttpConfigura
             }
 
             log.info("Updating yt-dlp using {}.", pythonCommand);
-            Process process = runtime.exec(pythonCommand + " -m pip install -U --pre yt-dlp");
+            Process process = runtime.exec(new String[]{pythonCommand, "-m", "pip", "install", "-U", "--pre", "yt-dlp"});
             process.waitFor();
             process.destroy();
             log.info("yt-dlp update completed.");

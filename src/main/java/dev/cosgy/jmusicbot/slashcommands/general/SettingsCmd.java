@@ -29,7 +29,6 @@ import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 import net.dv8tion.jda.api.utils.messages.MessageCreateBuilder;
 
-import java.util.Objects;
 
 /**
  * @author John Grosh <john.a.grosh@gmail.com>
@@ -85,7 +84,7 @@ public class SettingsCmd extends SlashCommand {
         VoiceChannel vChan = s.getVoiceChannel(event.getGuild());
         Role role = s.getRole(event.getGuild());
         EmbedBuilder ebuilder = new EmbedBuilder()
-                .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
+                .setColor(DiscordCompat.getMemberColor(DiscordCompat.getSelfMember(event.getGuild())))
                 .setDescription("Command channel: " + (tChan == null ? "None" : "**#" + tChan.getName() + "**")
                         + "\nDedicated voice channel: " + (vChan == null ? "None" : "**" + vChan.getName() + "**")
                         + "\nDJ role: " + (role == null ? "Not set" : "**" + role.getName() + "**")

@@ -9,7 +9,7 @@ import net.dv8tion.jda.api.entities.User;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
-import java.net.URL;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -109,7 +109,7 @@ public class AvatarCacheService {
                 
                 if (user != null) {
                     String avatarUrl = user.getEffectiveAvatarUrl() + "?size=128";
-                    try (InputStream in = new URL(avatarUrl).openStream()) {
+                    try (InputStream in = URI.create(avatarUrl).toURL().openStream()) {
                         Path targetPath = Paths.get(AVATARS_DIR, userId + ".png");
                         Files.createDirectories(targetPath.getParent());
                         Files.copy(in, targetPath, StandardCopyOption.REPLACE_EXISTING);

@@ -1,0 +1,415 @@
+/**
+ * Audio Filters sidebar styles for JMusicBot Web Panel
+ * Mirrors the chapters sidebar but positioned on the LEFT.
+ */
+
+/* ─── Sidebar drawer (desktop: fixed left of player) ─── */
+.filters-sidebar {
+    width: 320px;
+    max-width: min(360px, 92vw);
+    max-height: calc(100vh - 140px);
+    position: fixed;
+    top: var(--filters-top, 120px);
+    right: var(--filters-right, auto);
+    left: 16px;
+    display: none;
+    transform: translateX(-100%);
+    opacity: 0;
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease;
+    pointer-events: none;
+    z-index: 405;
+}
+
+body.has-filters .filters-sidebar {
+    display: block;
+}
+
+body.filters-open .filters-sidebar {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ─── Container card ─── */
+.filters-container {
+    width: 100%;
+    min-width: 280px;
+    background-color: var(--darker-bg);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 150px);
+}
+
+/* ─── Header ─── */
+.filters-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background-color: var(--darker-bg);
+}
+
+.filters-title {
+    font-size: 17px;
+    font-weight: bold;
+    color: var(--light-text);
+}
+
+.filters-title i {
+    color: var(--primary-color);
+    margin-right: 8px;
+}
+
+.filters-close {
+    background: none;
+    border: none;
+    color: var(--muted-text);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.filters-close:hover {
+    color: var(--light-text);
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ─── Scrollable filter list ─── */
+.filters-list {
+    overflow-y: auto;
+    padding: 6px 0 10px;
+    scrollbar-width: thin;
+    flex: 1 1 auto;
+}
+
+/* ─── Filter card ─── */
+.filter-card {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.filter-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.filter-card-header:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.filter-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--light-text);
+}
+
+/* ─── Toggle switch ─── */
+.filter-toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.filter-toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.filter-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 22px;
+    transition: background-color 0.3s;
+}
+
+.filter-toggle-slider::before {
+    content: "";
+    position: absolute;
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #fff;
+    border-radius: 50%;
+    transition: transform 0.3s;
+}
+
+.filter-toggle-switch input:checked + .filter-toggle-slider {
+    background-color: var(--primary-color);
+}
+
+.filter-toggle-switch input:checked + .filter-toggle-slider::before {
+    transform: translateX(18px);
+}
+
+/* ─── Collapsible body ─── */
+.filter-card-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0 15px;
+}
+
+.filter-card.open .filter-card-body {
+    max-height: 600px;
+    padding: 6px 15px 12px;
+}
+
+/* ─── Parameter sliders ─── */
+.filter-param {
+    margin-bottom: 8px;
+}
+
+.filter-param label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--muted-text);
+    margin-bottom: 4px;
+}
+
+.param-value {
+    font-family: monospace;
+    color: var(--light-text);
+}
+
+.filter-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.15);
+    outline: none;
+    transition: background 0.2s;
+}
+
+.filter-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.filter-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.3);
+}
+
+.filter-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    cursor: pointer;
+    border: none;
+}
+
+/* ─── Equalizer bands ─── */
+.eq-bands-container {
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 10px 8px 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+}
+
+.eq-band {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 0 0 28px;
+    min-width: 28px;
+    margin: 0;
+}
+
+.eq-band-frequency {
+    display: block !important;
+    width: 100%;
+    min-height: 24px;
+    margin-bottom: 8px;
+    font-size: 10px;
+    line-height: 1.1;
+    text-align: center;
+    color: var(--muted-text);
+    white-space: nowrap;
+}
+
+.eq-band-value {
+    display: block !important;
+    width: 100%;
+    min-height: 14px;
+    margin-top: 8px;
+    font-size: 9px;
+    line-height: 1;
+    text-align: center;
+    color: var(--light-text);
+    font-family: monospace;
+    white-space: nowrap;
+}
+
+.eq-slider {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 4px;
+    height: 96px;
+    min-width: 4px;
+}
+
+.eq-slider::-webkit-slider-thumb {
+    width: 10px;
+    height: 10px;
+}
+
+.eq-slider::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+}
+
+@media (max-width: 768px) {
+    .eq-bands-container {
+        gap: 6px;
+        padding: 8px 6px 6px;
+    }
+
+    .eq-band {
+        flex-basis: 24px;
+        min-width: 24px;
+    }
+
+    .eq-band-frequency {
+        font-size: 9px;
+        min-height: 22px;
+    }
+
+    .eq-band-value {
+        font-size: 8px;
+    }
+
+    .eq-slider {
+        height: 84px;
+    }
+}
+
+/* ─── Footer ─── */
+.filters-footer {
+    padding: 10px 15px;
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.filters-reset-btn {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--muted-text);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 6px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.filters-reset-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--light-text);
+}
+
+/* ─── Toggle button in player controls ─── */
+.filters-toggle {
+    position: relative;
+    background: none;
+    border: none;
+    color: var(--muted-text);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.filters-toggle:hover {
+    color: var(--light-text);
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+body.filters-open .filters-toggle {
+    color: var(--primary-color);
+}
+
+/* Active-filter dot indicator on the toggle button */
+.filters-toggle .filter-active-dot {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    display: none;
+}
+
+body.has-active-filters .filters-toggle .filter-active-dot {
+    display: block;
+}
+
+/* ─── Desktop layout: push content left for filters sidebar ─── */
+@media (min-width: 1201px) {
+    body.filters-open {
+        padding-left: clamp(0px, 1900px - 100vw, 350px);
+    }
+
+    .filters-sidebar {
+        left: max(12px, 50vw - 960px);
+        right: auto;
+    }
+}
+
+/* ─── Mobile / tablet: stack below player ─── */
+@media (max-width: 1200px) {
+    .filters-sidebar {
+        position: static;
+        width: 100%;
+        max-width: none;
+        transform: none !important;
+        opacity: 1;
+        pointer-events: auto;
+        margin: 0 auto 20px;
+        left: 0;
+    }
+
+    body.has-filters .filters-sidebar {
+        display: none;
+    }
+
+    body.filters-open.has-filters .filters-sidebar {
+        display: block;
+    }
+
+    .filters-container {
+        max-height: 500px;
+    }
+}

@@ -4,8 +4,6 @@ import dev.cosgy.jmusicbot.framework.jdautilities.command.Command;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
-import com.jagrosh.jmusicbot.audio.AudioHandler;
-import com.jagrosh.jmusicbot.audio.QueuedTrack;
 import dev.cosgy.jmusicbot.playlist.MylistLoader;
 import dev.cosgy.jmusicbot.slashcommands.DJCommand;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;

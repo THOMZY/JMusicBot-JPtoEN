@@ -7,7 +7,6 @@ package com.jagrosh.jmusicbot.webpanel.controller;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.MusicHistory;
 import com.jagrosh.jmusicbot.webpanel.service.AvatarCacheService;
-import net.dv8tion.jda.api.entities.User;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

@@ -5,10 +5,8 @@
 package com.jagrosh.jmusicbot.audio;
 
 import com.jagrosh.jmusicbot.Bot;
-import com.jagrosh.jmusicbot.audio.PlayerManager;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import dev.cosgy.jmusicbot.util.YtDlpManager.FallbackPlatform;
-import net.dv8tion.jda.api.entities.Guild;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -17,10 +15,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
@@ -296,7 +294,7 @@ public class IcyMetadataHandler {
             String url = track.getInfo().uri;
             if (url != null) {
                 try {
-                    URL u = new URL(url);
+                    URL u = URI.create(url).toURL();
                     String host = u.getHost();
                     
                     // Convert something like "stream.example.com" to "Example Radio"
@@ -359,7 +357,6 @@ public class IcyMetadataHandler {
         
         // Create a copy of the track info to avoid potential concurrency issues
         final String trackUrl = streamUrl;
-        final long trackPosition = track.getPosition();
         final String trackTitle = track.getInfo().title;
         
         final StreamMetadata metadata = metadataCache.get(guildId);
@@ -456,7 +453,7 @@ public class IcyMetadataHandler {
     }
 
     private HttpURLConnection openIcyConnection(String streamUrl) throws IOException {
-        URL url = new URL(streamUrl);
+        URL url = URI.create(streamUrl).toURL();
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestProperty("Icy-MetaData", "1");
         connection.setRequestProperty("User-Agent", "JMusicBot ICY Client/1.0");
@@ -517,7 +514,7 @@ public class IcyMetadataHandler {
         if (icyUrl != null && !icyUrl.isEmpty() && metadata.getStationLogo().isEmpty()) {
             // Try to get favicon from the URL
             try {
-                URL url = new URL(icyUrl);
+                URL url = URI.create(icyUrl).toURL();
                 String favicon = url.getProtocol() + "://" + url.getHost() + "/favicon.ico";
                 metadata.setStationLogo(favicon);
             } catch (Exception e) {
@@ -591,6 +588,7 @@ public class IcyMetadataHandler {
      * @param title The track title
      * @param metadata The metadata to update
      */
+    @SuppressWarnings("unused")
     private void tryFindAlbumArt(String artist, String title, StreamMetadata metadata) {
         try {
             // Search LastFM or another service for album art
@@ -610,6 +608,7 @@ public class IcyMetadataHandler {
      * @param stationName The station name
      * @param metadata The metadata to update
      */
+    @SuppressWarnings("unused")
     private void tryFindStationLogo(String stationName, StreamMetadata metadata) {
         try {
             // Search for a station logo
@@ -631,7 +630,7 @@ public class IcyMetadataHandler {
      */
     private String extractStationNameFromUrl(String url) {
         try {
-            URL u = new URL(url);
+            URL u = URI.create(url).toURL();
             String host = u.getHost();
             
             // Handle common radio URL patterns
@@ -672,7 +671,7 @@ public class IcyMetadataHandler {
         BufferedReader reader = null;
         
         try {
-            URL url = new URL(urlString);
+            URL url = URI.create(urlString).toURL();
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             connection.setRequestProperty("User-Agent", "JMusicBot/1.0");

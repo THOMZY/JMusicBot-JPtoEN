@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("deprecation")
 public class TransformativeAudioSourceManager extends YoutubeAudioSourceManager {
     private final static Logger log = LoggerFactory.getLogger(TransformativeAudioSourceManager.class);
     private final String name, regex, replacement, selector, format;

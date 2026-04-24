@@ -45,12 +45,14 @@ import org.slf4j.Logger;
 
 import java.awt.*;
 import java.io.BufferedReader;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.lang.reflect.Method;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -114,6 +116,8 @@ public class JMusicBot {
      * @param args the command line arguments
      */
     public static void main(String[] args) {
+        installCrashLogger();
+
         // startup log
         Logger log = getLogger("Startup");
 
@@ -224,6 +228,9 @@ public class JMusicBot {
         try {
             log.info("Starting Web Panel on port " + config.getWebPanelPort());
             com.jagrosh.jmusicbot.webpanel.WebPanelApplication.start(bot, config.getWebPanelPort());
+        } catch (IllegalStateException e) {
+            log.error("Web Panel could not start: {}", e.getMessage());
+            log.error("The bot will continue running without the Web Panel.");
         } catch (Exception e) {
             log.error("Failed to start Web Panel", e);
         }
@@ -240,6 +247,29 @@ public class JMusicBot {
                 com.jagrosh.jmusicbot.webpanel.WebPanelApplication.stop();
             }
         }));
+    }
+
+    /**
+     * Installs a global uncaught exception handler that writes crash details to
+     * crash.log in the working directory, bypassing the GUI's redirected stderr so
+     * the error is never silently swallowed.
+     */
+    private static void installCrashLogger() {
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            String timestamp = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+            String message = String.format("[%s] UNCAUGHT EXCEPTION in thread \"%s\" (%s):%n",
+                    timestamp, thread.getName(), thread.getClass().getSimpleName());
+            try (FileOutputStream fos = new FileOutputStream("crash.log", true);
+                 PrintStream ps = new PrintStream(fos, true, "UTF-8")) {
+                ps.print(message);
+                throwable.printStackTrace(ps);
+                ps.println("---");
+            } catch (IOException ignored) {
+            }
+            // Also attempt to print to the real stderr (may go to GUI console)
+            System.err.print(message);
+            throwable.printStackTrace(System.err);
+        });
     }
 
     private static void registerSlashCommands(CommandClientBuilder cb, Bot bot, BotConfig config, AboutCommand aboutCommand) {
@@ -271,6 +301,7 @@ public class JMusicBot {
         slashCommandList.add(new ShuffleCmd(bot));
         slashCommandList.add(new SkipCmd(bot));
         slashCommandList.add(new VolumeCmd(bot));
+        slashCommandList.add(new FiltersCmd(bot));
         slashCommandList.add(new RadioCmd(bot));
 
         slashCommandList.add(new ForceRemoveCmd(bot));
@@ -380,7 +411,7 @@ public class JMusicBot {
 
     private static void checkPythonAvailability(Prompt prompt, Logger log) {
         try {
-            Process checkPython3 = Runtime.getRuntime().exec("python3 --version");
+            Process checkPython3 = Runtime.getRuntime().exec(new String[]{"python3", "--version"});
             int python3ExitCode = checkPython3.waitFor();
             if (python3ExitCode == 0) {
                 log.info("Python (version 3.x) is installed");
@@ -388,7 +419,7 @@ public class JMusicBot {
             }
 
             log.info("Python3 is not installed. Checking for python.");
-            Process checkPython = Runtime.getRuntime().exec("python --version");
+            Process checkPython = Runtime.getRuntime().exec(new String[]{"python", "--version"});
             BufferedReader reader = new BufferedReader(new InputStreamReader(checkPython.getInputStream()));
             String pythonVersion = reader.readLine();
             int pythonExitCode = checkPython.waitFor();

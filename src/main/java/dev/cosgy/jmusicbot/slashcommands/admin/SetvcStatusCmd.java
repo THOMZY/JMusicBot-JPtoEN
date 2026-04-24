@@ -17,7 +17,6 @@
 package dev.cosgy.jmusicbot.slashcommands.admin;
 
 import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
-import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommand;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.settings.Settings;

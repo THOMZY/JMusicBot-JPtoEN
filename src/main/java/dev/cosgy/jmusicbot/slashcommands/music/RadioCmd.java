@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
-import dev.cosgy.jmusicbot.framework.jdautilities.menu.OrderedMenu;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.audio.QueuedTrack;
@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -157,7 +158,7 @@ public class RadioCmd extends MusicCommand {
      */
     private String fetchRadioStationResults(String encodedQuery) throws Exception {
         // Create URL for the search
-        URL url = new URL("https://onlineradiobox.com/search?q=" + encodedQuery);
+        URL url = URI.create("https://onlineradiobox.com/search?q=" + encodedQuery).toURL();
         
         // Setup connection
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -362,7 +363,7 @@ public class RadioCmd extends MusicCommand {
     }
 
     private String fetchHtml(String targetUrl) throws Exception {
-        URL url = new URL(targetUrl);
+        URL url = URI.create(targetUrl).toURL();
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("GET");
         connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
@@ -625,7 +626,7 @@ public class RadioCmd extends MusicCommand {
                 RadioStation station = stations.get(i);
                 
                 // Get station details from the JSON endpoint
-                URL url = new URL("https://onlineradiobox.com/json/" + station.path);
+                URL url = URI.create("https://onlineradiobox.com/json/" + station.path).toURL();
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("GET");
                 connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
@@ -758,6 +759,7 @@ public class RadioCmd extends MusicCommand {
     /**
      * Format a single radio station for display (defaults to not being a substation)
      */
+    @SuppressWarnings("unused")
     private String formatStationDisplay(RadioStation station, int index) {
         return formatStationDisplay(station, index, false);
     }
@@ -799,15 +801,11 @@ public class RadioCmd extends MusicCommand {
         EmbedBuilder embed = new EmbedBuilder();
         if (cmdEvent != null) {
             Member selfMember = resolveSelfMember(cmdEvent.getGuild());
-            if (selfMember != null && selfMember.getColor() != null) {
-                embed.setColor(selfMember.getColor());
-            }
+            embed.setColor(DiscordCompat.getMemberColor(selfMember));
             embed.setTitle(FormatUtil.filter(cmdEvent.getClient().getSuccess() + " Radio station search results:"));
         } else if (slashEvent != null) {
             Member selfMember = resolveSelfMember(slashEvent.getGuild());
-            if (selfMember != null && selfMember.getColor() != null) {
-                embed.setColor(selfMember.getColor());
-            }
+            embed.setColor(DiscordCompat.getMemberColor(selfMember));
             embed.setTitle(FormatUtil.filter(slashEvent.getClient().getSuccess() + " Radio station search results:"));
         }
         embed.setDescription(description);
@@ -1268,7 +1266,7 @@ public class RadioCmd extends MusicCommand {
      */
     private String fetchStreamUrlFromApi(String stationPath) throws Exception {
         // Get station details
-        URL url = new URL("https://onlineradiobox.com/json/" + stationPath);
+        URL url = URI.create("https://onlineradiobox.com/json/" + stationPath).toURL();
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("GET");
         connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
@@ -1283,7 +1281,7 @@ public class RadioCmd extends MusicCommand {
         reader.close();
         
         // Get stream URL from widget data
-        URL widgetUrl = new URL("https://onlineradiobox.com/json/" + stationPath + "/widget/");
+        URL widgetUrl = URI.create("https://onlineradiobox.com/json/" + stationPath + "/widget/").toURL();
         HttpURLConnection widgetConnection = (HttpURLConnection) widgetUrl.openConnection();
         widgetConnection.setRequestMethod("GET");
         widgetConnection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
@@ -1339,9 +1337,7 @@ public class RadioCmd extends MusicCommand {
             if (channel != null) {
                 EmbedBuilder embed = new EmbedBuilder();
                 Member selfMember = resolveSelfMember(guild);
-                if (selfMember != null && selfMember.getColor() != null) {
-                    embed.setColor(selfMember.getColor());
-                }
+                embed.setColor(DiscordCompat.getMemberColor(selfMember));
                 embed.setTitle("Radio added to queue");
                 embed.setDescription("**" + station.title + "** has been added to the queue!");
                 embed.setThumbnail(station.logoUrl);
@@ -1382,11 +1378,12 @@ public class RadioCmd extends MusicCommand {
         }
     }
 
+    @SuppressWarnings("unused")
     private String getCurrentTrackInfo(String stationPath) {
         try {
             // Get current track info from OnlineRadioBox scraper API
             String scraperId = stationPath.replace("/", ".");
-            URL scrapeUrl = new URL("http://scraper.onlineradiobox.com/" + scraperId);
+            URL scrapeUrl = URI.create("http://scraper.onlineradiobox.com/" + scraperId).toURL();
             
             HttpURLConnection connection = (HttpURLConnection) scrapeUrl.openConnection();
             connection.setRequestMethod("GET");
@@ -1461,7 +1458,7 @@ public class RadioCmd extends MusicCommand {
         try {
             // Get current track info from OnlineRadioBox scraper API
             String scraperId = stationPath.replace("/", ".");
-            URL scrapeUrl = new URL("http://scraper.onlineradiobox.com/" + scraperId);
+            URL scrapeUrl = URI.create("http://scraper.onlineradiobox.com/" + scraperId).toURL();
             
             HttpURLConnection connection = (HttpURLConnection) scrapeUrl.openConnection();
             connection.setRequestMethod("GET");
@@ -1506,6 +1503,7 @@ public class RadioCmd extends MusicCommand {
         int substationCount; // Number of substations
         String radioId; // Radio ID for substation search
         
+        @SuppressWarnings("unused")
         RadioStation(String title, String path) {
             this.title = title;
             this.path = path;
@@ -1790,9 +1788,7 @@ public class RadioCmd extends MusicCommand {
         private void displayRichEmbedResponse(TrackInfo trackInfo, String guildId) {
             EmbedBuilder embed = new EmbedBuilder();
             Member selfMember = resolveSelfMember(event.getGuild());
-            if (selfMember != null && selfMember.getColor() != null) {
-                embed.setColor(selfMember.getColor());
-            }
+            embed.setColor(DiscordCompat.getMemberColor(selfMember));
             embed.setTitle(FormatUtil.filter(event.getClient().getSuccess() + " Radio added to queue"));
             
             // Description with more information
@@ -1846,9 +1842,7 @@ public class RadioCmd extends MusicCommand {
             if (channel != null) {
                 EmbedBuilder embed = new EmbedBuilder();
                 Member selfMember = resolveSelfMember(guild);
-                if (selfMember != null && selfMember.getColor() != null) {
-                    embed.setColor(selfMember.getColor());
-                }
+                embed.setColor(DiscordCompat.getMemberColor(selfMember));
                 embed.setTitle("Radio added to queue");
                 
                 // Description with more information
@@ -2097,9 +2091,7 @@ public class RadioCmd extends MusicCommand {
                         // Create a new embed with updated info
                         EmbedBuilder embed = new EmbedBuilder();
                         Member selfMember = resolveSelfMember(guild);
-                        if (selfMember != null && selfMember.getColor() != null) {
-                            embed.setColor(selfMember.getColor());
-                        }
+                        embed.setColor(DiscordCompat.getMemberColor(selfMember));
                         
                         // Create a clickable link for the station
                         String stationUrl = "https://onlineradiobox.com/" + stationPath;
@@ -2243,7 +2235,7 @@ public class RadioCmd extends MusicCommand {
             
             // Create URL for the search with pagination parameters
             // The URL format is: https://onlineradiobox.com/search?part=1&q=[query]&offset=[offset]
-            URL url = new URL("https://onlineradiobox.com/search?part=1&q=" + encodedQuery + "&offset=" + offset);
+            URL url = URI.create("https://onlineradiobox.com/search?part=1&q=" + encodedQuery + "&offset=" + offset).toURL();
             
             // Setup connection
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -2370,7 +2362,7 @@ public class RadioCmd extends MusicCommand {
                 }
             }
 
-            URL scraperUrl = new URL("http://scraper.onlineradiobox.com/" + scraperId);
+            URL scraperUrl = URI.create("http://scraper.onlineradiobox.com/" + scraperId).toURL();
             HttpURLConnection connection = (HttpURLConnection) scraperUrl.openConnection();
             connection.setRequestMethod("GET");
             connection.setRequestProperty("User-Agent", "Mozilla/5.0");
@@ -2913,6 +2905,7 @@ public class RadioCmd extends MusicCommand {
     /**
      * Handle the substation button click
      */
+    @SuppressWarnings("unused")
     private void handleSubstationButton(
             net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent event,
             List<RadioStation> stations, 

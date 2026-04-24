@@ -94,9 +94,9 @@ public class CacheLoader {
             File file = new File(OtherUtil.getPath("cache" + File.separator + serverId + ".cash").toString());
 
             byte[] data = new byte[(int) file.length()];
-            InputStream reader = new FileInputStream(file);
-
-            reader.read(data);
+            try (InputStream reader = new FileInputStream(file)) {
+                reader.read(data);
+            }
 
             ObjectMapper objectMapper = new ObjectMapper(new MessagePackFactory());
             List<dev.cosgy.jmusicbot.util.Cache> deserialized = objectMapper.readValue(data, new TypeReference<List<dev.cosgy.jmusicbot.util.Cache>>() {

@@ -13,7 +13,6 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;

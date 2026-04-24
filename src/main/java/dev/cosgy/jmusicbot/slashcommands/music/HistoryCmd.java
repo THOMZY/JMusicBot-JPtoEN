@@ -19,7 +19,6 @@ import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.MusicHistory;
-import com.jagrosh.jmusicbot.utils.FormatUtil;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.interactions.commands.OptionType;

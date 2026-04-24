@@ -5,7 +5,6 @@
 package com.jagrosh.jmusicbot.webpanel.service;
 
 import com.jagrosh.jmusicbot.Bot;
-import com.jagrosh.jmusicbot.JMusicBot;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -242,8 +241,6 @@ public class ConsoleService {
             // This is a simulated execution - the bot would normally process this
             // through a guild message event
             if (bot.getJDA() != null && !bot.getJDA().getGuilds().isEmpty()) {
-                String guildId = bot.getJDA().getGuilds().get(0).getId();
-                
                 if (fullCommand.equals(prefix + "help")) {
                     return "List of available commands: play, pause, skip, volume, queue, etc. (Use prefix: " + prefix + ")";
                 } else if (fullCommand.startsWith(prefix + "play")) {

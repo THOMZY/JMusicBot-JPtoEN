@@ -41,6 +41,7 @@ public class GensokyoInfoAgent extends Thread {
     private static final Logger log = LoggerFactory.getLogger(GensokyoInfoAgent.class);
     private static final long UPDATE_INTERVAL_MILLIS = 1000; // 1 second interval for incrementing time
     private static ResultSet info = null;
+    @SuppressWarnings("unused")
     private static String lastSong = "";
     private static boolean needsUpdate = true;
     private static long lastUpdateTime = 0;

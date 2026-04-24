@@ -29,7 +29,6 @@ import dev.cosgy.jmusicbot.util.YtDlpManager.FallbackPlatform;
 import dev.cosgy.jmusicbot.util.YtDlpManager.YtDlpMetadata;
 import net.dv8tion.jda.api.entities.User;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

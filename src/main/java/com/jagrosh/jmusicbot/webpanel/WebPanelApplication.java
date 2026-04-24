@@ -13,11 +13,14 @@ import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
+import java.io.IOException;
 import java.io.PrintStream;
-import java.util.concurrent.CountDownLatch;
+import java.net.ServerSocket;
 
 @SpringBootApplication
+@EnableScheduling
 public class WebPanelApplication {
 
     private static ConsoleService consoleService;
@@ -39,6 +42,23 @@ public class WebPanelApplication {
      * @param port The port to run on
      */
     public static void start(Bot bot, int port) {
+        // Stop any previously running context first
+        if (context != null) {
+            try {
+                context.close();
+            } catch (Exception ignored) {
+            }
+            context = null;
+        }
+
+        // Check if the port is available before attempting to start
+        if (!isPortAvailable(port)) {
+            throw new IllegalStateException(
+                    "Port " + port + " is already in use. "
+                    + "Make sure no other instance of JMusicBot or another application is using this port. "
+                    + "You can change the web panel port in your config file (webpanelport) or stop the other process.");
+        }
+
         // Start the Spring Boot application
         String[] args = new String[]{"--server.port=" + port};
         installJulBridge();
@@ -191,6 +211,15 @@ public class WebPanelApplication {
         }
         if (originalErr != null) {
             System.setErr(originalErr);
+        }
+    }
+
+    private static boolean isPortAvailable(int port) {
+        try (ServerSocket socket = new ServerSocket(port)) {
+            socket.setReuseAddress(true);
+            return true;
+        } catch (IOException e) {
+            return false;
         }
     }
 } 

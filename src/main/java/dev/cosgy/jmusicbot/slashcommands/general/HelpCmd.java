@@ -48,7 +48,7 @@ public class HelpCmd extends SlashCommand {
                 event.getClient().getTextualPrefix(),
                 event.isOwner(),
                 event.getClient().getServerInvite(),
-                event.getMember() == null ? null : event.getMember().getColor()
+                dev.cosgy.jmusicbot.util.DiscordCompat.getMemberColor(event.getMember())
         );
 
         if (embeds.size() == 1) {
@@ -71,7 +71,7 @@ public class HelpCmd extends SlashCommand {
                 event.getClient().getTextualPrefix(),
                 event.isOwner(),
                 event.getClient().getServerInvite(),
-                event.getSelfMember() == null ? null : event.getSelfMember().getColor()
+                dev.cosgy.jmusicbot.util.DiscordCompat.getMemberColor(event.getSelfMember())
         );
 
         for (MessageEmbed embed : embeds) {

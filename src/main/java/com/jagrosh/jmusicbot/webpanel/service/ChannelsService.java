@@ -10,6 +10,7 @@ import com.jagrosh.jmusicbot.webpanel.model.DiscordChannel;
 import com.jagrosh.jmusicbot.webpanel.model.DiscordMessage;
 import com.jagrosh.jmusicbot.webpanel.model.DiscordRole;
 import com.jagrosh.jmusicbot.webpanel.model.DiscordServer;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import com.jagrosh.jmusicbot.webpanel.model.DiscordUserProfile;
 import com.jagrosh.jmusicbot.webpanel.model.ChannelMember;
 
@@ -32,7 +33,6 @@ import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 import net.dv8tion.jda.api.entities.channel.middleman.GuildChannel;
 import net.dv8tion.jda.api.entities.channel.attribute.ICategorizableChannel;
 import net.dv8tion.jda.api.entities.channel.attribute.IPositionableChannel;
-import net.dv8tion.jda.api.exceptions.InsufficientPermissionException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -40,7 +40,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.Color;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -57,6 +56,7 @@ public class ChannelsService {
 
     private static final Logger log = LoggerFactory.getLogger(ChannelsService.class);
     
+    @SuppressWarnings("unused")
     private final Bot bot;
     private final AvatarCacheService avatarCacheService;
     
@@ -270,7 +270,7 @@ public class ChannelsService {
 
             for (Role role : guild.getRoles()) {
                 String hexColor = "#FFFFFF"; // Default to white
-                Color roleColor = role.getColor();
+                Color roleColor = DiscordCompat.getRoleColor(role);
                 if (roleColor != null) {
                     hexColor = String.format("#%02x%02x%02x", roleColor.getRed(), roleColor.getGreen(), roleColor.getBlue());
                 }
@@ -458,7 +458,7 @@ public class ChannelsService {
         }
 
         Role highestRole = member.getRoles().get(0);
-        Color roleColor = highestRole.getColor();
+        Color roleColor = DiscordCompat.getRoleColor(highestRole);
         if (roleColor == null) {
             return "#FFFFFF";
         }
@@ -614,7 +614,7 @@ public class ChannelsService {
             // Roles from Member#getRoles() are already sorted by position (highest first)
             for (Role role : roles) {
                 String hexColor = "#FFFFFF"; // Default to white
-                Color roleColor = role.getColor();
+                Color roleColor = DiscordCompat.getRoleColor(role);
                 if (roleColor != null) {
                     hexColor = String.format("#%02x%02x%02x", roleColor.getRed(), roleColor.getGreen(), roleColor.getBlue());
                 }
@@ -725,7 +725,7 @@ public class ChannelsService {
             List<Role> roles = member.getRoles(); // Roles are already sorted by position
             for (Role role : roles) {
                 String hexColor = "#FFFFFF";
-                Color roleColor = role.getColor();
+                Color roleColor = DiscordCompat.getRoleColor(role);
                 if (roleColor != null) {
                     hexColor = String.format("#%02x%02x%02x", roleColor.getRed(), roleColor.getGreen(), roleColor.getBlue());
                 }

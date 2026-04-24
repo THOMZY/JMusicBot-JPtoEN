@@ -123,6 +123,14 @@ public final class YtDlpManager {
         if (needsDownload) {
             downloadBinaryWithFallback(assetCandidates, exePath);
             grantExecuteIfNeeded(exePath);
+        } else {
+            // Update existing binary to the latest version
+            try {
+                log.info("Checking for yt-dlp updates on startup...");
+                runUpdateCommand(exePath);
+            } catch (Exception e) {
+                log.warn("yt-dlp startup update check failed: {}", e.toString());
+            }
         }
 
         String version = runAndCapture(exePath.toString(), "--version").trim();
@@ -546,6 +554,7 @@ public final class YtDlpManager {
         }
     }
 
+    @SuppressWarnings("unused")
     private static String pickAssetForCurrentPlatform() {
         return pickAssetForPlatform(
                 System.getProperty("os.name", ""),

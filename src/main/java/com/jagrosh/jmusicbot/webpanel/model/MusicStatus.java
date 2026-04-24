@@ -41,6 +41,7 @@ public class MusicStatus {
     private final String localYear;
     private final boolean isStream;
     private final String sourceIconUrl;
+    private final double playbackRate;
 
     public MusicStatus(
             String currentTrackTitle,
@@ -57,7 +58,7 @@ public class MusicStatus {
             this(currentTrackTitle, currentTrackAuthor, currentTrackUri, currentTrackThumbnail,
                 currentTrackPosition, currentTrackDuration, playing, paused, hasNext,
                 queueSize, DEFAULT_TEXT, DEFAULT_TEXT, DEFAULT_TEXT, DEFAULT_VOLUME, DEFAULT_TEXT,
-                false, null, null, null, null, null, null, null, null, false, null);
+                false, null, null, null, null, null, null, null, null, false, null, 1.0);
     }
 
     public MusicStatus(
@@ -80,7 +81,7 @@ public class MusicStatus {
             this(currentTrackTitle, currentTrackAuthor, currentTrackUri, currentTrackThumbnail,
                 currentTrackPosition, currentTrackDuration, playing, paused, hasNext,
                 queueSize, source, requester, requesterAvatar, volume, sourceType,
-                false, null, null, null, null, null, null, null, null, false, null);
+                false, null, null, null, null, null, null, null, null, false, null, 1.0);
     }
     
     public MusicStatus(
@@ -105,7 +106,7 @@ public class MusicStatus {
         this(currentTrackTitle, currentTrackAuthor, currentTrackUri, currentTrackThumbnail,
              currentTrackPosition, currentTrackDuration, playing, paused, hasNext,
              queueSize, source, requester, requesterAvatar, volume, sourceType,
-             inVoiceChannel, spotifyInfo, null, null, null, null, null, null, null, false, null);
+               inVoiceChannel, spotifyInfo, null, null, null, null, null, null, null, false, null, 1.0);
     }
 
     public MusicStatus(
@@ -134,7 +135,8 @@ public class MusicStatus {
             String localGenre,
             String localYear,
             boolean isStream,
-            String sourceIconUrl
+                String sourceIconUrl,
+                double playbackRate
     ) {
         this.currentTrackTitle = currentTrackTitle;
         this.currentTrackAuthor = currentTrackAuthor;
@@ -162,6 +164,7 @@ public class MusicStatus {
         this.localYear = localYear;
         this.isStream = isStream;
         this.sourceIconUrl = sourceIconUrl;
+        this.playbackRate = playbackRate;
     }
 
     public MusicStatus(
@@ -185,7 +188,7 @@ public class MusicStatus {
         this(currentTrackTitle, currentTrackAuthor, currentTrackUri, currentTrackThumbnail,
              currentTrackPosition, currentTrackDuration, playing, paused, hasNext,
              queueSize, source, requester, requesterAvatar, volume, sourceType,
-             inVoiceChannel, null, null, null, null, null, null, null, null, false, null);
+               inVoiceChannel, null, null, null, null, null, null, null, null, false, null, 1.0);
     }
 
     // Getters and setters
@@ -292,5 +295,9 @@ public class MusicStatus {
 
     public String getSourceIconUrl() {
         return sourceIconUrl;
+    }
+
+    public double getPlaybackRate() {
+        return playbackRate;
     }
 }

@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -283,7 +284,7 @@ public class LocalAudioMetadata {
             tempFile.deleteOnExit();
             
             // Download the file
-            URL url = new URL(fileUrl);
+            URL url = URI.create(fileUrl).toURL();
             connection = (HttpURLConnection) url.openConnection();
             connection.setRequestProperty("User-Agent", "JMusicBot/1.0");
             

@@ -23,13 +23,12 @@ import com.jagrosh.jmusicbot.playlist.PlaylistLoader.Playlist;
 import com.jagrosh.jmusicbot.queue.FairQueue;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
-import com.jagrosh.jmusicbot.utils.YouTubeChapterExtractor;
 import com.sedmelluq.discord.lavaplayer.player.AudioPlayer;
-import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
 import com.sedmelluq.discord.lavaplayer.player.event.AudioEventAdapter;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackEndReason;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
+import dev.cosgy.jmusicbot.util.DiscordCompat;
 import dev.cosgy.jmusicbot.util.YtDlpManager.FallbackPlatform;
 import com.sedmelluq.discord.lavaplayer.track.playback.AudioFrame;
 import dev.cosgy.jmusicbot.settings.RepeatMode;
@@ -48,17 +47,16 @@ import org.slf4j.LoggerFactory; // Import manquant
 import dev.cosgy.jmusicbot.util.YtDlpManager.YtDlpMetadata;
 
 import java.io.File; // Import pour java.io.File
-import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.ByteBuffer;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Handles audio playback and track management for a guild
@@ -66,8 +64,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class AudioHandler extends AudioEventAdapter implements AudioSendHandler {
     private final FairQueue<QueuedTrack> queue = new FairQueue<>();
-    private final List<AudioTrack> defaultQueue = new LinkedList<>();
-    private final Set<String> votes = new HashSet<>();
+    private final List<AudioTrack> defaultQueue = Collections.synchronizedList(new LinkedList<>());
+    private final Set<String> votes = ConcurrentHashMap.newKeySet();
     private final PlayerManager manager;
     private final AudioPlayer audioPlayer;
     private final long guildId;
@@ -75,6 +73,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
     private AudioFrame lastFrame;
     private long streamStartTime;
     private final AtomicBoolean suppressAutoLeaveOnce = new AtomicBoolean(false);
+    private final FilterChainConfig filterChain = new FilterChainConfig();
     
     // Cache for various content sources
     private static final Map<String, String> sourceIconCache = new ConcurrentHashMap<>();
@@ -117,8 +116,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      */
     public TrackType getTrackType(AudioTrack track) {
         if (track == null) return TrackType.OTHER;
-        
-        RequestMetadata rm = extractRequestMetadata(track);
+
         AudioTrackInfo info = displayInfo(track);
         
         // Check for Spotify first - high priority
@@ -235,7 +233,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         if (trackUrl.contains("onlineradiobox.com")) {
             // Extract the path from orb URLs like: https://onlineradiobox.com/uk/capital/
             try {
-                URL url = new URL(trackUrl);
+                URL url = URI.create(trackUrl).toURL();
                 String path = url.getPath();
                 if (path.startsWith("/")) {
                     path = path.substring(1);
@@ -612,6 +610,58 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         return audioPlayer;
     }
 
+    public FilterChainConfig getFilterChain() {
+        return filterChain;
+    }
+
+    public double getPlaybackRate() {
+        FilterChainConfig.TimescaleConfig timescale = filterChain.getTimescale();
+        if (!timescale.isEnabled()) {
+            return 1.0;
+        }
+
+        double rate = timescale.getSpeed() * timescale.getRate();
+        return rate > 0.0 ? rate : 1.0;
+    }
+
+    public long getDisplayTrackPosition(AudioTrack track) {
+        if (track == null) {
+            return 0L;
+        }
+        return adjustTrackTimeForDisplay(track.getPosition());
+    }
+
+    public long getDisplayTrackDuration(AudioTrack track) {
+        if (track == null) {
+            return 0L;
+        }
+        return adjustTrackTimeForDisplay(track.getDuration());
+    }
+
+    public long toSourceTrackPosition(long displayPositionMs) {
+        return Math.max(0L, Math.round(displayPositionMs * getPlaybackRate()));
+    }
+
+    private long adjustTrackTimeForDisplay(long sourceTimeMs) {
+        if (sourceTimeMs < 0L) {
+            return sourceTimeMs;
+        }
+        double playbackRate = getPlaybackRate();
+        if (playbackRate == 1.0) {
+            return sourceTimeMs;
+        }
+        return Math.max(0L, Math.round(sourceTimeMs / playbackRate));
+    }
+
+    public void applyFilters() {
+        // Hot-swap is enabled (see PlayerManager), so lavaplayer will detect
+        // the new factory reference on the next process() call and rebuild
+        // the filter chain automatically — no seek needed.
+        audioPlayer.setFilterFactory(filterChain.isAnyEnabled()
+                ? (track, format, output) -> filterChain.buildChain(format, output)
+                : null);
+    }
+
     /**
      * Gets the request metadata for the current track
      * @return The RequestMetadata or EMPTY if no track is playing
@@ -651,9 +701,11 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      */
     public boolean playFromDefault() {
         // First check the in-memory default queue
-        if (!defaultQueue.isEmpty()) {
-            audioPlayer.playTrack(defaultQueue.remove(0));
-            return true;
+        synchronized (defaultQueue) {
+            if (!defaultQueue.isEmpty()) {
+                audioPlayer.playTrack(defaultQueue.remove(0));
+                return true;
+            }
         }
         
         // Then check if we have a default playlist configured
@@ -980,7 +1032,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
         RequestMetadata rm = prepareNowPlayingMetadata(jda, track, getRequestMetadata(), bot, trackType);
 
         EmbedBuilder eb = new EmbedBuilder();
-        eb.setColor(guild.getSelfMember().getColor());
+        eb.setColor(DiscordCompat.getMemberColor(guild.getSelfMember()));
         String artworkDiskPath = resolveLocalArtworkPath(bot, trackType, track);
 
         buildNowPlayingEmbed(eb, guild, bot, track, rm, trackType, artworkDiskPath);
@@ -1792,14 +1844,18 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                     .append(" `[LIVE]` ");
         } else {
             // For normal tracks
-                double progress = (double) audioPlayer.getPlayingTrack().getPosition() / track.getDuration();
+                long displayPosition = getDisplayTrackPosition(track);
+                long displayDuration = getDisplayTrackDuration(track);
+                double progress = displayDuration > 0
+                        ? (double) displayPosition / displayDuration
+                        : 0.0;
             description.append((audioPlayer.isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI))
                         .append(" ")
                         .append(FormatUtil.progressBar(progress))
                         .append(" `[")
-                        .append(FormatUtil.formatTime(track.getPosition()))
+                        .append(FormatUtil.formatTime(displayPosition))
                         .append("/")
-                        .append(FormatUtil.formatTime(track.getDuration()))
+                        .append(FormatUtil.formatTime(displayDuration))
                         .append("]` ");
             }
     }
@@ -1811,7 +1867,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
                 .setEmbeds(new EmbedBuilder()
                         .setTitle("No music is playing.")
                         .setDescription(JMusicBot.STOP_EMOJI + " " + FormatUtil.progressBar(-1) + " " + FormatUtil.volumeIcon(audioPlayer.getVolume()))
-                        .setColor(guild.getSelfMember().getColor())
+                        .setColor(DiscordCompat.getMemberColor(guild.getSelfMember()))
                         .build())
                 .build();
     }
@@ -2083,6 +2139,7 @@ public class AudioHandler extends AudioEventAdapter implements AudioSendHandler 
      * @param seconds The seconds to format
      * @return The formatted time string
      */
+    @SuppressWarnings("unused")
     private String formatTime(Integer seconds) {
         if (seconds == null) return "0:00";
         

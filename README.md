@@ -18,7 +18,7 @@ This is an English translation of [JMusicBotJP](https://github.com/Cosgy-Dev/JMu
 This fork aims to updates dependencies when YouTube playback breaks and adds minor new features.
 
 ### Changes :
-
+* [lavadsp](https://github.com/lavalink-devs/lavadsp) support - new `/filters` command.
 * **[`yt-dlp`](https://github.com/yt-dlp/yt-dlp)** fallback and support.
 * Added a web panel for music / bot management.  
 * Added `/history` command that track played songs.  

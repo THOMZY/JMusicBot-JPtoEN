@@ -1,0 +1,332 @@
+<!-- Audio Filters Component for JMusicBot Web Panel -->
+<div class="filters-container" id="filters-container">
+    <div class="filters-header">
+        <div class="filters-title"><i class="fas fa-sliders-h"></i> Audio Filters</div>
+        <button class="filters-close" id="filters-close" aria-label="Close filters"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="filters-list" id="filters-list">
+
+        <!-- Timescale -->
+        <div class="filter-card" data-filter="timescale">
+            <div class="filter-card-header" data-toggle="timescale">
+                <span class="filter-name">⏱ Timescale</span>
+                <label class="filter-toggle-switch">
+                    <input type="checkbox" class="filter-enabled" data-filter="timescale">
+                    <span class="filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="filter-card-body" id="filter-body-timescale">
+                <div class="filter-param">
+                    <label>Speed <span class="param-value" id="timescale-speed-val">1.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="timescale" data-param="speed" min="0.1" max="3.0" step="0.05" value="1.0">
+                </div>
+                <div class="filter-param">
+                    <label>Pitch <span class="param-value" id="timescale-pitch-val">1.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="timescale" data-param="pitch" min="0.1" max="3.0" step="0.05" value="1.0">
+                </div>
+                <div class="filter-param">
+                    <label>Rate <span class="param-value" id="timescale-rate-val">1.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="timescale" data-param="rate" min="0.1" max="3.0" step="0.05" value="1.0">
+                </div>
+            </div>
+        </div>
+
+        <!-- Tremolo -->
+        <div class="filter-card" data-filter="tremolo">
+            <div class="filter-card-header" data-toggle="tremolo">
+                <span class="filter-name">🥁 Tremolo</span>
+                <label class="filter-toggle-switch">
+                    <input type="checkbox" class="filter-enabled" data-filter="tremolo">
+                    <span class="filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="filter-card-body" id="filter-body-tremolo">
+                <div class="filter-param">
+                    <label>Frequency <span class="param-value" id="tremolo-frequency-val">2.0 Hz</span></label>
+                    <input type="range" class="filter-slider" data-filter="tremolo" data-param="frequency" min="0.1" max="20.0" step="0.1" value="2.0">
+                </div>
+                <div class="filter-param">
+                    <label>Depth <span class="param-value" id="tremolo-depth-val">0.5</span></label>
+                    <input type="range" class="filter-slider" data-filter="tremolo" data-param="depth" min="0.01" max="1.0" step="0.01" value="0.5">
+                </div>
+            </div>
+        </div>
+
+        <!-- Vibrato -->
+        <div class="filter-card" data-filter="vibrato">
+            <div class="filter-card-header" data-toggle="vibrato">
+                <span class="filter-name">🌀 Vibrato</span>
+                <label class="filter-toggle-switch">
+                    <input type="checkbox" class="filter-enabled" data-filter="vibrato">
+                    <span class="filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="filter-card-body" id="filter-body-vibrato">
+                <div class="filter-param">
+                    <label>Frequency <span class="param-value" id="vibrato-frequency-val">2.0 Hz</span></label>
+                    <input type="range" class="filter-slider" data-filter="vibrato" data-param="frequency" min="0.1" max="14.0" step="0.1" value="2.0">
+                </div>
+                <div class="filter-param">
+                    <label>Depth <span class="param-value" id="vibrato-depth-val">0.5</span></label>
+                    <input type="range" class="filter-slider" data-filter="vibrato" data-param="depth" min="0.01" max="1.0" step="0.01" value="0.5">
+                </div>
+            </div>
+        </div>
+
+        <!-- Karaoke -->
+        <div class="filter-card" data-filter="karaoke">
+            <div class="filter-card-header" data-toggle="karaoke">
+                <span class="filter-name">🎤 Karaoke</span>
+                <label class="filter-toggle-switch">
+                    <input type="checkbox" class="filter-enabled" data-filter="karaoke">
+                    <span class="filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="filter-card-body" id="filter-body-karaoke">
+                <div class="filter-param">
+                    <label>Level <span class="param-value" id="karaoke-level-val">1.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="karaoke" data-param="level" min="0.0" max="1.0" step="0.05" value="1.0">
+                </div>
+                <div class="filter-param">
+                    <label>Mono Level <span class="param-value" id="karaoke-monoLevel-val">1.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="karaoke" data-param="monoLevel" min="0.0" max="1.0" step="0.05" value="1.0">
+                </div>
+                <div class="filter-param">
+                    <label>Band <span class="param-value" id="karaoke-filterBand-val">220 Hz</span></label>
+                    <input type="range" class="filter-slider" data-filter="karaoke" data-param="filterBand" min="0" max="1000" step="5" value="220">
+                </div>
+                <div class="filter-param">
+                    <label>Width <span class="param-value" id="karaoke-filterWidth-val">100 Hz</span></label>
+                    <input type="range" class="filter-slider" data-filter="karaoke" data-param="filterWidth" min="0" max="1000" step="5" value="100">
+                </div>
+            </div>
+        </div>
+
+        <!-- Rotation -->
+        <div class="filter-card" data-filter="rotation">
+            <div class="filter-card-header" data-toggle="rotation">
+                <span class="filter-name">🔄 Rotation</span>
+                <label class="filter-toggle-switch">
+                    <input type="checkbox" class="filter-enabled" data-filter="rotation">
+                    <span class="filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="filter-card-body" id="filter-body-rotation">
+                <div class="filter-param">
+                    <label>Speed <span class="param-value" id="rotation-rotationHz-val">5.0 Hz</span></label>
+                    <input type="range" class="filter-slider" data-filter="rotation" data-param="rotationHz" min="0.0" max="20.0" step="0.1" value="5.0">
+                </div>
+            </div>
+        </div>
+
+        <!-- Distortion -->
+        <div class="filter-card" data-filter="distortion">
+            <div class="filter-card-header" data-toggle="distortion">
+                <span class="filter-name">⚡ Distortion</span>
+                <label class="filter-toggle-switch">
+                    <input type="checkbox" class="filter-enabled" data-filter="distortion">
+                    <span class="filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="filter-card-body" id="filter-body-distortion">
+                <div class="filter-param">
+                    <label>Sin Offset <span class="param-value" id="distortion-sinOffset-val">0.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="distortion" data-param="sinOffset" min="-1.0" max="1.0" step="0.05" value="0.0">
+                </div>
+                <div class="filter-param">
+                    <label>Sin Scale <span class="param-value" id="distortion-sinScale-val">1.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="distortion" data-param="sinScale" min="0.0" max="5.0" step="0.05" value="1.0">
+                </div>
+                <div class="filter-param">
+                    <label>Cos Offset <span class="param-value" id="distortion-cosOffset-val">0.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="distortion" data-param="cosOffset" min="-1.0" max="1.0" step="0.05" value="0.0">
+                </div>
+                <div class="filter-param">
+                    <label>Cos Scale <span class="param-value" id="distortion-cosScale-val">1.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="distortion" data-param="cosScale" min="0.0" max="5.0" step="0.05" value="1.0">
+                </div>
+                <div class="filter-param">
+                    <label>Tan Offset <span class="param-value" id="distortion-tanOffset-val">0.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="distortion" data-param="tanOffset" min="-1.0" max="1.0" step="0.05" value="0.0">
+                </div>
+                <div class="filter-param">
+                    <label>Tan Scale <span class="param-value" id="distortion-tanScale-val">1.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="distortion" data-param="tanScale" min="0.0" max="5.0" step="0.05" value="1.0">
+                </div>
+                <div class="filter-param">
+                    <label>Offset <span class="param-value" id="distortion-offset-val">0.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="distortion" data-param="offset" min="-1.0" max="1.0" step="0.05" value="0.0">
+                </div>
+                <div class="filter-param">
+                    <label>Scale <span class="param-value" id="distortion-scale-val">1.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="distortion" data-param="scale" min="0.0" max="5.0" step="0.05" value="1.0">
+                </div>
+            </div>
+        </div>
+
+        <!-- Channel Mix -->
+        <div class="filter-card" data-filter="channelMix">
+            <div class="filter-card-header" data-toggle="channelMix">
+                <span class="filter-name">🎚 Channel Mix</span>
+                <label class="filter-toggle-switch">
+                    <input type="checkbox" class="filter-enabled" data-filter="channelMix">
+                    <span class="filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="filter-card-body" id="filter-body-channelMix">
+                <div class="filter-param">
+                    <label>Left → Left <span class="param-value" id="channelMix-leftToLeft-val">1.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="channelMix" data-param="leftToLeft" min="0.0" max="1.0" step="0.05" value="1.0">
+                </div>
+                <div class="filter-param">
+                    <label>Left → Right <span class="param-value" id="channelMix-leftToRight-val">0.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="channelMix" data-param="leftToRight" min="0.0" max="1.0" step="0.05" value="0.0">
+                </div>
+                <div class="filter-param">
+                    <label>Right → Left <span class="param-value" id="channelMix-rightToLeft-val">0.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="channelMix" data-param="rightToLeft" min="0.0" max="1.0" step="0.05" value="0.0">
+                </div>
+                <div class="filter-param">
+                    <label>Right → Right <span class="param-value" id="channelMix-rightToRight-val">1.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="channelMix" data-param="rightToRight" min="0.0" max="1.0" step="0.05" value="1.0">
+                </div>
+            </div>
+        </div>
+
+        <!-- Low Pass -->
+        <div class="filter-card" data-filter="lowPass">
+            <div class="filter-card-header" data-toggle="lowPass">
+                <span class="filter-name">🔉 Low Pass</span>
+                <label class="filter-toggle-switch">
+                    <input type="checkbox" class="filter-enabled" data-filter="lowPass">
+                    <span class="filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="filter-card-body" id="filter-body-lowPass">
+                <div class="filter-param">
+                    <label>Smoothing <span class="param-value" id="lowPass-smoothing-val">20.0</span></label>
+                    <input type="range" class="filter-slider" data-filter="lowPass" data-param="smoothing" min="1.0" max="100.0" step="0.5" value="20.0">
+                </div>
+            </div>
+        </div>
+
+        <!-- Reverb -->
+        <div class="filter-card" data-filter="reverb">
+            <div class="filter-card-header" data-toggle="reverb">
+                <span class="filter-name">🎶 Reverb</span>
+                <label class="filter-toggle-switch">
+                    <input type="checkbox" class="filter-enabled" data-filter="reverb">
+                    <span class="filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="filter-card-body" id="filter-body-reverb">
+                <div class="filter-param">
+                    <label>Room Size <span class="param-value" id="reverb-roomSize-val">0.7</span></label>
+                    <input type="range" class="filter-slider" data-filter="reverb" data-param="roomSize" min="0.0" max="1.0" step="0.01" value="0.7">
+                </div>
+                <div class="filter-param">
+                    <label>Damping <span class="param-value" id="reverb-damping-val">0.5</span></label>
+                    <input type="range" class="filter-slider" data-filter="reverb" data-param="damping" min="0.0" max="1.0" step="0.01" value="0.5">
+                </div>
+                <div class="filter-param">
+                    <label>Wet Level <span class="param-value" id="reverb-wetLevel-val">0.3</span></label>
+                    <input type="range" class="filter-slider" data-filter="reverb" data-param="wetLevel" min="0.0" max="1.0" step="0.01" value="0.3">
+                </div>
+            </div>
+        </div>
+
+        <!-- Equalizer -->
+        <div class="filter-card" data-filter="equalizer">
+            <div class="filter-card-header" data-toggle="equalizer">
+                <span class="filter-name">🎛 Equalizer</span>
+                <label class="filter-toggle-switch">
+                    <input type="checkbox" class="filter-enabled" data-filter="equalizer">
+                    <span class="filter-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="filter-card-body" id="filter-body-equalizer">
+                <div class="eq-bands-container">
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">25Hz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band0" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band0-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">40Hz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band1" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band1-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">63Hz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band2" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band2-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">100Hz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band3" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band3-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">160Hz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band4" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band4-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">250Hz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band5" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band5-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">400Hz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band6" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band6-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">630Hz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band7" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band7-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">1kHz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band8" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band8-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">1.6kHz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band9" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band9-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">2.5kHz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band10" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band10-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">4kHz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band11" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band11-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">6.3kHz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band12" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band12-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">10kHz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band13" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band13-val">0.00</span>
+                    </div>
+                    <div class="filter-param eq-band">
+                        <span class="eq-band-frequency">16kHz</span>
+                        <input type="range" class="filter-slider eq-slider" data-filter="equalizer" data-param="band14" min="-0.25" max="1.0" step="0.01" value="0" orient="vertical">
+                        <span class="eq-band-value" id="equalizer-band14-val">0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div class="filters-footer">
+        <button class="filters-reset-btn" id="filters-reset-all"><i class="fas fa-undo"></i> Reset All</button>
+    </div>
+</div>

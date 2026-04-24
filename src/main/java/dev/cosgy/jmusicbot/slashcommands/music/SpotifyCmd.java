@@ -19,11 +19,8 @@ package dev.cosgy.jmusicbot.slashcommands.music;
 
 import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
-import dev.cosgy.jmusicbot.framework.jdautilities.menu.ButtonMenu;
-import dev.cosgy.jmusicbot.framework.jdautilities.menu.OrderedMenu;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
-import com.jagrosh.jmusicbot.audio.QueuedTrack;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
 import com.sedmelluq.discord.lavaplayer.player.AudioLoadResultHandler;
 import com.sedmelluq.discord.lavaplayer.tools.FriendlyException;
@@ -31,15 +28,11 @@ import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
 import net.dv8tion.jda.api.EmbedBuilder;
-import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
-import net.dv8tion.jda.api.exceptions.PermissionException;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
-import net.dv8tion.jda.api.components.actionrow.ActionRow;
-import net.dv8tion.jda.api.components.buttons.Button;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,12 +47,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class SpotifyCmd extends MusicCommand {
 
@@ -69,10 +60,13 @@ public class SpotifyCmd extends MusicCommand {
     private static final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(CONNECTION_TIMEOUT))
             .build();
+    @SuppressWarnings("unused")
     private static final String SPOTIFY_TRACK_URL_PREFIX = "https://open.spotify.com/track/";
     private static final String SPOTIFY_AUTH_URL = "https://accounts.spotify.com/api/token";
 
+    @SuppressWarnings("unused")
     private final static String LOAD = "\uD83D\uDCE5"; // 📥
+    @SuppressWarnings("unused")
     private final static String CANCEL = "\uD83D\uDEAB"; // 🚫
 
     // Static variables to avoid double initialization
@@ -772,6 +766,7 @@ public class SpotifyCmd extends MusicCommand {
     }
     
     // Store track info in the maps (overloaded method for backward compatibility)
+    @SuppressWarnings("unused")
     private void storeTrackInfo(String guildId, String trackId, String trackName, String albumName, String artistName, String albumImageUrl, Color color) {
         storeTrackInfo(guildId, trackId, trackName, albumName, artistName, albumImageUrl, color, "Unknown");
     }

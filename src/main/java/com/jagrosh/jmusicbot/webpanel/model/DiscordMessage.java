@@ -6,7 +6,6 @@ package com.jagrosh.jmusicbot.webpanel.model;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.awt.Color;
 
 /**
  * Model representing a Discord message

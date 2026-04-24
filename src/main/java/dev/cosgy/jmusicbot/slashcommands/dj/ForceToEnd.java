@@ -52,7 +52,6 @@ public class ForceToEnd extends DJCommand {
 
     @Override
     public void doCommand(SlashCommandEvent event) {
-        Boolean nowSetting = bot.getSettingsManager().getSettings(event.getGuild()).isForceToEndQue();
         boolean newSetting;
 
         newSetting = event.getOption("value").getAsBoolean();

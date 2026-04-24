@@ -21,7 +21,6 @@ import com.jagrosh.jmusicbot.entities.Pair;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
-import com.jagrosh.jmusicbot.audio.IcyMetadataHandler;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Activity;
 import net.dv8tion.jda.api.entities.Guild;
@@ -36,8 +35,8 @@ import net.dv8tion.jda.api.utils.messages.MessageEditData;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -46,12 +45,12 @@ import java.util.concurrent.TimeUnit;
  */
 public class NowplayingHandler {
     private final Bot bot;
-    private final HashMap<Long, Pair<Long, Long>> lastNP; // guild -> channel,message
+    private final ConcurrentHashMap<Long, Pair<Long, Long>> lastNP; // guild -> channel,message
     private final HashMap<Long, ScheduledFuture<?>> gensokyoUpdateTasks = new HashMap<>();
 
     public NowplayingHandler(Bot bot) {
         this.bot = bot;
-        this.lastNP = new HashMap<>();
+        this.lastNP = new ConcurrentHashMap<>();
     }
 
     public void init() {
@@ -82,11 +81,16 @@ public class NowplayingHandler {
                 continue;
             }
             AudioHandler handler = (AudioHandler) guild.getAudioManager().getSendingHandler();
+            if (handler == null) {
+                toRemove.add(guildId);
+                continue;
+            }
             MessageEditData msg = null;
             try {
-                msg = MessageEditData.fromCreateData(Objects.requireNonNull(handler).getNowPlaying(bot.getJDA()));
+                msg = MessageEditData.fromCreateData(handler.getNowPlaying(bot.getJDA()));
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                toRemove.add(guildId);
+                continue;
             }
             if (msg == null) {
                 msg = MessageEditData.fromCreateData(handler.getNoMusicPlaying(bot.getJDA()));
@@ -240,8 +244,11 @@ public class NowplayingHandler {
 
     private boolean shouldUseTrackInStatus(AudioTrack track) {
         return track != null && bot.getJDA().getGuilds().stream()
-                .filter(g -> Objects.requireNonNull(g.getSelfMember().getVoiceState()).inAudioChannel())
-                .count() <= 1;
+                .filter(g -> {
+                    GuildVoiceState vs = g.getSelfMember().getVoiceState();
+                    return vs != null && vs.inAudioChannel();
+                })
+                .limit(2).count() <= 1;
     }
 
     private boolean tryHandleGensokyoTrack(long guildId, AudioTrack track, AudioHandler handler) {
@@ -348,9 +355,6 @@ public class NowplayingHandler {
      * @param handler The audio handler
      */
     private void setupGensokyoTrackUpdateListener(long guildId, AudioTrack track, AudioHandler handler) {
-        // Store the current track title to detect changes
-        String currentTitle = track.getInfo().title;
-        
         // Check if we already have an update task for this guild
         if (gensokyoUpdateTasks.containsKey(guildId)) {
             // Cancel the existing task

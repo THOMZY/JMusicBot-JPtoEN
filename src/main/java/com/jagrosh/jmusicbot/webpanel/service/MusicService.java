@@ -31,7 +31,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -44,10 +43,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import org.json.JSONObject;
-
-import com.jagrosh.jmusicbot.PlayStatus;
-import com.sedmelluq.discord.lavaplayer.player.AudioPlayerManager;
-import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager;
 
 import net.dv8tion.jda.api.EmbedBuilder;
 
@@ -569,8 +564,8 @@ public class MusicService {
                 info.author,
                 info.uri,
                 presentation.thumbnailUrl,
-                track.getPosition(),
-                info.length,
+            audioHandler.getDisplayTrackPosition(track),
+            audioHandler.getDisplayTrackDuration(track),
                 audioHandler.getPlayer().getPlayingTrack() != null,
                 audioHandler.getPlayer().isPaused(),
                 !audioHandler.getQueue().isEmpty(),
@@ -590,7 +585,8 @@ public class MusicService {
                 presentation.localGenre,
                 presentation.localYear,
                 presentation.isStreamFlag,
-                presentation.sourceIconUrl
+                presentation.sourceIconUrl,
+                audioHandler.getPlaybackRate()
         );
     }
 
@@ -633,7 +629,8 @@ public class MusicService {
                 null,
                 null,
                 false,
-                null
+                null,
+                1.0
         );
     }
 
@@ -766,6 +763,7 @@ public class MusicService {
     /**
      * Gets the identifier for a queued track 
      */
+    @SuppressWarnings("unused")
     private String getRequesterInfo(QueuedTrack queuedTrack) {
         try {
             if (queuedTrack != null && queuedTrack.getTrack() != null && getRequestMetadata(queuedTrack.getTrack()) != null) {
@@ -1109,7 +1107,7 @@ public class MusicService {
             AudioTrack track = audioHandler.getPlayer().getPlayingTrack();
             
             if (track != null && track.isSeekable()) {
-                track.setPosition(position);
+                track.setPosition(audioHandler.toSourceTrackPosition(position));
                 return true;
             }
         }
@@ -1444,6 +1442,25 @@ public class MusicService {
             com.jagrosh.jmusicbot.settings.Settings settings = bot.getSettingsManager().getSettings(guild);
             settings.setVolume(volume);
             
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public Map<String, Object> getFilters() {
+        Optional<AudioHandler> handler = getAudioHandler();
+        if (handler.isEmpty()) return Map.of();
+        return handler.get().getFilterChain().toMap();
+    }
+
+    public boolean setFilters(Map<String, Object> config) {
+        Optional<AudioHandler> handler = getAudioHandler();
+        if (handler.isEmpty()) return false;
+        try {
+            handler.get().getFilterChain().fromMap(config);
+            handler.get().applyFilters();
             return true;
         } catch (Exception e) {
             e.printStackTrace();

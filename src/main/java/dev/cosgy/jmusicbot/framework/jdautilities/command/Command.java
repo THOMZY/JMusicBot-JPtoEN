@@ -21,7 +21,6 @@ import net.dv8tion.jda.api.entities.GuildVoiceState;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
-import net.dv8tion.jda.api.entities.channel.middleman.AudioChannel;
 import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
 
 import java.util.Arrays;
@@ -204,6 +203,7 @@ public abstract class Command extends Interaction
     private boolean failsBotPermissions(CommandEvent event)
     {
         Member selfMember = event.getGuild() != null ? event.getGuild().getSelfMember() : null;
+        if (selfMember == null) return false;
         for (Permission p : botPermissions)
         {
             if (p == Permission.VIEW_CHANNEL || p == Permission.MESSAGE_EMBED_LINKS)

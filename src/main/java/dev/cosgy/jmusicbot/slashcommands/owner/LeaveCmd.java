@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class LeaveCmd extends OwnerCommand {
+    @SuppressWarnings("unused")
     private final Bot bot;
 
     public LeaveCmd(Bot bot) {

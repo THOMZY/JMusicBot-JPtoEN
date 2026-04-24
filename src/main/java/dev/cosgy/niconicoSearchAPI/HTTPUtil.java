@@ -144,9 +144,9 @@ public class HTTPUtil {
 
     private URL resolveTargetUrl(String params) throws MalformedURLException {
         if (query != null && method.equalsIgnoreCase("GET")) {
-            return new URL(targetAddress + (params.isEmpty() ? "" : "?" + params));
+            return java.net.URI.create(targetAddress + (params.isEmpty() ? "" : "?" + params)).toURL();
         }
-        return new URL(targetAddress);
+        return java.net.URI.create(targetAddress).toURL();
     }
 
     private void configureConnection() throws ProtocolException {

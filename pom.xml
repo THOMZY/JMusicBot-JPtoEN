@@ -5,7 +5,7 @@
     <groupId>com.jagrosh</groupId>
     <artifactId>JMusicBot</artifactId>
     <!-- For reference on version qualifiers, see: https://kengotoda.gitbooks.io/what-is-maven/deploy/snapshot-and-stable.html -->
-    <version>2026.03.11</version>
+    <version>2026.04.25</version>
     <packaging>jar</packaging>
 
     <repositories>
@@ -97,6 +97,11 @@
             <groupId>dev.arbjerg</groupId>
             <artifactId>lavaplayer-ext-youtube-rotator</artifactId>
             <version>2.2.6</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.arbjerg</groupId>
+            <artifactId>lavadsp</artifactId>
+            <version>0.7.8</version>
         </dependency>
         <dependency>
             <groupId>dev.lavalink.youtube</groupId>

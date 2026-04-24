@@ -77,7 +77,7 @@ public class CashCmd extends SlashCommand {
         builder.setText((i1, i2) -> getQueueTitle(event.getClient().getSuccess(), songs.length, finTotal))
                 .setItems(songs)
                 .setUsers(event.getAuthor())
-            .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
+            .setColor(DiscordCompat.getMemberColor(DiscordCompat.getSelfMember(event.getGuild())))
         ;
         builder.build().paginate(event.getChannel(), pagenum);
     }
@@ -180,7 +180,7 @@ public class CashCmd extends SlashCommand {
             builder.setText((i1, i2) -> getQueueTitle(event.getClient().getSuccess(), songs.length, finTotal))
                     .setItems(songs)
                     .setUsers(event.getUser())
-                    .setColor(event.getMember().getColor());
+                    .setColor(DiscordCompat.getMemberColor(event.getMember()));
             builder.build().paginate(event.getChannel(), pagenum);
         }
 

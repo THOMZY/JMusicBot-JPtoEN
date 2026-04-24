@@ -4,7 +4,6 @@
 
 package com.jagrosh.jmusicbot.webpanel.config;
 
-import com.jagrosh.jmusicbot.Bot;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -23,10 +22,7 @@ import java.io.IOException;
 @Configuration
 public class WebPanelConfig implements WebMvcConfigurer {
 
-    private final Bot bot;
-
-    public WebPanelConfig(Bot bot) {
-        this.bot = bot;
+    public WebPanelConfig() {
     }
 
     @Bean

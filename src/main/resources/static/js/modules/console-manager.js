@@ -24,6 +24,15 @@ const ConsoleManager = (function() {
             const logs = await response.json();
             
             const consoleLog = document.getElementById('console-log');
+
+            // Save expanded state of stack traces before rebuilding
+            const expandedIndices = new Set();
+            consoleLog.querySelectorAll('.has-stack-trace').forEach((entry, index) => {
+                if (entry.classList.contains('expanded')) {
+                    expandedIndices.add(index);
+                }
+            });
+
             consoleLog.innerHTML = '';
             
             if (logs.length === 0) {
@@ -106,8 +115,20 @@ const ConsoleManager = (function() {
                 }
             });
             
-            // Auto-scroll to bottom if enabled
-            if (document.getElementById('auto-scroll-checkbox').checked) {
+            // Restore expanded state of stack traces after rebuilding
+            consoleLog.querySelectorAll('.has-stack-trace').forEach((entry, index) => {
+                if (expandedIndices.has(index)) {
+                    entry.classList.add('expanded');
+                    const next = entry.nextElementSibling;
+                    if (next && next.classList.contains('console-stack-trace')) {
+                        next.style.display = 'block';
+                    }
+                }
+            });
+
+            // Auto-scroll to bottom if enabled, but only when no dropdown is open
+            const hasOpenDropdown = expandedIndices.size > 0;
+            if (document.getElementById('auto-scroll-checkbox').checked && !hasOpenDropdown) {
                 // Smooth scroll
                 consoleLog.scrollTo({
                     top: consoleLog.scrollHeight,

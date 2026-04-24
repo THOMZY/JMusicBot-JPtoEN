@@ -83,7 +83,7 @@ public class ForceRemoveCmd extends DJCommand {
             builder
                     .setSelection((msg, i) -> removeAllEntries(found.get(i - 1).getUser(), event))
                     .setText("Multiple users found:")
-                    .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
+                    .setColor(DiscordCompat.getMemberColor(DiscordCompat.getSelfMember(event.getGuild())))
                     .useNumbers()
                     .setUsers(event.getAuthor())
                     .useCancelButton(true)

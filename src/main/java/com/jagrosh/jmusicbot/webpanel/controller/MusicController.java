@@ -14,7 +14,6 @@ import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.webpanel.WebPanelApplication;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
@@ -499,6 +498,26 @@ public class MusicController {
         response.put("success", success);
         if (!success) {
             response.put("message", "Failed to seek to position. Track may not be seekable.");
+        }
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/filters")
+    public ResponseEntity<Map<String, Object>> getFilters() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("filters", musicService.getFilters());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/filters")
+    public ResponseEntity<Map<String, Object>> setFilters(@RequestBody Map<String, Object> config) {
+        boolean success = musicService.setFilters(config);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", success);
+        response.put("message", success ? "Filters updated" : "Failed to update filters");
+        if (success) {
+            response.put("filters", musicService.getFilters());
         }
         return ResponseEntity.ok(response);
     }

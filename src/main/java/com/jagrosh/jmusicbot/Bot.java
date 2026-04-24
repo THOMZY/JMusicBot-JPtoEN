@@ -27,7 +27,6 @@ import com.jagrosh.jmusicbot.audio.YouTubeChapterManager;
 import com.jagrosh.jmusicbot.gui.GUI;
 import com.jagrosh.jmusicbot.playlist.PlaylistLoader;
 import com.jagrosh.jmusicbot.settings.SettingsManager;
-import dev.cosgy.agent.GensokyoInfoAgent;
 import dev.cosgy.jmusicbot.playlist.CacheLoader;
 import dev.cosgy.jmusicbot.playlist.MylistLoader;
 import dev.cosgy.jmusicbot.playlist.PubliclistLoader;
@@ -40,16 +39,12 @@ import net.dv8tion.jda.api.entities.Member;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import javax.swing.SwingUtilities;
-
-import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * @author John Grosh (john.a.grosh@gmail.com)

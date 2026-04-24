@@ -9,6 +9,7 @@ const Player = (function() {
         paused: false,
         currentTrackPosition: 0,
         currentTrackDuration: 0,
+        playbackRate: 1.0,
         currentTrackTitle: 'No track playing',
         currentTrackAuthor: '',
         sourceType: '',
@@ -275,19 +276,19 @@ const Player = (function() {
         const progressContainer = document.getElementById('progress-container');
         const rect = progressContainer.getBoundingClientRect();
         const clickPosition = (e.clientX - rect.left) / rect.width;
-        const seekPosition = Math.floor(clickPosition * window.currentStatus.currentTrackDuration);
+        const displaySeekPosition = Math.floor(clickPosition * window.currentStatus.currentTrackDuration);
         
         // Update UI instantly for better user experience
         const progressBar = document.getElementById('progress-bar');
         progressBar.style.width = `${clickPosition * 100}%`;
-        document.getElementById('current-time').textContent = UI.formatTime(seekPosition);
+        document.getElementById('current-time').textContent = UI.formatTime(displaySeekPosition);
         
         // Update the current status immediately for a more responsive feel
-        window.currentStatus.currentTrackPosition = seekPosition;
+        window.currentStatus.currentTrackPosition = displaySeekPosition;
         
         // Store the seek time and position to avoid reverting in fetchStatus
         lastSeekTime = Date.now();
-        lastSeekPosition = seekPosition;
+        lastSeekPosition = displaySeekPosition;
         
         // Animation effect for click feedback
         const progressHandle = document.getElementById('progress-handle');
@@ -300,7 +301,7 @@ const Player = (function() {
         }, 200);
         
         // Send seek request to API
-        fetch('/api/seek?position=' + seekPosition, { method: 'POST' })
+        fetch('/api/seek?position=' + displaySeekPosition, { method: 'POST' })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -1302,18 +1303,20 @@ const Player = (function() {
                 console.error('Initial queue fetch error:', err);
             });
             
-            // Set up periodic refresh
+            // Set up periodic refresh as a fallback. Real-time updates
+            // are pushed via /ws/events (PanelEvents); the long timers
+            // below only kick in if the WebSocket is unavailable.
             setInterval(() => {
                 fetchStatus().catch(err => {
                     console.error('Periodic status fetch error:', err);
                 });
-            }, 5000);
-            
+            }, 30000);
+
             setInterval(() => {
                 fetchQueue().catch(err => {
                     console.error('Periodic queue fetch error:', err);
                 });
-            }, 10000);
+            }, 60000);
             
             console.log('Player module initialized');
         } catch (error) {

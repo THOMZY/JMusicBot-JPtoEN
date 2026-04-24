@@ -2,6 +2,22 @@
 
 ---
 
+# 25 April 2026
+
+## ▶️ Multiples fixes.
+
+### 🔧 Changes
+- New `/filters` commands. Use effects like vibrato, distortion, timescale,.. thanks to [lavadsp](https://github.com/lavalink-devs/lavadsp)
+- Fixed yt-dlp not updating correctly.
+
+Upstream changes added :
+- perf: improve thread safety and reduce unnecessary processing [5f95805](https://github.com/Cosgy-Dev/JMusicBot-JP/commit/5f958057514c9388c398ac1544641f7bb00d5a05)
+
+### 📦 Dependency Updates
++ **lavadsp**: `0.7.8`
+
+---
+
 # 11 March 2026
 
 ## ▶️ Multiples fixes.

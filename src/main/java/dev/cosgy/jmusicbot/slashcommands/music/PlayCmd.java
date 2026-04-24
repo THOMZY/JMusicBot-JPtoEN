@@ -18,7 +18,6 @@ package dev.cosgy.jmusicbot.slashcommands.music;
 
 import dev.cosgy.jmusicbot.framework.jdautilities.command.Command;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
-import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommand;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import dev.cosgy.jmusicbot.framework.jdautilities.menu.ButtonMenu;
 import com.jagrosh.jmusicbot.Bot;
@@ -36,7 +35,6 @@ import com.sedmelluq.discord.lavaplayer.track.AudioPlaylist;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrackInfo;
 import dev.cosgy.jmusicbot.playlist.CacheLoader;
-import dev.cosgy.jmusicbot.playlist.MylistLoader;
 import dev.cosgy.jmusicbot.playlist.PubliclistLoader;
 import dev.cosgy.jmusicbot.slashcommands.DJCommand;
 import dev.cosgy.jmusicbot.slashcommands.MusicCommand;
@@ -46,7 +44,6 @@ import dev.cosgy.jmusicbot.util.StackTraceUtil;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.User;
-import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.exceptions.PermissionException;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
@@ -751,10 +748,13 @@ public class PlayCmd extends MusicCommand {
     }
 
     public class RequestCmd extends MusicCommand {
-        private final static String LOAD = "\uD83D\uDCE5"; // 
+@SuppressWarnings("unused")
+        private final static String LOAD = "\uD83D\uDCE5"; //
+        @SuppressWarnings("unused")
         private final static String CANCEL = "\uD83D\uDEAB"; // 
 
         private final String loadingEmoji;
+        @SuppressWarnings("unused")
         private final JDA jda;
 
         public RequestCmd(Bot bot) {

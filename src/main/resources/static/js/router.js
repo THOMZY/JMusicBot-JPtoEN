@@ -206,6 +206,11 @@ const Router = (() => {
             YouTubeChapters.hideChaptersContainer();
         }
 
+        // Keep filters sidebar strictly scoped to the player view.
+        if (typeof AudioFilters !== 'undefined' && typeof AudioFilters.setPlayerViewActive === 'function') {
+            AudioFilters.setPlayerViewActive(viewName === 'player');
+        }
+
         console.log(`Loading view: ${viewName}`);
         
         // Update title

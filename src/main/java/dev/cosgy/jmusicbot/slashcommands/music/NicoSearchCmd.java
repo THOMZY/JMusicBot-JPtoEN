@@ -19,7 +19,7 @@ package dev.cosgy.jmusicbot.slashcommands.music;
 
 import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
-import dev.cosgy.jmusicbot.framework.jdautilities.menu.OrderedMenu;
+
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.audio.QueuedTrack;
@@ -89,7 +89,7 @@ public class NicoSearchCmd extends MusicCommand {
         }
 
         SearchResultUi ui = buildSearchResultUi(event.getClient().getSuccess(), event.getArgs(),
-                DiscordCompat.getSelfMember(event.getGuild()).getColorRaw(), results);
+                DiscordCompat.getMemberColorRaw(DiscordCompat.getSelfMember(event.getGuild())), results);
 
         loadingMessage.editMessageEmbeds(ui.embed.build())
                 .setComponents(ui.actionRow)
@@ -119,7 +119,7 @@ public class NicoSearchCmd extends MusicCommand {
             }
 
             SearchResultUi ui = buildSearchResultUi(event.getClient().getSuccess(), input,
-                    DiscordCompat.getSelfMember(event.getGuild()).getColorRaw(), results);
+                    DiscordCompat.getMemberColorRaw(DiscordCompat.getSelfMember(event.getGuild())), results);
 
             event.getChannel().sendMessageEmbeds(ui.embed.build())
                     .setComponents(ui.actionRow)

@@ -4,12 +4,10 @@ import dev.cosgy.jmusicbot.framework.jdautilities.command.Command;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.CommandEvent;
 import dev.cosgy.jmusicbot.framework.jdautilities.command.SlashCommandEvent;
 import com.jagrosh.jmusicbot.Bot;
-import dev.cosgy.jmusicbot.playlist.MylistLoader;
 import dev.cosgy.jmusicbot.playlist.PubliclistLoader;
 import dev.cosgy.jmusicbot.playlist.PubliclistLoader.Playlist;
 import dev.cosgy.jmusicbot.slashcommands.OwnerCommand;
 import dev.cosgy.jmusicbot.slashcommands.admin.AutoplaylistCmd;
-import dev.cosgy.jmusicbot.slashcommands.music.MylistCmd;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 

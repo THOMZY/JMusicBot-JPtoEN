@@ -32,9 +32,6 @@ import net.dv8tion.jda.api.exceptions.PermissionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.text.ParseException;
-
 /**
  * @author John Grosh <john.a.grosh@gmail.com>
  */
@@ -114,6 +111,10 @@ public abstract class MusicCommand extends SlashCommand {
             return true;
         }
 
+        if (userState == null) {
+            return false;
+        }
+
         try {
             event.getGuild().getAudioManager().openAudioConnection(userState.getChannel());
             event.getGuild().getAudioManager().setSelfMuted(false);
@@ -138,6 +139,10 @@ public abstract class MusicCommand extends SlashCommand {
 
         if (isBotAlreadyInVoice(selfMember)) {
             return true;
+        }
+
+        if (userState == null) {
+            return false;
         }
 
         try {

@@ -133,9 +133,11 @@ public class TOTPGenerator {
 
     public static void main(String[] args) {
         // Example usage
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("Please enter the two-factor authentication secret key.");
-        String secretKey = scanner.next(); // Sample Base32 secret key
+        String secretKey;
+        try (Scanner scanner = new Scanner(System.in)) {
+            System.out.println("Please enter the two-factor authentication secret key.");
+            secretKey = scanner.next(); // Sample Base32 secret key
+        }
 
         Timer timer = new Timer();
         timer.schedule(new TimerTask() {

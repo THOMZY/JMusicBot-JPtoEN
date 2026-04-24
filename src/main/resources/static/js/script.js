@@ -52,6 +52,12 @@ function initializeApp() {
             console.log('Initializing Player...');
             Player.initialize();
         }
+
+        // Initialize audio filters sidebar
+        if (typeof AudioFilters !== 'undefined') {
+            console.log('Initializing Audio Filters...');
+            AudioFilters.initialize();
+        }
         
         // Setup global event handlers (modals, etc)
         setupModalButtons();
@@ -252,6 +258,7 @@ window.servers = [];
 document.addEventListener('component:loaded', (event) => {
     if (event.detail?.name === 'player') {
         setupChaptersToggleButton();
+        setupFiltersToggleButton();
     }
 });
 
@@ -270,6 +277,27 @@ function setupChaptersToggleButton() {
         document.body.classList.toggle('chapters-user-closed', !isOpen);
         if (typeof YouTubeChapters !== 'undefined' && typeof YouTubeChapters.repositionDrawer === 'function') {
             YouTubeChapters.repositionDrawer();
+        }
+    });
+}
+
+function setupFiltersToggleButton() {
+    const toggleBtn = document.getElementById('filters-toggle');
+    if (!toggleBtn) return;
+
+    // Replace to clear old listeners
+    const newBtn = toggleBtn.cloneNode(true);
+    toggleBtn.parentNode.replaceChild(newBtn, toggleBtn);
+
+    newBtn.addEventListener('click', () => {
+        const isOpen = document.body.classList.toggle('filters-open');
+        newBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        document.getElementById('filters-sidebar')?.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+        if (isOpen) {
+            if (typeof AudioFilters !== 'undefined') {
+                AudioFilters.refresh();
+                AudioFilters.positionSidebar();
+            }
         }
     });
 }

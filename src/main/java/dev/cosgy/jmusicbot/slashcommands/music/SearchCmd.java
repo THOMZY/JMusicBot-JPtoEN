@@ -108,7 +108,7 @@ public class SearchCmd extends MusicCommand {
         @Override
         public void playlistLoaded(AudioPlaylist playlist) {
             EmbedBuilder embed = new EmbedBuilder()
-                    .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
+                    .setColor(DiscordCompat.getMemberColor(DiscordCompat.getSelfMember(event.getGuild())))
                     .setTitle(FormatUtil.filter(event.getClient().getSuccess() + " Search results for `" + event.getOption("input").getAsString() + "`:"));
                     
             StringBuilder description = new StringBuilder();
@@ -258,7 +258,7 @@ public class SearchCmd extends MusicCommand {
         @Override
         public void playlistLoaded(AudioPlaylist playlist) {
             EmbedBuilder embed = new EmbedBuilder()
-                    .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
+                    .setColor(DiscordCompat.getMemberColor(DiscordCompat.getSelfMember(event.getGuild())))
                     .setTitle(FormatUtil.filter(event.getClient().getSuccess() + " Search results for `" + event.getArgs() + "`:"));
                     
             StringBuilder description = new StringBuilder();

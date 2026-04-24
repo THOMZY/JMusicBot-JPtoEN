@@ -111,7 +111,7 @@ public class QueueCmd extends MusicCommand {
         builder.setText((i1, i2) -> getQueueTitle(ah, event.getClient().getSuccess(), songs.length, finTotal, settings.getRepeatMode()))
                 .setItems(songs)
                 .setUsers(event.getAuthor())
-            .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor());
+            .setColor(DiscordCompat.getMemberColor(DiscordCompat.getSelfMember(event.getGuild())));
         builder.build().paginate(event.getChannel(), pagenum);
     }
 
@@ -146,7 +146,7 @@ public class QueueCmd extends MusicCommand {
         builder.setText((i1, i2) -> getQueueTitle(ah, event.getClient().getSuccess(), songs.length, finTotal, settings.getRepeatMode()))
                 .setItems(songs)
                 .setUsers(event.getUser())
-            .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor());
+            .setColor(DiscordCompat.getMemberColor(DiscordCompat.getSelfMember(event.getGuild())));
         builder.build().paginate(event.getChannel(), pagenum);
         m.deleteOriginal().queue();
     }

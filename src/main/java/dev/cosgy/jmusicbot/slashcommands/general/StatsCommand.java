@@ -11,11 +11,9 @@ import dev.cosgy.jmusicbot.framework.jdautilities.doc.standard.CommandInfo;
 import dev.cosgy.jmusicbot.framework.jdautilities.examples.doc.Author;
 import com.jagrosh.jmusicbot.Bot;
 import com.jagrosh.jmusicbot.settings.Settings;
-import com.jagrosh.jmusicbot.utils.FormatUtil;
 import dev.cosgy.jmusicbot.util.DiscordCompat;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Guild;
-import com.jagrosh.jmusicbot.audio.AudioHandler;
 
 import java.util.concurrent.TimeUnit;
 
@@ -66,7 +64,7 @@ public class StatsCommand extends SlashCommand {
         
         // Create a more stylish embed
         EmbedBuilder eb = new EmbedBuilder();
-        eb.setColor(DiscordCompat.getSelfMember(guild).getColor());
+        eb.setColor(DiscordCompat.getMemberColor(DiscordCompat.getSelfMember(guild)));
         eb.setTitle("📊 Music Statistics for :");
         eb.setDescription("`" + guild.getName() + "`" + "\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬");
         

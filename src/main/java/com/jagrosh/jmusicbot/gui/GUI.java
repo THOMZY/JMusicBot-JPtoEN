@@ -94,6 +94,7 @@ public class GUI extends JFrame {
     private volatile boolean cachedConnected;
     private boolean listTargetsLoadedAfterConnect;
     private Instant lastExternalToolsRefreshedAt;
+    private volatile boolean externalToolsSnapshotInFlight;
 
     private static final int STATUS_REFRESH_INTERVAL_MS = 1000;
     private static final int CONTROLLER_REFRESH_INTERVAL_MS = 3000;
@@ -670,7 +671,7 @@ public class GUI extends JFrame {
         int queueSize = handler.getQueue().size();
         currentVolume = handler.getPlayer().getVolume();
 
-        if (playing) {
+        if (playing && track != null) {
             String author = track.getInfo().author == null ? "Unknown" : track.getInfo().author;
             String fullTrackText = track.getInfo().title + " - " + author;
             currentTrackValue.setText(ellipsize(fullTrackText, 64));
@@ -1057,13 +1058,25 @@ public class GUI extends JFrame {
         if (Duration.between(lastExternalToolsRefreshedAt, now).compareTo(Duration.ofSeconds(30)) < 0) {
             return;
         }
+        if (externalToolsSnapshotInFlight) {
+            return;
+        }
         lastExternalToolsRefreshedAt = now;
+        externalToolsSnapshotInFlight = true;
 
         boolean ffmpegInstalled = bot.getPlayerManager().isFfmpegAvailable();
         ffmpegValue.setText(ffmpegInstalled ? "Installed" : "Not detected");
 
-        String ytDlpVersion = bot.getPlayerManager().getYtDlpVersion();
-        ytDlpVersionValue.setText(ytDlpVersion == null ? "Not detected" : ytDlpVersion);
+        CompletableFuture.supplyAsync(() -> bot.getPlayerManager().getYtDlpVersion())
+                .whenComplete((version, error) -> SwingUtilities.invokeLater(() -> {
+                    try {
+                        if (error == null) {
+                            ytDlpVersionValue.setText(version == null ? "Not detected" : version);
+                        }
+                    } finally {
+                        externalToolsSnapshotInFlight = false;
+                    }
+                }));
     }
 
     private void shutdownBotSafely() {

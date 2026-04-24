@@ -32,6 +32,7 @@ import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -117,7 +118,7 @@ public class LyricsCmd extends MusicCommand {
 
         EmbedBuilder eb = new EmbedBuilder()
                 .setAuthor("Lyrics for: " + displayTitle)
-                .setColor(event.getMember().getColor())
+                .setColor(DiscordCompat.getMemberColor(event.getMember()))
                 .setTitle(displayTitle, null);
         sendChunkedSlashLyrics(event, eb, lyricsText);
         return true;
@@ -161,7 +162,7 @@ public class LyricsCmd extends MusicCommand {
             String apiUrl = "https://api.lyrics.ovh/v1/" + encodedArtist + "/" + encodedTitle;
             
             // Make the request
-            URL url = new URL(apiUrl);
+            URL url = URI.create(apiUrl).toURL();
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
             
@@ -201,7 +202,7 @@ public class LyricsCmd extends MusicCommand {
     private void sendLyricsEmbed(SlashCommandEvent event, Lyrics lyrics, String title) {
         EmbedBuilder eb = new EmbedBuilder()
                 .setAuthor(lyrics.getAuthor())
-                .setColor(event.getMember().getColor())
+                .setColor(DiscordCompat.getMemberColor(event.getMember()))
                 .setTitle(lyrics.getTitle(), lyrics.getURL());
         if (lyrics.getContent().length() > 15000) {
             event.reply(event.getClient().getWarning() + " Lyrics found for `" + title + "` but they might be incorrect: " + lyrics.getURL()).queue();
@@ -280,7 +281,7 @@ public class LyricsCmd extends MusicCommand {
 
         EmbedBuilder eb = new EmbedBuilder()
                 .setAuthor("Lyrics for: " + displayTitle)
-                .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
+                .setColor(DiscordCompat.getMemberColor(DiscordCompat.getSelfMember(event.getGuild())))
                 .setTitle(displayTitle, null);
         sendChunkedCommandLyrics(event, eb, lyricsText);
         return true;
@@ -316,7 +317,7 @@ public class LyricsCmd extends MusicCommand {
     private void sendLyricsEmbed(CommandEvent event, Lyrics lyrics, String title) {
         EmbedBuilder eb = new EmbedBuilder()
                 .setAuthor(lyrics.getAuthor())
-            .setColor(DiscordCompat.getSelfMember(event.getGuild()).getColor())
+            .setColor(DiscordCompat.getMemberColor(DiscordCompat.getSelfMember(event.getGuild())))
                 .setTitle(lyrics.getTitle(), lyrics.getURL());
         if (lyrics.getContent().length() > 15000) {
             event.replyWarning(" Lyrics found for `" + title + "` but they might be incorrect: " + lyrics.getURL());

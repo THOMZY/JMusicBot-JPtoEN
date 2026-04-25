@@ -41,37 +41,45 @@ public class CursorHandler extends TextWebSocketHandler {
         session.sendMessage(new TextMessage(mapper.writeValueAsString(hello)));
     }
 
+    /** Numeric fields that may be present on a client move message. */
+    private static final String[] NUMBER_FIELDS = {
+            "rx", "ry", "vx", "vy",
+            // Legacy fields kept so older clients still interoperate.
+            "x", "y", "dx", "dy", "w", "h"
+    };
+
+    /** Text fields that may be present on a client move message. */
+    private static final String[] TEXT_FIELDS = { "sel", "name", "color", "page" };
+
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-        JsonNode node;
-        try {
-            node = mapper.readTree(message.getPayload());
-        } catch (Exception ex) {
-            return;
-        }
-        if (node == null || !node.isObject()) return;
+        JsonNode node = parseMessage(message);
+        if (node == null) return;
 
         ObjectNode out = mapper.createObjectNode();
         out.put("type", "move");
         out.put("id", session.getId());
-        if (node.hasNonNull("sel")) out.put("sel", node.get("sel").asText());
-        if (node.hasNonNull("rx")) out.put("rx", node.get("rx").asDouble());
-        if (node.hasNonNull("ry")) out.put("ry", node.get("ry").asDouble());
-        if (node.hasNonNull("vx")) out.put("vx", node.get("vx").asDouble());
-        if (node.hasNonNull("vy")) out.put("vy", node.get("vy").asDouble());
-        // Legacy fields kept so older clients still interoperate.
-        if (node.hasNonNull("x")) out.put("x", node.get("x").asDouble());
-        if (node.hasNonNull("y")) out.put("y", node.get("y").asDouble());
-        if (node.hasNonNull("dx")) out.put("dx", node.get("dx").asDouble());
-        if (node.hasNonNull("dy")) out.put("dy", node.get("dy").asDouble());
-        if (node.hasNonNull("w")) out.put("w", node.get("w").asDouble());
-        if (node.hasNonNull("h")) out.put("h", node.get("h").asDouble());
-        if (node.hasNonNull("name")) out.put("name", node.get("name").asText());
-        if (node.hasNonNull("color")) out.put("color", node.get("color").asText());
-        if (node.hasNonNull("click")) out.put("click", node.get("click").asBoolean());
-        if (node.hasNonNull("page")) out.put("page", node.get("page").asText());
-
+        copyFields(node, out);
         broadcast(out, session.getId());
+    }
+
+    private JsonNode parseMessage(TextMessage message) {
+        try {
+            JsonNode node = mapper.readTree(message.getPayload());
+            return (node != null && node.isObject()) ? node : null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private static void copyFields(JsonNode in, ObjectNode out) {
+        for (String f : NUMBER_FIELDS) {
+            if (in.hasNonNull(f)) out.put(f, in.get(f).asDouble());
+        }
+        for (String f : TEXT_FIELDS) {
+            if (in.hasNonNull(f)) out.put(f, in.get(f).asText());
+        }
+        if (in.hasNonNull("click")) out.put("click", in.get("click").asBoolean());
     }
 
     @Override

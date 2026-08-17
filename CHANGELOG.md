@@ -2,6 +2,16 @@
 
 ---
 
+# 17 August 2026
+
+### ▶️ Youtube playback fixed with **[`youtube-source 1.18.2`](https://github.com/lavalink-devs/youtube-source/releases/tag/1.18.2)**
+
+
+### 📦 Dependency Updates
+- **youtube-source**: `1.18.0` → `1.18.2`
+
+---
+
 # 25 April 2026
 
 ## ▶️ Multiples fixes.
@@ -9,6 +19,7 @@
 ### 🔧 Changes
 - New `/filters` commands. Use effects like vibrato, distortion, timescale,.. thanks to [lavadsp](https://github.com/lavalink-devs/lavadsp)
 - Fixed yt-dlp not updating correctly.
+- Webpanel : Faster queue update and live cursors.
 
 Upstream changes added :
 - perf: improve thread safety and reduce unnecessary processing [5f95805](https://github.com/Cosgy-Dev/JMusicBot-JP/commit/5f958057514c9388c398ac1544641f7bb00d5a05)

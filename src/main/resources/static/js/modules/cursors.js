@@ -305,6 +305,11 @@
 
     function flashClick(peer, color) {
         const ring = document.createElement('div');
+        // The ring is a 6x6 box; transforms scale around its center so we
+        // start by translating it so its center sits exactly on the arrow
+        // tip of the peer cursor (the SVG's tip is at viewBox (2,2)).
+        const TIP_X = 2, TIP_Y = 2;
+        const RING_HALF = 3; // half of 6px
         Object.assign(ring.style, {
             position: 'absolute',
             left: '0', top: '0',
@@ -317,11 +322,15 @@
             transition: 'transform 400ms ease-out, opacity 400ms ease-out'
         });
         ensureLayer().appendChild(ring);
+        const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(peer.el.style.transform);
+        const tipX = (m ? parseFloat(m[1]) : 0) + TIP_X;
+        const tipY = (m ? parseFloat(m[2]) : 0) + TIP_Y;
+        // Start centered on the arrow tip.
+        ring.style.transform = `translate(${tipX - RING_HALF}px, ${tipY - RING_HALF}px)`;
         requestAnimationFrame(() => {
-            const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(peer.el.style.transform);
-            const x = m ? parseFloat(m[1]) : 0;
-            const y = m ? parseFloat(m[2]) : 0;
-            ring.style.transform = `translate(${x - 14}px, ${y - 14}px) scale(6)`;
+            // scale() expands around the box center, which is already on the
+            // tip, so the ring grows symmetrically out from the click point.
+            ring.style.transform = `translate(${tipX - RING_HALF}px, ${tipY - RING_HALF}px) scale(6)`;
             ring.style.opacity = '0';
         });
         setTimeout(() => ring.remove(), 450);
